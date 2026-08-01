@@ -8,11 +8,14 @@ provider-oriented so Intel macOS, Windows, and Linux installers can be added
 without weakening the common provisioning policy.
 
 - `sources/sandfortapp/SandfortApp.swift`: SwiftUI views and user-facing state.
-- `SandboxWorkflow.swift`: app-owned state, verified downloads, baseline/session
+- `SandfortWorkflow.swift`: app-owned state, verified downloads, baseline/session
   lifecycle, and native UTM launch.
+- `LinuxGuestCatalog.swift`: curated guest metadata, immutable verified images,
+  hardware requirements, and the provisioning strategy boundary.
 - `PlatformProvider.swift`: `VirtualMachineProvider` boundary for future hosts.
 - `UTMBundleBuilder.swift`: UTM plist/bundle generation and clean-session reset.
-- `CloudInit.swift`: guest credentials, packages, hardening, and baseline setup.
+- `CloudInit.swift`: current Ubuntu credentials, packages, hardening, and
+  baseline setup behind the catalog profile.
 - `NativeDownloader.swift`, `DiskUtilities.swift`, `ISO9660Writer.swift`: native
   download, verification, disk manipulation, and NoCloud ISO generation.
 - `tests/sandfortapptests`: policy and bundle-format regression tests.
@@ -21,6 +24,33 @@ without weakening the common provisioning policy.
   indexed native macOS Help Book; do not edit generated Help Book HTML directly.
 - `docs/architecture.md`, `docs/security-model.md`, and
   `docs/adding-a-platform.md`: design intent and provider requirements.
+
+## Planned Linux guest catalog work
+
+The bundled catalog currently contains one proven profile: Ubuntu 24.04 LTS
+ARM64. Extend this into a user-selectable Linux catalog without accepting
+arbitrary downloads:
+
+- Add curated Debian, Fedora, and other Linux profiles only after their official
+  immutable cloud images, pinned SHA-256 values, ARM64 boot behavior, desktop,
+  guest agents, package manager, firewall, and completion checks are tested.
+- Add the distribution selector to Create/Rebuild, not the routine instance-run
+  screen. Preserve the existing baseline and clean-instance flow after selection.
+- Persist a profile revision and image checksum with the existing profile ID so
+  an app update can detect baseline incompatibility instead of silently applying
+  another distribution's provisioning or hardware assumptions.
+- Keep distribution provisioning separate from the host provider: profiles own
+  guest setup and verification; UTM and future hypervisors own VM packaging,
+  isolation, firmware, launch, and reset behavior.
+- Decide explicitly whether a selected distribution replaces the one protected
+  baseline or whether a later release supports multiple independent baselines.
+  Do not retain or delete old baselines implicitly.
+- Require automated profile-contract tests plus a real UTM boot smoke test through
+  setup, automatic poweroff, graphical login, offline reset, and Internet-enabled
+  reset before exposing a profile in the UI.
+
+Catalog entries must remain bundled, reviewed, and version-controlled. Never
+populate the trusted catalog from an unsigned remote source or user-supplied URL.
 
 ## Build, test, and package
 

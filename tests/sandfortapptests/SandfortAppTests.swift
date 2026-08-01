@@ -156,11 +156,32 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertEqual(Array(header[36..<40]), [0, 0, 0, 128])
     }
 
-    func testConfigurationUsesImmutableOfficialUbuntuRelease() {
+    func testLinuxGuestCatalogContainsTheCuratedUbuntuProfile() throws {
+        XCTAssertEqual(LinuxGuestCatalog.profiles.map(\.id), ["ubuntu-24.04-arm64"])
+        XCTAssertEqual(LinuxGuestCatalog.profile(id: "ubuntu-24.04-arm64"), LinuxGuestCatalog.defaultProfile)
+        XCTAssertNil(LinuxGuestCatalog.profile(id: "arbitrary-linux"))
+
+        let profile = LinuxGuestCatalog.defaultProfile
         let configuration = SandfortConfiguration.current
-        XCTAssertEqual(configuration.imageURL.host, "cloud-images.ubuntu.com")
-        XCTAssertTrue(configuration.imageURL.path.contains("release-20260725"))
-        XCTAssertEqual(configuration.imageSHA256.count, 64)
+        XCTAssertEqual(configuration.guestProfile, profile)
+        XCTAssertEqual(profile.displayName, "Ubuntu 24.04 LTS")
+        XCTAssertEqual(profile.distributionName, "Ubuntu")
+        XCTAssertEqual(profile.hardware.architecture, "arm64")
+        XCTAssertEqual(profile.hardware.memoryMiB, 4096)
+        XCTAssertEqual(profile.hardware.cpuCount, 4)
+        XCTAssertEqual(profile.hardware.diskSizeGiB, 64)
+        XCTAssertEqual(profile.image.url.host, "cloud-images.ubuntu.com")
+        XCTAssertTrue(profile.image.url.path.contains("release-20260725"))
+        XCTAssertEqual(profile.image.sha256.count, 64)
+
+        let iso = try profile.seedISO(
+            credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
+            tools: SandboxToolSelection(python: false, nodeJS: false)
+        )
+        let finalizer = try decodedFinalizer(from: iso)
+        XCTAssertTrue(finalizer.contains("apt-get update"))
+        XCTAssertTrue(finalizer.contains("apt-get install -y ubuntu-desktop-minimal"))
+        XCTAssertTrue(finalizer.contains("systemctl enable gdm3.service"))
     }
 
     func testLegacySingleInstanceStateDecodesAsInstanceOne() throws {
@@ -175,11 +196,30 @@ final class SandfortAppTests: XCTestCase {
         let data = try PropertyListSerialization.data(fromPropertyList: legacy, format: .xml, options: 0)
         let state = try PropertyListDecoder().decode(SandboxState.self, from: data)
         XCTAssertNil(state.instances)
+        XCTAssertNil(state.guestProfileID)
         XCTAssertEqual(state.resolvedInstances, [SandboxInstance(
             number: 1,
             bundlePath: "/tmp/Legacy Sandbox.utm",
             vmName: "Sandbox Ubuntu ABC123"
         )])
+    }
+
+    func testGuestProfileIDRoundTripsInSandboxState() throws {
+        let state = SandboxState(
+            stage: .provisioning,
+            credentials: SandboxCredentials(username: "sandfort", password: "river-lantern-amber-willow"),
+            tools: .recommended,
+            setupBundlePath: "/tmp/Baseline.utm",
+            sandboxBundlePath: nil,
+            setupVMName: "Sandfort — Baseline Setup ABC123",
+            sandboxVMName: nil,
+            guestProfileID: LinuxGuestCatalog.defaultProfile.id
+        )
+        let decoded = try PropertyListDecoder().decode(
+            SandboxState.self,
+            from: PropertyListEncoder().encode(state)
+        )
+        XCTAssertEqual(decoded.guestProfileID, "ubuntu-24.04-arm64")
     }
 
     func testNamedInstanceKeepsItsPermanentNumberAndRoundTrips() throws {

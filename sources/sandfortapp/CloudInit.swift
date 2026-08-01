@@ -1,6 +1,6 @@
 import Foundation
 
-enum CloudInit {
+enum UbuntuCloudInit {
     static func credentials() -> SandboxCredentials {
         let words = memorablePasswordWords.shuffled().prefix(4)
         return SandboxCredentials(username: "sandfort", password: words.joined(separator: "-"))
@@ -221,5 +221,25 @@ enum CloudInit {
 
     private static func yamlSingleQuoted(_ value: String) -> String {
         value.replacingOccurrences(of: "'", with: "''")
+    }
+}
+
+/// Backward-compatible convenience API for callers that use the catalog's
+/// default profile. Workflow and provider code use the selected profile
+/// directly so adding another curated guest does not route through Ubuntu.
+enum CloudInit {
+    static func credentials() -> SandboxCredentials {
+        LinuxGuestCatalog.defaultProfile.credentials()
+    }
+
+    static func credentials(password: String) throws -> SandboxCredentials {
+        try LinuxGuestCatalog.defaultProfile.credentials(password: password)
+    }
+
+    static func seedISO(
+        credentials: SandboxCredentials,
+        tools: SandboxToolSelection = .recommended
+    ) throws -> Data {
+        try LinuxGuestCatalog.defaultProfile.seedISO(credentials: credentials, tools: tools)
     }
 }

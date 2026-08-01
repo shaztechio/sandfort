@@ -2,13 +2,17 @@ import AppKit
 import Foundation
 
 actor SandfortWorkflow {
-    private let configuration = SandfortConfiguration.current
+    private let configuration: SandfortConfiguration
     private let downloader = NativeDownloader()
     private let fileManager = FileManager.default
     private let provider: any VirtualMachineProvider
 
-    init(provider: (any VirtualMachineProvider)? = nil) {
-        self.provider = provider ?? UTMBundleBuilder(configuration: .current)
+    init(
+        configuration: SandfortConfiguration = .current,
+        provider: (any VirtualMachineProvider)? = nil
+    ) {
+        self.configuration = configuration
+        self.provider = provider ?? UTMBundleBuilder(configuration: configuration)
     }
 
     private var canonicalRootURL: URL {
@@ -98,7 +102,8 @@ actor SandfortWorkflow {
         event: @escaping @Sendable (WorkflowEvent) -> Void
     ) async throws -> SandboxState {
         // Validate user input before deleting an existing baseline during Rebuild.
-        let requestedCredentials = try password.map { try CloudInit.credentials(password: $0) }
+        let profile = configuration.guestProfile
+        let requestedCredentials = try password.map { try profile.credentials(password: $0) }
         guard await UTMLauncher.isInstalled else { throw SandboxError.utmNotInstalled }
         if rebuild {
             if let existingState = currentState() {
@@ -129,7 +134,7 @@ actor SandfortWorkflow {
         try fileManager.createDirectory(at: cacheURL, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: vmURL, withIntermediateDirectories: true)
         let imageURL = try await verifiedImage(event: event)
-        let credentials = requestedCredentials ?? CloudInit.credentials()
+        let credentials = requestedCredentials ?? profile.credentials()
         let instanceTag = String(UUID().uuidString.prefix(6)).uppercased()
         let setupName = baselineSetupName(tag: instanceTag)
         let setupURL = bundleURL(named: protectedBaselineName(tag: instanceTag))
@@ -149,13 +154,14 @@ actor SandfortWorkflow {
             setupBundlePath: setupURL.path,
             sandboxBundlePath: nil,
             setupVMName: setupName,
-            sandboxVMName: nil
+            sandboxVMName: nil,
+            guestProfileID: profile.id
         )
         try save(state)
-        event(.log("Ubuntu setup opens in a text terminal while it updates itself and installs: \(tools.description), the desktop, and sandbox protections."))
+        event(.log("\(profile.distributionName) setup opens in a text terminal while it updates itself and installs: \(tools.description), the desktop, and sandbox protections."))
         event(.log("Watch for [Sandfort] status messages in UTM. Setup commonly takes 10-30 minutes and may pause while packages are configured."))
         event(.log("Leave setup running until it verifies every selected tool and powers itself off automatically. Then click Finish Setup."))
-        event(.phase("Opening Ubuntu setup in UTM…"))
+        event(.phase("Opening \(profile.distributionName) setup in UTM…"))
         await UTMLauncher.openAndStart(bundle: setupURL, name: setupName)
         return state
     }
@@ -321,7 +327,8 @@ actor SandfortWorkflow {
         guard state.stage == .provisioning else { throw SandboxError.setupNotComplete }
         let bundleURL = URL(fileURLWithPath: state.setupBundlePath)
         try provider.repairBundle(at: bundleURL)
-        try CloudInit.seedISO(credentials: state.credentials, tools: state.tools ?? .recommended).write(
+        let profile = try guestProfile(for: state)
+        try profile.seedISO(credentials: state.credentials, tools: state.tools ?? .recommended).write(
             to: bundleURL.appendingPathComponent("Data/seed.iso"),
             options: .atomic
         )
@@ -329,30 +336,42 @@ actor SandfortWorkflow {
     }
 
     private func verifiedImage(event: @escaping @Sendable (WorkflowEvent) -> Void) async throws -> URL {
-        let imageURL = cacheURL.appendingPathComponent(configuration.imageFileName)
+        let profile = configuration.guestProfile
+        let image = profile.image
+        let imageURL = cacheURL.appendingPathComponent(image.fileName)
         if fileManager.fileExists(atPath: imageURL.path) {
-            event(.phase("Verifying the cached Ubuntu image…"))
+            event(.phase("Verifying the cached \(profile.distributionName) image…"))
             let checksum = try DiskUtilities.sha256(of: imageURL)
-            if checksum == configuration.imageSHA256 {
-                event(.log("Using the previously verified Ubuntu image."))
+            if checksum == image.sha256 {
+                event(.log("Using the previously verified \(profile.distributionName) image."))
                 return imageURL
             }
             try fileManager.removeItem(at: imageURL)
             event(.log("The cached image did not verify and was removed."))
         }
 
-        event(.phase("Downloading Ubuntu 24.04 (\(configuration.downloadSizeDescription))…"))
-        let downloaded = try await downloader.download(from: configuration.imageURL, to: imageURL) { completed, total in
+        event(.phase("Downloading \(profile.displayName) (\(image.downloadSizeDescription))…"))
+        let downloaded = try await downloader.download(from: image.url, to: imageURL) { completed, total in
             event(.progress(completed: completed, total: total))
         }
-        event(.phase("Verifying Ubuntu's SHA-256 checksum…"))
+        event(.phase("Verifying \(profile.distributionName)'s SHA-256 checksum…"))
         let checksum = try DiskUtilities.sha256(of: downloaded)
-        guard checksum == configuration.imageSHA256 else {
+        guard checksum == image.sha256 else {
             try? fileManager.removeItem(at: downloaded)
-            throw SandboxError.checksumMismatch(expected: configuration.imageSHA256, actual: checksum)
+            throw SandboxError.checksumMismatch(expected: image.sha256, actual: checksum)
         }
-        event(.log("Ubuntu image verified with the official SHA-256 checksum."))
+        event(.log("\(profile.distributionName) image verified with the official SHA-256 checksum."))
         return downloaded
+    }
+
+    private func guestProfile(for state: SandboxState) throws -> LinuxGuestProfile {
+        guard let profileID = state.guestProfileID else {
+            return LinuxGuestCatalog.defaultProfile
+        }
+        guard let profile = LinuxGuestCatalog.profile(id: profileID) else {
+            throw SandboxError.unsupportedGuestProfile(profileID)
+        }
+        return profile
     }
 
     private func save(_ state: SandboxState) throws {

@@ -1,12 +1,20 @@
 # Architecture
 
-The runtime is native Swift and has three boundaries:
+The runtime is native Swift and has four boundaries:
 
 | Layer | Current files | Responsibility |
 |---|---|---|
 | App | `SandfortApp.swift` | SwiftUI state, confirmations, credentials, progress |
+| Guest catalog | `LinuxGuestCatalog.swift` | Curated image metadata, hardware requirements, and provisioning strategy |
 | Portable core | downloader, checksum, cloud-init, ISO writer, workflow | Trusted image acquisition and provisioning policy |
 | Host provider | `UTMBundleBuilder.swift`, `UTMLauncher` | Hypervisor bundle format and native host launch |
+
+The catalog currently exposes only the tested Ubuntu 24.04 ARM64 profile. The
+workflow and UTM builder consume that profile rather than embedding image and
+hardware constants. `CloudInit.swift` contains the Ubuntu provisioning strategy;
+future distributions must supply their own strategy without weakening common
+isolation policy. Catalog entries are compiled into the app, not accepted from
+arbitrary URLs or an unsigned remote catalog.
 
 Persisted state contains one protected baseline and a backward-compatible array
 of numbered clean instances. Legacy single-instance state is migrated to

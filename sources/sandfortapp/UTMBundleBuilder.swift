@@ -13,12 +13,12 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         let diskName = "sandfort.qcow2"
         let diskURL = dataURL.appendingPathComponent(diskName)
         try fileManager.copyItem(at: imageURL, to: diskURL)
-        try DiskUtilities.resizeQCOW2(at: diskURL, toGiB: configuration.diskSizeGiB)
+        try DiskUtilities.resizeQCOW2(at: diskURL, toGiB: configuration.guestProfile.hardware.diskSizeGiB)
         guard let firmwareURL = firmwareURLOverride ?? Self.utmFirmwareURL() else {
             throw SandboxError.utmResourcesMissing
         }
         try fileManager.copyItem(at: firmwareURL, to: dataURL.appendingPathComponent("efi_vars.fd"))
-        try CloudInit.seedISO(credentials: credentials, tools: tools).write(
+        try configuration.guestProfile.seedISO(credentials: credentials, tools: tools).write(
             to: dataURL.appendingPathComponent("seed.iso"),
             options: .atomic
         )
@@ -122,7 +122,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         try repaired.write(to: configURL, options: .atomic)
         if let disk = try? diskURL(in: bundleURL),
            (try? DiskUtilities.ensureNotInUse(disk)) != nil {
-            try DiskUtilities.resizeQCOW2(at: disk, toGiB: configuration.diskSizeGiB)
+            try DiskUtilities.resizeQCOW2(at: disk, toGiB: configuration.guestProfile.hardware.diskSizeGiB)
         }
     }
 
@@ -173,12 +173,12 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             "System": [
                 "Architecture": "aarch64",
                 "CPU": "default",
-                "CPUCount": configuration.cpuCount,
+                "CPUCount": configuration.guestProfile.hardware.cpuCount,
                 "CPUFlagsAdd": [],
                 "CPUFlagsRemove": [],
                 "ForceMulticore": false,
                 "JITCacheSize": 0,
-                "MemorySize": configuration.memoryMiB,
+                "MemorySize": configuration.guestProfile.hardware.memoryMiB,
                 "Target": "virt"
             ],
             "QEMU": [

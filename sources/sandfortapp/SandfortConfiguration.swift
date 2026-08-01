@@ -8,13 +8,11 @@ enum SandboxNetworkMode: Sendable {
 struct SandfortConfiguration: Sendable {
     static let current = SandfortConfiguration()
 
-    let imageURL = URL(string: "https://cloud-images.ubuntu.com/releases/noble/release-20260725/ubuntu-24.04-server-cloudimg-arm64.img")!
-    let imageSHA256 = "2eaec7286c49fdea713dddabcf5012cafa7097a658e916acb48f4bc5fdc8e419"
-    let imageFileName = "ubuntu-24.04-server-cloudimg-arm64-20260725.img"
-    let downloadSizeDescription = "about 590 MB"
-    let memoryMiB = 4096
-    let cpuCount = 4
-    let diskSizeGiB: UInt64 = 64
+    let guestProfile: LinuxGuestProfile
+
+    init(guestProfile: LinuxGuestProfile = LinuxGuestCatalog.defaultProfile) {
+        self.guestProfile = guestProfile
+    }
 }
 
 struct SandboxCredentials: Codable, Sendable {
@@ -76,6 +74,7 @@ struct SandboxState: Codable, Sendable {
     var sandboxVMName: String? = nil
     var instances: [SandboxInstance]? = nil
     var nextInstanceNumber: Int? = nil
+    var guestProfileID: String? = nil
 
     var resolvedInstances: [SandboxInstance] {
         if let instances, !instances.isEmpty {
@@ -130,15 +129,16 @@ enum SandboxError: LocalizedError {
     case sandboxInstanceNotFound
     case invalidInstanceName
     case invalidGuestPassword
+    case unsupportedGuestProfile(String)
 
     var errorDescription: String? {
         switch self {
         case .utmNotInstalled:
             return "UTM is not installed in Applications. Install UTM, then try again."
         case .invalidDownloadResponse:
-            return "Ubuntu's download server returned an unexpected response."
+            return "The Linux image download server returned an unexpected response."
         case let .checksumMismatch(expected, actual):
-            return "The Ubuntu image failed SHA-256 verification (expected \(expected), received \(actual)). Nothing was opened."
+            return "The Linux image failed SHA-256 verification (expected \(expected), received \(actual)). Nothing was opened."
         case let .invalidCloudDisk(reason):
             return "The downloaded cloud disk is invalid: \(reason)"
         case .alreadyExists:
@@ -146,19 +146,21 @@ enum SandboxError: LocalizedError {
         case .sandboxNotCreated:
             return "Create the sandbox first."
         case .setupNotComplete:
-            return "Finish the Ubuntu setup before creating clean sessions."
+            return "Finish the Linux guest setup before creating clean sessions."
         case .utmResourcesMissing:
             return "UTM's ARM64 UEFI firmware could not be found. Reinstall the current version of UTM."
         case .virtualMachineRunning:
             return "Shut down the virtual machine in UTM before restoring or copying its clean disk."
         case .setupScriptTooLarge:
-            return "The custom setup script is larger than 64 KiB. Shorten it, or have it download a verified setup file inside Ubuntu."
+            return "The custom setup script is larger than 64 KiB. Shorten it, or have it download a verified setup file inside the guest."
         case .sandboxInstanceNotFound:
             return "That sandbox instance no longer exists. Create a new clean sandbox instance."
         case .invalidInstanceName:
             return "Sandbox names must be 48 characters or fewer."
         case .invalidGuestPassword:
-            return "The Ubuntu password must contain 8 to 128 visible characters with no spaces or line breaks."
+            return "The guest password must contain 8 to 128 visible characters with no spaces or line breaks."
+        case let .unsupportedGuestProfile(profileID):
+            return "This sandbox uses the unsupported Linux guest profile '\(profileID)'. Reinstall a compatible Sandfort version or rebuild it with a supported profile."
         }
     }
 }
