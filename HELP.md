@@ -89,7 +89,7 @@ Before rebuilding:
 3. Review the development-tool choices and custom setup script.
 4. Confirm the Ubuntu password for the new baseline.
 
-If macOS asks whether Sandfort may control UTM, allow it. Sandfort uses native Apple Events to remove only the recorded Sandfort VMs. It does not use AppleScript or UI automation.
+Sandfort opens UTM automatically if it is closed and waits for its automation interface to become ready. If macOS asks whether Sandfort may control UTM, allow it. Sandfort uses native Apple Events to remove only the recorded Sandfort VMs. It does not use AppleScript or UI automation.
 
 ## Troubleshooting setup
 

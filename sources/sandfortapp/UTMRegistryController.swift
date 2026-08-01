@@ -6,9 +6,11 @@ import Foundation
 enum UTMRegistryController {
     private static let bundleIdentifier = "com.utmapp.UTM"
     private static let virtualMachineClass = fourCharacterCode("UTMv")
+    private static let applicationNotRunningStatus = -600
 
     static func deleteVirtualMachine(named name: String) async throws {
-        try sendDeleteRequest(named: name)
+        try await launchUTMIfNeeded()
+        try await sendDeleteRequestWhenReady(named: name)
 
         // UTM can reply before its open library finishes removing the bundle.
         // Do not let the workflow delete the parent directory out from under
@@ -23,6 +25,43 @@ enum UTMRegistryController {
             try await Task.sleep(for: .milliseconds(250))
         }
         throw UTMRegistryError.deletionTimedOut(name: name)
+    }
+
+    @MainActor
+    private static func launchUTMIfNeeded() throws {
+        if NSWorkspace.shared.runningApplications.contains(where: {
+            $0.bundleIdentifier == bundleIdentifier && !$0.isTerminated
+        }) {
+            return
+        }
+        let locations = [
+            URL(fileURLWithPath: "/Applications/UTM.app", isDirectory: true),
+            URL(fileURLWithPath: NSHomeDirectory() + "/Applications/UTM.app", isDirectory: true)
+        ]
+        guard let applicationURL = locations.first(where: {
+            FileManager.default.fileExists(atPath: $0.path)
+        }) else {
+            throw SandboxError.utmNotInstalled
+        }
+        guard NSWorkspace.shared.open(applicationURL) else {
+            throw UTMRegistryError.launchFailed
+        }
+    }
+
+    private static func sendDeleteRequestWhenReady(named name: String) async throws {
+        for attempt in 0..<40 {
+            do {
+                try sendDeleteRequest(named: name)
+                return
+            } catch let error as NSError where isApplicationNotRunning(error) {
+                guard attempt < 39 else { throw UTMRegistryError.launchTimedOut }
+                try await Task.sleep(for: .milliseconds(250))
+            }
+        }
+    }
+
+    static func isApplicationNotRunning(_ error: NSError) -> Bool {
+        error.domain == NSOSStatusErrorDomain && error.code == applicationNotRunningStatus
     }
 
     private static func sendDeleteRequest(named name: String) throws {
@@ -107,6 +146,8 @@ enum UTMRegistryController {
 enum UTMRegistryError: LocalizedError {
     case deleteFailed(name: String, reason: String)
     case deletionTimedOut(name: String)
+    case launchFailed
+    case launchTimedOut
 
     var errorDescription: String? {
         switch self {
@@ -114,6 +155,10 @@ enum UTMRegistryError: LocalizedError {
             return "UTM could not remove “\(name)” from its library: \(reason)"
         case let .deletionTimedOut(name):
             return "UTM did not finish removing “\(name)” from its open library. Close UTM and try Rebuild again."
+        case .launchFailed:
+            return "Sandfort could not open UTM to remove the old virtual machines. Open UTM, then try Rebuild again."
+        case .launchTimedOut:
+            return "UTM opened, but its automation interface did not become ready. Wait for UTM to finish opening, then try Rebuild again."
         }
     }
 }

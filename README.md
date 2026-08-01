@@ -73,10 +73,10 @@ VM data is deleted, then applied by cloud-init and inherited by all new instance
 After confirmation, macOS may ask permission for Sandfort to control UTM. The
 app uses that permission to remove the old protected baseline and every recorded
 numbered instance from UTM's library before deleting their app-owned bundles. If
-permission is denied, rebuild stops before deleting the current sandbox. When UTM
-is open, the app waits for UTM to confirm each library removal before continuing;
-this prevents UTM from retaining a stale entry while its deletion is still in
-progress.
+permission is denied, rebuild stops before deleting the current sandbox. Sandfort
+opens UTM automatically if it is closed, then waits for UTM to confirm each
+library removal before continuing. This prevents UTM from retaining a stale entry
+while its deletion is still in progress.
 
 Instance names can be changed later with **Run Instance → Rename Instance**.
 The permanent instance number, bundle path, VM UUID, disk, and baseline

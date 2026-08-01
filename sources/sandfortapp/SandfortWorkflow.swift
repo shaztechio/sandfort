@@ -118,6 +118,7 @@ actor SandfortWorkflow {
                     }
                 }
                 event(.phase("Removing the old baseline and instances from UTM…"))
+                event(.log("Opening UTM if needed, then waiting for it to confirm each old registration is removed."))
                 for name in existingState.utmRegistrationNames {
                     event(.log("Removing \(name) from the UTM library."))
                     try await UTMRegistryController.deleteVirtualMachine(named: name)

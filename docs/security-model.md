@@ -37,9 +37,11 @@ updated. **Rebuild** is the only app action that deletes the Protected Baseline.
 After its destructive confirmation, rebuild uses a native Apple Event addressed
 to UTM to remove only the exact baseline and instance names held in app state;
 it does not invoke AppleScript, a shell command, or UI automation. A denied
-macOS Automation permission aborts before local VM data is deleted. The workflow
-also waits until UTM can no longer resolve each exact VM name before removing the
-parent directory, so an open UTM library cannot race the filesystem cleanup.
+macOS Automation permission aborts before local VM data is deleted. If UTM is not
+running, Sandfort launches it with `NSWorkspace` and waits for its Apple Event
+interface to become ready. The workflow also waits until UTM can no longer resolve
+each exact VM name before removing the parent directory, so UTM cannot race the
+filesystem cleanup or retain a stale registration.
 
 ## Residual risk
 

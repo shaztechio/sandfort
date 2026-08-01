@@ -301,6 +301,21 @@ final class SandfortAppTests: XCTestCase {
         )
     }
 
+    func testUTMRegistryRecognizesApplicationNotRunningError() {
+        XCTAssertTrue(UTMRegistryController.isApplicationNotRunning(NSError(
+            domain: NSOSStatusErrorDomain,
+            code: -600
+        )))
+        XCTAssertFalse(UTMRegistryController.isApplicationNotRunning(NSError(
+            domain: NSOSStatusErrorDomain,
+            code: Int(errAENoSuchObject)
+        )))
+        XCTAssertFalse(UTMRegistryController.isApplicationNotRunning(NSError(
+            domain: NSCocoaErrorDomain,
+            code: -600
+        )))
+    }
+
     func testUTMBundlesEnforceHostIsolationAndCleanBaselineMode() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
