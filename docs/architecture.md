@@ -23,13 +23,13 @@ Swift package/app target with its own host provider while reusing or porting the
 portable policy and test vectors. Suggested target layout:
 
 ```text
-Sources/
-  SandfortCore/              download, verification, cloud-init policy
-  SandfortMacOSApp/          SwiftUI frontend
-  Providers/UTMMacOSARM64/   current UTM plist and launch implementation
-  Providers/UTMMacOSX64/     future x86_64 image/configuration
-  Providers/HyperVWindows/   future Windows provider
-  Providers/QEMULinux/       future Linux provider
+sources/
+  sandfortcore/              download, verification, cloud-init policy
+  sandfortmacosapp/          SwiftUI frontend
+  providers/utmmacosarm64/   current UTM plist and launch implementation
+  providers/utmmacosx64/     future x86_64 image/configuration
+  providers/hypervwindows/   future Windows provider
+  providers/qemulinux/       future Linux provider
 ```
 
 Each provider must enforce no host directory, clipboard, automatic USB, bridged

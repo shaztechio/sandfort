@@ -8,7 +8,14 @@ let package = Package(
         .executable(name: "SandfortApp", targets: ["SandfortApp"])
     ],
     targets: [
-        .executableTarget(name: "SandfortApp"),
-        .testTarget(name: "SandfortAppTests", dependencies: ["SandfortApp"])
+        .executableTarget(
+            name: "SandfortApp",
+            path: "sources/sandfortapp"
+        ),
+        .testTarget(
+            name: "SandfortAppTests",
+            dependencies: ["SandfortApp"],
+            path: "tests/sandfortapptests"
+        )
     ]
 )

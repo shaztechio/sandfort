@@ -7,7 +7,7 @@ Sandfort is a native SwiftUI macOS 13+ app that creates disposable Ubuntu
 provider-oriented so Intel macOS, Windows, and Linux installers can be added
 without weakening the common provisioning policy.
 
-- `Sources/SandfortApp/SandfortApp.swift`: SwiftUI views and user-facing state.
+- `sources/sandfortapp/SandfortApp.swift`: SwiftUI views and user-facing state.
 - `SandboxWorkflow.swift`: app-owned state, verified downloads, baseline/session
   lifecycle, and native UTM launch.
 - `PlatformProvider.swift`: `VirtualMachineProvider` boundary for future hosts.
@@ -15,7 +15,7 @@ without weakening the common provisioning policy.
 - `CloudInit.swift`: guest credentials, packages, hardening, and baseline setup.
 - `NativeDownloader.swift`, `DiskUtilities.swift`, `ISO9660Writer.swift`: native
   download, verification, disk manipulation, and NoCloud ISO generation.
-- `Tests/SandfortAppTests`: policy and bundle-format regression tests.
+- `tests/sandfortapptests`: policy and bundle-format regression tests.
 - `tools/packaging`: development app-bundle packaging metadata and script.
 - `HELP.md`: canonical user help source. Packaging renders it into Sandfort's
   indexed native macOS Help Book; do not edit generated Help Book HTML directly.

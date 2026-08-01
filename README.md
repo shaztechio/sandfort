@@ -1,20 +1,29 @@
 # Sandfort
 
-Sandfort is a native SwiftUI app that creates disposable Ubuntu VMs for opening
-untrusted coding challenges. The first provider supports Apple Silicon macOS and
-[UTM](https://mac.getutm.app/).
+![Sandfort app icon](assets/Sandfort.png) Sandfort is a native SwiftUI app that
+creates disposable Ubuntu VMs for opening untrusted coding challenges. The first
+provider supports Apple Silicon macOS and [UTM](https://mac.getutm.app/).
 
 **A clean machine for untrusted work.**
 
 Project site: [sandfort.app](https://sandfort.app/)
 
+Sandfort was inspired in part by Elastic Security Labs' research into
+[Contagious Interview malware using SVG steganography](https://www.elastic.co/security-labs/contagious-interview-malware-svg-steganography),
+which illustrates the risks of running untrusted coding challenges directly on
+a personal computer.
+
 Read the [Sandfort Help guide](HELP.md) for complete operating, safety, and
 troubleshooting instructions. The same source is packaged as the searchable
 native Help Book available from **Help → Sandfort Help** in the app.
 
+## Screenshot
+
+![Sandfort app showing a ready sandbox instance](assets/Sandfort-screenshot.png)
+
 ## Quick start
 
-1. Install UTM.
+1. Download and install [UTM](https://mac.getutm.app/).
 2. Run `make app`.
 3. Open `dist/Sandfort.app` and click **Create Sandbox**.
    Before creating or rebuilding, choose whether the baseline should include
@@ -36,6 +45,8 @@ native Help Book available from **Help → Sandfort Help** in the app.
    **New Clean Sandbox** to create another numbered instance from the baseline.
    Give it an optional descriptive name for identification. Clean instances use
    the graphical desktop display and may run concurrently.
+
+## Using clean sandboxes
 
 Clean sessions use a small in-memory system journal. This avoids persistent
 journal flushing during disposable boots and discards guest logs with the rest
