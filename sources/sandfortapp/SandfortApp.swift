@@ -299,7 +299,7 @@ struct ContentView: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading) {
                     Text("Sandfort").font(.largeTitle.bold())
-                    Text("Open suspicious coding challenges away from your Mac.")
+                    Text("Create clean, disposable virtual machines for untrusted work.")
                         .foregroundStyle(.secondary)
                     Text("Version \(appVersion)")
                         .font(.caption)
