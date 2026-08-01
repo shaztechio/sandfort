@@ -1,0 +1,5 @@
+.build/
+build/
+dist/
+*.iso
+.DS_Store

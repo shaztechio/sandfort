@@ -1,0 +1,14 @@
+# Adding a platform
+
+1. Add a new app/package target for the host OS and CPU architecture.
+2. Implement `VirtualMachineProvider` for that hypervisor's native bundle format.
+3. Add an immutable official image URL and SHA-256 for the guest architecture.
+4. Reuse the cloud-init policy and ISO fixtures where the guest supports NoCloud.
+5. Prove in tests that sharing, clipboard, USB auto-capture, bridging, inbound port
+   forwards, and persistent untrusted writes are disabled.
+6. Add a native launcher for the host. Runtime shell or UI scripting is not part of
+   the provider contract.
+7. Add a host-specific CI job and a real hypervisor smoke-test matrix.
+
+Likely next targets are Intel macOS with UTM, Windows with Hyper-V, and Linux with
+QEMU/KVM. Do not reuse ARM64 disk images or checksums on x86_64.

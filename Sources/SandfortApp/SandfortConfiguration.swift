@@ -1,0 +1,164 @@
+import Foundation
+
+enum SandboxNetworkMode: Sendable {
+    case offline
+    case internet
+}
+
+struct SandfortConfiguration: Sendable {
+    static let current = SandfortConfiguration()
+
+    let imageURL = URL(string: "https://cloud-images.ubuntu.com/releases/noble/release-20260725/ubuntu-24.04-server-cloudimg-arm64.img")!
+    let imageSHA256 = "2eaec7286c49fdea713dddabcf5012cafa7097a658e916acb48f4bc5fdc8e419"
+    let imageFileName = "ubuntu-24.04-server-cloudimg-arm64-20260725.img"
+    let downloadSizeDescription = "about 590 MB"
+    let memoryMiB = 4096
+    let cpuCount = 4
+    let diskSizeGiB: UInt64 = 64
+}
+
+struct SandboxCredentials: Codable, Sendable {
+    let username: String
+    let password: String
+}
+
+struct SandboxToolSelection: Codable, Sendable {
+    var python: Bool
+    var nodeJS: Bool
+    var customSetupScript: String? = nil
+    var verboseSetupLogging: Bool? = nil
+
+    static let recommended = SandboxToolSelection(python: true, nodeJS: true)
+
+    var description: String {
+        var names = ["Git", "curl", "jq"]
+        if python { names.append("Python 3") }
+        if nodeJS { names.append("latest Node.js LTS") }
+        if customSetupScript?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            names.append("custom setup script")
+        }
+        return names.joined(separator: ", ")
+    }
+}
+
+struct SandboxInstance: Codable, Identifiable, Sendable, Equatable {
+    var id: Int { number }
+    let number: Int
+    var bundlePath: String
+    var vmName: String
+    var label: String? = nil
+
+    var displayTitle: String {
+        guard let label, !label.isEmpty else { return "Sandbox Instance \(number)" }
+        return "Sandbox Instance \(number) — \(label)"
+    }
+
+    static func normalizedLabel(_ label: String?) throws -> String? {
+        guard let label else { return nil }
+        let normalized = label.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        guard normalized.count <= 48 else { throw SandboxError.invalidInstanceName }
+        return normalized.isEmpty ? nil : normalized
+    }
+}
+
+struct SandboxState: Codable, Sendable {
+    enum Stage: String, Codable, Sendable {
+        case provisioning
+        case ready
+    }
+
+    var stage: Stage
+    var credentials: SandboxCredentials
+    var tools: SandboxToolSelection?
+    var setupBundlePath: String
+    var sandboxBundlePath: String?
+    var setupVMName: String? = nil
+    var sandboxVMName: String? = nil
+    var instances: [SandboxInstance]? = nil
+    var nextInstanceNumber: Int? = nil
+
+    var resolvedInstances: [SandboxInstance] {
+        if let instances, !instances.isEmpty {
+            return instances.sorted { $0.number < $1.number }
+        }
+        guard let sandboxBundlePath else { return [] }
+        return [SandboxInstance(
+            number: 1,
+            bundlePath: sandboxBundlePath,
+            vmName: sandboxVMName ?? "Sandfort — Instance 1",
+            label: nil
+        )]
+    }
+
+    var utmRegistrationNames: [String] {
+        var seen: Set<String> = []
+        return ([setupVMName].compactMap { $0 } + resolvedInstances.map(\.vmName))
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    mutating func replaceInstances(_ newInstances: [SandboxInstance]) {
+        let sorted = newInstances.sorted { $0.number < $1.number }
+        instances = sorted
+        sandboxBundlePath = sorted.first?.bundlePath
+        sandboxVMName = sorted.first?.vmName
+    }
+
+    mutating func allocateInstanceNumber() -> Int {
+        let number = max(nextInstanceNumber ?? 1, (resolvedInstances.map(\.number).max() ?? 0) + 1)
+        nextInstanceNumber = number + 1
+        return number
+    }
+}
+
+enum WorkflowEvent: Sendable {
+    case phase(String)
+    case progress(completed: Int64, total: Int64)
+    case log(String)
+}
+
+enum SandboxError: LocalizedError {
+    case utmNotInstalled
+    case invalidDownloadResponse
+    case checksumMismatch(expected: String, actual: String)
+    case invalidCloudDisk(String)
+    case alreadyExists
+    case sandboxNotCreated
+    case setupNotComplete
+    case utmResourcesMissing
+    case virtualMachineRunning
+    case setupScriptTooLarge
+    case sandboxInstanceNotFound
+    case invalidInstanceName
+    case invalidGuestPassword
+
+    var errorDescription: String? {
+        switch self {
+        case .utmNotInstalled:
+            return "UTM is not installed in Applications. Install UTM, then try again."
+        case .invalidDownloadResponse:
+            return "Ubuntu's download server returned an unexpected response."
+        case let .checksumMismatch(expected, actual):
+            return "The Ubuntu image failed SHA-256 verification (expected \(expected), received \(actual)). Nothing was opened."
+        case let .invalidCloudDisk(reason):
+            return "The downloaded cloud disk is invalid: \(reason)"
+        case .alreadyExists:
+            return "A sandbox already exists. Use Rebuild if you want to replace it."
+        case .sandboxNotCreated:
+            return "Create the sandbox first."
+        case .setupNotComplete:
+            return "Finish the Ubuntu setup before creating clean sessions."
+        case .utmResourcesMissing:
+            return "UTM's ARM64 UEFI firmware could not be found. Reinstall the current version of UTM."
+        case .virtualMachineRunning:
+            return "Shut down the virtual machine in UTM before restoring or copying its clean disk."
+        case .setupScriptTooLarge:
+            return "The custom setup script is larger than 64 KiB. Shorten it, or have it download a verified setup file inside Ubuntu."
+        case .sandboxInstanceNotFound:
+            return "That sandbox instance no longer exists. Create a new clean sandbox instance."
+        case .invalidInstanceName:
+            return "Sandbox names must be 48 characters or fewer."
+        case .invalidGuestPassword:
+            return "The Ubuntu password must contain 8 to 128 visible characters with no spaces or line breaks."
+        }
+    }
+}

@@ -1,0 +1,10 @@
+name: test
+on:
+  push:
+  pull_request:
+jobs:
+  macos-arm64-native:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test
