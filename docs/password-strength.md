@@ -18,26 +18,41 @@ be reused for any personal account or contain a personal secret.
 
 `GuestProvisioningSupport.credentials()` constructs the default password by:
 
-1. Shuffling a fixed list of 64 unique lowercase words using Swift's default
-   system random-number generator.
+1. Shuffling the reviewed 2,048-word list in `MemorablePasswordWords.swift`
+   using Swift's `SystemRandomNumberGenerator`, which is cryptographically
+   secure on Apple platforms.
 2. Taking the first four distinct words.
 3. Joining them with hyphens.
 
-An example format is `moon-reef-juniper-birch`. Examples in documentation and
-screenshots are not fixed passwords; each new generation chooses another phrase.
+An example format is `mica-capsule-plough-forelock`. Examples in documentation
+and screenshots are not fixed passwords; each new generation chooses another
+phrase. Phrases average about 27 characters.
 
 Because words are selected without replacement and order matters, the number of
 possible generated phrases is:
 
 ```text
-64 × 63 × 62 × 61 = 15,249,024
-log2(15,249,024) = 23.86 bits
+2048 × 2047 × 2046 × 2045 = 17,540,692,561,920
+log2(17,540,692,561,920) = 44.00 bits
 ```
 
 This estimate assumes the operating system random source and Swift's shuffle are
 working correctly and each ordered selection is effectively equally likely. The
 hyphens, known four-word structure, and word lengths improve usability but add no
 meaningful entropy once an attacker knows Sandfort's generation algorithm.
+
+## The algorithm and word list are public
+
+Sandfort is open source, so an attacker is assumed to know the generation
+algorithm and to have the complete word list. That assumption is deliberate and
+costs nothing: the list was always recoverable from any distributed copy of the
+app with `strings`, so its secrecy was never a control. Strength comes from the
+size of the search space, and the figures here already assume full knowledge of
+how phrases are built.
+
+The list is fixed, reviewed, and version-controlled for the same reason the
+image catalog is. `MemorablePasswordWordsTests` enforces its properties, so the
+entropy claim above cannot regress unnoticed through an edit.
 
 ## Practical assessment
 
@@ -55,16 +70,27 @@ the selected Linux distribution rather than by Sandfort itself.
 
 ### Offline password guessing
 
-Approximately 24 bits is insufficient against an attacker who obtains the
-guest's password hash. The entire generated search space contains only about
-15.2 million candidates. The actual guessing rate depends on the distribution's
-password-hashing configuration and the attacker's hardware, but the small search
-space means the phrase should be assumed recoverable in a serious offline attack.
+Forty-four bits puts exhaustive offline search out of reach for the attackers
+this tool plausibly faces. All four supported distributions hash the guest
+password with yescrypt, which is memory-hard and therefore slow to attack in
+bulk. Exhausting 17.5 trillion candidates takes roughly:
 
-This matters because a person or process with access to an app-owned VM bundle
-can copy its virtual disk and inspect the guest offline. A password does not
-encrypt the virtual disk and does not protect files from guest root or malware
-already executing with sufficient privilege.
+| attacker | time to exhaust |
+| --- | --- |
+| yescrypt, single GPU | decades |
+| yescrypt, large GPU cluster | months |
+| a fast hash such as sha512crypt, single GPU | months |
+| a fast hash, large GPU cluster | days |
+
+The earlier 64-word format gave 23.86 bits, about 15.2 million candidates, which
+fell in minutes. Four words from 2,048 is roughly 1.15 million times larger.
+
+Offline strength is worth keeping in perspective. Anyone able to attack the hash
+already has the virtual disk, and the disk is not encrypted: they can read and
+modify every file in the guest without recovering the password at all. A stronger
+password does not change that, and it is not intended to. What it does is remove
+password recovery as a cheap side effect of obtaining a disk, which matters most
+when a user has reused the phrase somewhere it should not have been.
 
 ## Storage and lifetime
 
@@ -103,14 +129,22 @@ For a stronger guest login password:
 
 ## Security conclusion
 
-The current four-word generator provides good memorability but only about 23.86
-bits of theoretical entropy. Its quality is acceptable for convenient local
-access to a disposable, non-sensitive guest under Sandfort's network and sharing
-restrictions. It is not suitable for remote service authentication, disk
-protection, privileged secrets, or resistance to offline cracking.
+The four-word generator provides good memorability and 44.00 bits of
+theoretical entropy. That is sufficient for convenient local access to a
+disposable guest under Sandfort's network and sharing restrictions, and it makes
+exhaustive offline recovery impractical rather than trivial.
 
-If the generated password is expected to provide meaningful standalone
-authentication in the future, Sandfort should increase the generation space—for
-example, five or six independently selected words from a reviewed list of at
-least 2,048 words—and add migration and usability tests before changing the
-baseline credential format.
+It is still not a disk-protection mechanism, and it should never be reused for a
+personal account or a remote service. If a future change exposes an
+authenticated network service from the guest, revisit this document rather than
+assuming the current figure remains adequate.
+
+Four words rather than five or six is a deliberate trade. Sandfort disables
+clipboard sharing, so this password is typed by hand at the VM console on every
+login. Five words from the same list would give 55 bits, which defends against
+no attacker that 44 bits does not already stop in this threat model, at a real
+cost in typing.
+
+Changing the generator affects only newly created baselines. Existing baselines
+keep their stored password, and the guest profile contract is unchanged, so no
+profile revision bump or rebuild is required to adopt a new format.

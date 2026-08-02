@@ -12,8 +12,18 @@ enum GuestProvisioningSupport {
         let command: String
     }
 
+    /// Generates the default guest password as four distinct words joined by
+    /// hyphens, for example `moon-reef-juniper-birch`.
+    ///
+    /// `shuffled()` uses Swift's `SystemRandomNumberGenerator`, which is
+    /// cryptographically secure on Apple platforms. Do not replace it with a
+    /// seeded or hand-rolled generator: a predictable source would make the
+    /// phrase guessable regardless of how large the word list is.
+    ///
+    /// Drawing 4 distinct words from 2,048 gives 44.00 bits. See
+    /// `docs/password-strength.md` for what that protects against.
     static func credentials(username: String = "sandfort") -> SandboxCredentials {
-        let words = memorablePasswordWords.shuffled().prefix(4)
+        let words = MemorablePasswordWords.all.shuffled().prefix(4)
         return SandboxCredentials(username: username, password: words.joined(separator: "-"))
     }
 
@@ -89,14 +99,4 @@ enum GuestProvisioningSupport {
         """
     }
 
-    private static let memorablePasswordWords = [
-        "amber", "apple", "atlas", "autumn", "bamboo", "beacon", "birch", "breeze",
-        "brook", "cedar", "cherry", "cloud", "cobalt", "coral", "dawn", "delta",
-        "ember", "fern", "field", "forest", "frost", "garden", "golden", "harbor",
-        "hazel", "island", "ivory", "jade", "juniper", "lake", "lantern", "lemon",
-        "lotus", "maple", "meadow", "mint", "moon", "moss", "ocean", "olive",
-        "orchid", "pebble", "pine", "plum", "quartz", "rain", "reef", "river",
-        "robin", "rose", "ruby", "sage", "shore", "silver", "sky", "solar",
-        "sparrow", "spring", "stone", "sunset", "swift", "tide", "violet", "willow"
-    ]
 }

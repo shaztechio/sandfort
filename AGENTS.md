@@ -17,6 +17,10 @@ without weakening the common provisioning policy.
   hardware requirements, and the provisioning strategy boundary.
 - `GuestProvisioningSupport.swift`: distribution-neutral credential validation,
   custom-script embedding, Node.js verification, MOTD, and completion helpers.
+- `MemorablePasswordWords.swift`: reviewed 2,048-word list behind the generated
+  guest password. Its size is an entropy claim documented in
+  `docs/password-strength.md` and enforced by tests; do not add, remove, or
+  reorder entries without updating both.
 - `PlatformProvider.swift`: `VirtualMachineProvider` boundary for future hosts.
 - `UTMBundleBuilder.swift`: UTM plist/bundle generation and clean-session reset.
 - `CloudInit.swift`: current Ubuntu credentials, packages, hardening, and
