@@ -13,6 +13,10 @@ moved. Baselines built from any earlier revision are intentionally incompatible
 and must be rebuilt, including pre-revision Ubuntu state, which no longer
 resolves to any current profile.
 
+All four revisions were confirmed on real UTM boots on 2026-08-02. The graphical
+greeter is the only login presented, and a text console remains reachable for
+diagnostics.
+
 ## openSUSE Leap 16.0 ARM64
 
 Status: qualified and selectable in the production catalog.
