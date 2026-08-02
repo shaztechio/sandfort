@@ -1,7 +1,7 @@
 name: test
 on:
-  push:
-  pull_request:
+  # Temporarily manual-only while automatic GitHub Actions runs are disabled.
+  workflow_dispatch:
 jobs:
   macos-arm64-native:
     runs-on: macos-14
