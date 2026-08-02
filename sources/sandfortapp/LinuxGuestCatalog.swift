@@ -94,7 +94,7 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
 enum LinuxGuestCatalog {
     static let ubuntu2404ARM64 = LinuxGuestProfile(
         id: "ubuntu-24.04-arm64",
-        revision: 1,
+        revision: 2,
         displayName: "Ubuntu 24.04 LTS",
         distributionName: "Ubuntu",
         setupDurationDescription: "10-30 minutes",
@@ -117,7 +117,7 @@ enum LinuxGuestCatalog {
 
     static let fedora44ARM64 = LinuxGuestProfile(
         id: "fedora-44-arm64",
-        revision: 1,
+        revision: 2,
         displayName: "Fedora Cloud 44",
         distributionName: "Fedora",
         setupDurationDescription: "20-45 minutes",
@@ -140,7 +140,7 @@ enum LinuxGuestCatalog {
 
     static let debian13ARM64 = LinuxGuestProfile(
         id: "debian-13-arm64",
-        revision: 3,
+        revision: 4,
         displayName: "Debian 13 (Trixie)",
         distributionName: "Debian",
         setupDurationDescription: "20-45 minutes",
@@ -230,10 +230,15 @@ enum LinuxGuestCatalog {
         return legacyProfile(id: id)
     }
 
-    /// State written before profile revisions were persisted is intentionally
-    /// mapped to the profile that those Sandfort versions used. Do not change
-    /// this to return the newest revision: doing so would silently apply new
-    /// provisioning or hardware assumptions to an old baseline.
+    /// State written before profile revisions were persisted was built by
+    /// Ubuntu revision 1, which is no longer supported: it left a console login
+    /// prompt on VT1 before the greeter. No current revision describes such a
+    /// baseline, so this now resolves to nil and the caller reports
+    /// incompatibility, requiring Rebuild.
+    ///
+    /// Do not change this to return the newest revision. Doing so would
+    /// silently apply new provisioning or hardware assumptions to an old
+    /// baseline, which is the exact failure the revision contract prevents.
     static func legacyProfile(id: String) -> LinuxGuestProfile? {
         switch id {
         case ubuntu2404ARM64.id:

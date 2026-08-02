@@ -82,7 +82,11 @@ without this evidence.
 
 Record the macOS version, Mac model, UTM version, Sandfort version, setup
 duration, networking ownership, and result of every item. A regression failure
-blocks release of Debian revision 3. Revisions 1 and 2 are intentionally
-incompatible: revision 1 retained first-boot ENI state, while revision 2 still
-allowed Netplan to generate a udev rule that marked UTM's `enp0s1` adapter
-unmanaged.
+blocks release of Debian revision 4. Revisions 1 to 3 are intentionally
+incompatible: revision 1 retained first-boot ENI state, revision 2 still allowed
+Netplan to generate a udev rule that marked UTM's `enp0s1` adapter unmanaged, and
+revision 3 still showed a console login prompt before the greeter.
+
+Revision 4 masks `getty@tty1.service`. Confirm no text `sandfort login:` prompt
+appears during boot, that `systemctl is-enabled getty@tty1.service` reports
+`masked`, and that Ctrl+Alt+F2 still reaches a rescue console.

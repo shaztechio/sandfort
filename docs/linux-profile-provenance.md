@@ -5,6 +5,14 @@ must use the exact profile URL and pass the pinned SHA-256 before Sandfort opens
 or modifies the image. A new image or provisioning policy receives a new profile
 revision; an existing revision is never retargeted.
 
+All four profiles were revised on 2026-08-02 to mask `getty@tty1.service`, which
+otherwise showed a console login prompt before the graphical greeter. That took
+Ubuntu to revision 2, Fedora to revision 2, Debian to revision 4, and openSUSE to
+revision 3. Every pinned image and checksum is unchanged; only guest provisioning
+moved. Baselines built from any earlier revision are intentionally incompatible
+and must be rebuilt, including pre-revision Ubuntu state, which no longer
+resolves to any current profile.
+
 ## openSUSE Leap 16.0 ARM64
 
 Status: qualified and selectable in the production catalog.
@@ -84,7 +92,7 @@ a serial device and no display, and its failure path still uses
 
 Status: qualified and selectable in the production catalog.
 
-- Profile: `debian-13-arm64`, revision 3
+- Profile: `debian-13-arm64`, revision 4
 - Artifact: `debian-13-generic-arm64-20260712-2537.qcow2`
 - Official immutable URL:
   `https://cloud.debian.org/images/cloud/trixie/20260712-2537/debian-13-generic-arm64-20260712-2537.qcow2`
@@ -130,7 +138,7 @@ Debian qualification rebuild.
 
 Status: qualified and selectable in the production catalog.
 
-- Profile: `fedora-44-arm64`, revision 1
+- Profile: `fedora-44-arm64`, revision 2
 - Artifact: `Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2`
 - Official versioned URL:
   `https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2`

@@ -18,7 +18,13 @@ struct SandfortWorkflowEnvironment: Sendable {
         vmNamePrefix: "Sandfort",
         defaultProfile: LinuxGuestCatalog.defaultProfile,
         supportedProfiles: LinuxGuestCatalog.supportedProfiles,
-        legacyProfiles: [LinuxGuestCatalog.ubuntu2404ARM64],
+        // Empty since Ubuntu revision 2. State written before revisions were
+        // persisted was built by a provisioner that still left a console login
+        // prompt on VT1, so it cannot be mapped onto any current profile. Such a
+        // baseline now reports incompatibility and requires Rebuild, which is
+        // correct: mapping it to the newest revision would silently claim
+        // provisioning guarantees that baseline does not have.
+        legacyProfiles: [],
         rootURLOverride: nil,
         cacheURLOverride: nil,
         preserveExistingDisplayNames: false
@@ -50,9 +56,9 @@ struct SandfortWorkflowEnvironment: Sendable {
             vmNamePrefix: "Sandfort — \(profile.displayName)",
             defaultProfile: profile,
             supportedProfiles: [profile],
-            legacyProfiles: profile.id == LinuxGuestCatalog.ubuntu2404ARM64.id
-                ? [LinuxGuestCatalog.ubuntu2404ARM64]
-                : [],
+            // Empty for the same reason as `production` above: no current
+            // profile revision describes a pre-revision baseline.
+            legacyProfiles: [],
             rootURLOverride: rootURL,
             cacheURLOverride: cacheURL,
             preserveExistingDisplayNames: preserveExistingDisplayNames

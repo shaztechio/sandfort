@@ -107,6 +107,14 @@ enum FedoraCloudInit {
         systemctl set-default graphical.target
         systemctl enable gdm.service
         systemctl is-enabled --quiet gdm.service
+        status "Leaving VT1 to the graphical login so no console login prompt appears."
+        # Instances have a display and no serial device, so getty@tty1 would park
+        # a text "login:" prompt on the framebuffer until the greeter starts and
+        # look like the only way in. Masking just this instance keeps VT1 free;
+        # logind still spawns autovt@tty2..6 on demand, so Ctrl+Alt+F2 remains
+        # available if the desktop ever fails to come up.
+        systemctl mask getty@tty1.service
+        test "$(systemctl is-enabled getty@tty1.service 2>/dev/null || true)" = masked
         systemctl is-enabled --quiet firewalld.service
         systemctl is-active --quiet firewalld.service
         systemctl is-enabled --quiet qemu-guest-agent.service

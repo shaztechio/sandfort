@@ -24,12 +24,12 @@ without weakening the common provisioning policy.
 - `FedoraCloudInit.swift`: Fedora 44 DNF5, Workstation, firewalld, SELinux,
   automatic-update, and completion policy.
 - `DebianCloudInit.swift`: Debian 13 APT, GNOME/GDM, AppArmor, UFW,
-  unattended-upgrade, and completion policy. Debian revision 3 is production-supported.
+  unattended-upgrade, and completion policy. Debian revision 4 is production-supported.
 - `OpenSUSECloudInit.swift`: openSUSE Leap 16 Zypper, GNOME/GDM, Firefox,
   NetworkManager, firewalld, SELinux, security-patch timer, and completion
-  policy. Leap's GNOME pattern ships no browser and its VT1 getty would show a
-  console login before GDM, so the profile installs a browser explicitly and
-  masks `getty@tty1.service`. Leap revision 3 is production-supported.
+  policy. Leap's GNOME pattern pulls in no browser, unlike the other three
+  desktop metapackages, so the profile installs one explicitly. Leap revision 3
+  is production-supported.
 - `NativeDownloader.swift`, `DiskUtilities.swift`, `ISO9660Writer.swift`: native
   download, verification, disk manipulation, and NoCloud ISO generation.
 - `OpenPGPSignatureVerifier.swift`: **security-critical.** Minimal OpenPGP
@@ -84,22 +84,20 @@ arbitrary downloads:
 Catalog entries must remain bundled, reviewed, and version-controlled. Never
 populate the trusted catalog from an unsigned remote source or user-supplied URL.
 
-### Known deferred defect: console login prompt before the greeter
+### Console login prompt before the greeter
 
-Ubuntu, Fedora, and Debian all set `graphical.target` and enable GDM but none
-mask `getty@tty1.service`, and their instances are built with a display and no
-serial device. A text `sandfort login:` prompt therefore sits on the framebuffer
-from multi-user.target until the greeter starts, which reads as though the
-sandbox must be driven from a command line. openSUSE revision 3 fixed this by
-masking that one unit while leaving the `getty@` and `autovt@` templates alone,
-so Ctrl+Alt+F2 remains a rescue path.
+All four profiles mask `getty@tty1.service`. Instances are built with a display
+and no serial device, so a VT1 getty parks a text `sandfort login:` prompt on
+the framebuffer from multi-user.target until the greeter starts, which reads as
+though the sandbox must be driven from a command line.
 
-The user deliberately deferred the same fix for the three older profiles on
-2026-08-02, so all four can be re-qualified in one pass. Do not change
-`CloudInit.swift`, `FedoraCloudInit.swift`, or `DebianCloudInit.swift` for this
-without asking again: it needs a revision bump per profile, forces every
-existing user to **Rebuild** (destroying their baseline and instances), and
-requires a real UTM smoke test for each profile before release.
+Mask only that one unit. Never mask the `getty@` or `autovt@` templates: logind
+still spawns a console on demand, so Ctrl+Alt+F2 stays available as a rescue
+path when the desktop fails. These guests have no SSH and no serial device, so
+removing every text console would leave a broken instance unreachable.
+
+Baseline setup is unaffected. The setup VM is built with a serial device and no
+display, and its failure path still unmasks `serial-getty@ttyAMA0`.
 
 ## Planned network observability and filtering
 

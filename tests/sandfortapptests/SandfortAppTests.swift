@@ -196,7 +196,7 @@ final class SandfortAppTests: XCTestCase {
 
         let profile = LinuxGuestCatalog.defaultProfile
         XCTAssertEqual(profile.displayName, "Ubuntu 24.04 LTS")
-        XCTAssertEqual(profile.revision, 1)
+        XCTAssertEqual(profile.revision, 2)
         XCTAssertEqual(profile.setupDurationDescription, "10-30 minutes")
         XCTAssertEqual(profile.distributionName, "Ubuntu")
         XCTAssertEqual(profile.hardware.architecture, "arm64")
@@ -217,12 +217,19 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertTrue(finalizer.contains("apt-get update"))
         XCTAssertTrue(finalizer.contains("apt-get install -y ubuntu-desktop-minimal"))
         XCTAssertTrue(finalizer.contains("systemctl enable gdm3.service"))
+        // Instances have a display and no serial device, so a VT1 getty would
+        // show a text login prompt before the greeter and read as the only way in.
+        XCTAssertTrue(finalizer.contains("systemctl mask getty@tty1.service"))
+        XCTAssertTrue(finalizer.contains("systemctl is-enabled getty@tty1.service"))
+        // The rescue console on Ctrl+Alt+F2 must survive.
+        XCTAssertFalse(finalizer.contains("systemctl mask getty@.service"))
+        XCTAssertFalse(finalizer.contains("mask autovt@"))
     }
 
     func testFedora44ProductionProfileHasImmutableVerifiedMetadata() throws {
         let fedora = LinuxGuestCatalog.fedora44ARM64
         XCTAssertEqual(fedora.id, "fedora-44-arm64")
-        XCTAssertEqual(fedora.revision, 1)
+        XCTAssertEqual(fedora.revision, 2)
         XCTAssertEqual(fedora.displayName, "Fedora Cloud 44")
         XCTAssertEqual(fedora.distributionName, "Fedora")
         XCTAssertEqual(fedora.setupDurationDescription, "20-45 minutes")
@@ -262,7 +269,7 @@ final class SandfortAppTests: XCTestCase {
     func testDebian13ProductionProfileHasImmutableVerifiedMetadata() throws {
         let debian = LinuxGuestCatalog.debian13ARM64
         XCTAssertEqual(debian.id, "debian-13-arm64")
-        XCTAssertEqual(debian.revision, 3)
+        XCTAssertEqual(debian.revision, 4)
         XCTAssertEqual(debian.displayName, "Debian 13 (Trixie)")
         XCTAssertEqual(debian.distributionName, "Debian")
         XCTAssertEqual(debian.setupDurationDescription, "20-45 minutes")
@@ -422,6 +429,9 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertTrue(finalizer.contains("firewall-cmd --zone=sandfort --query-service=ssh"))
         XCTAssertTrue(finalizer.contains("test \"$(getenforce)\" = Enforcing"))
         XCTAssertTrue(finalizer.contains("systemctl enable dnf5-automatic.timer"))
+        XCTAssertTrue(finalizer.contains("systemctl mask getty@tty1.service"))
+        XCTAssertTrue(finalizer.contains("systemctl is-enabled getty@tty1.service"))
+        XCTAssertFalse(finalizer.contains("mask autovt@"))
         XCTAssertTrue(finalizer.contains("systemctl enable gdm.service"))
         XCTAssertTrue(finalizer.contains("systemctl enable qemu-guest-agent.service"))
         XCTAssertTrue(finalizer.contains("systemctl enable NetworkManager.service"))
@@ -580,6 +590,9 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertTrue(finalizer.contains("aa-enabled"))
         XCTAssertTrue(finalizer.contains("systemctl enable unattended-upgrades.service"))
         XCTAssertTrue(finalizer.contains("systemctl enable gdm3.service"))
+        XCTAssertTrue(finalizer.contains("systemctl mask getty@tty1.service"))
+        XCTAssertTrue(finalizer.contains("systemctl is-enabled getty@tty1.service"))
+        XCTAssertFalse(finalizer.contains("mask autovt@"))
         XCTAssertTrue(finalizer.contains("systemctl enable qemu-guest-agent.service"))
         XCTAssertTrue(finalizer.contains("systemctl enable NetworkManager.service"))
         XCTAssertTrue(finalizer.contains("https://nodejs.org/dist/index.json"))
@@ -708,7 +721,7 @@ final class SandfortAppTests: XCTestCase {
             from: PropertyListEncoder().encode(state)
         )
         XCTAssertEqual(decoded.guestProfileID, "ubuntu-24.04-arm64")
-        XCTAssertEqual(decoded.guestProfileRevision, 1)
+        XCTAssertEqual(decoded.guestProfileRevision, 2)
         XCTAssertEqual(decoded.guestImageSHA256, profile.image.sha256)
     }
 
@@ -722,14 +735,15 @@ final class SandfortAppTests: XCTestCase {
             ),
             profile
         )
-        XCTAssertEqual(
-            LinuxGuestCatalog.supportedProfile(
-                id: profile.id,
-                revision: nil,
-                imageSHA256: nil
-            ),
-            profile
-        )
+        // Pre-revision state was built by Ubuntu revision 1, which no longer
+        // exists. Refusing to resolve it is the point: mapping it onto the
+        // current revision would claim provisioning guarantees it lacks.
+        XCTAssertNil(LinuxGuestCatalog.supportedProfile(
+            id: profile.id,
+            revision: nil,
+            imageSHA256: nil
+        ))
+        XCTAssertNil(LinuxGuestCatalog.legacyProfile(id: profile.id))
         XCTAssertNil(LinuxGuestCatalog.supportedProfile(
             id: profile.id,
             revision: profile.revision + 1,
@@ -747,7 +761,7 @@ final class SandfortAppTests: XCTestCase {
         ))
     }
 
-    func testWorkflowProfileCompatibilityAllowsLegacyReadyStateButRequiresExactSetupMetadata() throws {
+    func testWorkflowProfileCompatibilityRequiresARebuildForPreRevisionState() throws {
         let profile = LinuxGuestCatalog.defaultProfile
         func state(
             stage: SandboxState.Stage = .ready,
@@ -767,10 +781,17 @@ final class SandfortAppTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(try SandfortWorkflow.resolveGuestProfile(for: state()), profile)
-        XCTAssertEqual(try SandfortWorkflow.resolveGuestProfile(
-            for: state(id: profile.id)
-        ), profile)
+        // State with no persisted revision predates Ubuntu revision 2 and its
+        // console-login fix, so it must require a rebuild rather than resolve.
+        for legacyState in [state(), state(id: profile.id)] {
+            XCTAssertThrowsError(
+                try SandfortWorkflow.resolveGuestProfile(for: legacyState)
+            ) { error in
+                guard case SandboxError.incompatibleGuestProfile(_) = error else {
+                    return XCTFail("Expected pre-revision state to require rebuild, received \(error)")
+                }
+            }
+        }
         XCTAssertEqual(try SandfortWorkflow.resolveGuestProfile(
             for: state(
                 id: profile.id,
@@ -925,7 +946,7 @@ final class SandfortAppTests: XCTestCase {
             debian
         )
 
-        for incompatibleRevision in [1, 2] {
+        for incompatibleRevision in [1, 2, 3] {
             var incompatibleState = state
             incompatibleState.guestProfileRevision = incompatibleRevision
             XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(
