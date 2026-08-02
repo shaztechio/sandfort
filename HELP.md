@@ -73,6 +73,13 @@ Advanced mode accepts a custom setup script. The script:
 - Never runs on the Mac host.
 - Applies only to the next baseline rebuild.
 - Must never contain code copied from an untrusted challenge.
+- Fails the whole setup if it exits with an error, so no baseline is created.
+
+Setup has Internet access even though clean instances start offline, so install
+or cache anything you will need later while the script runs. The project's
+`docs/custom-setup-scripts.md` covers the rules in full and has worked examples,
+including caching dependencies for offline use, extra language toolchains,
+rootless containers, and desktop settings.
 
 Changing a tool option or script does not modify an existing baseline. Choose **Rebuild** to apply the new configuration.
 

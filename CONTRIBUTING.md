@@ -26,8 +26,11 @@ make test     # policy and format regression tests
 make app      # release build into dist/Sandfort.app, ad-hoc signed
 ```
 
-`make test` must pass for every change. For packaging or UI changes, also run
-`make app` and verify the result:
+`make test` must pass for every change. Note that GitHub Actions is currently
+configured for manual runs only (`workflow_dispatch`), so opening a pull request
+does not run the suite for you — run it locally and say so in the pull request.
+
+For packaging or UI changes, also run `make app` and verify the result:
 
 ```sh
 codesign --verify --deep --strict "dist/Sandfort.app"

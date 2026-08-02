@@ -65,6 +65,10 @@ without weakening the common provisioning policy.
   `docs/adding-a-platform.md`: design intent and provider requirements.
 - `docs/password-strength.md`: generated guest-password entropy, storage,
   threat-model limitations, and stronger user-selected password guidance.
+- `docs/custom-setup-scripts.md`: how the advanced custom setup script runs,
+  its constraints, worked scenarios, and what such a script must never do.
+  Package names in its examples are verified against official repository
+  metadata; keep that true when editing them.
 - `docs/linux-profile-provenance.md`: immutable guest-image intake records and
   qualification status.
 

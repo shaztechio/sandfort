@@ -51,6 +51,10 @@ checksum is a value the distribution signed, using Security.framework RSA rather
 than a `gpg` dependency. `security-model.md` states the rules that keep them
 safe to change.
 
+`SafetyAcknowledgement.swift` and `AppLifecycle.swift` hold the app-lifecycle
+edges: the first-run disclosure that gates baseline creation, and the
+single-window quit behavior with its guard against discarding work in progress.
+
 Profile-sensitive provider calls receive the resolved `LinuxGuestProfile`
 explicitly. Setup, clean creation, reset, and repair therefore use the baseline's
 saved profile rather than a global Ubuntu default. Legacy state without a profile

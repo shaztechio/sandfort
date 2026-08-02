@@ -33,7 +33,9 @@ native Help Book available from **Help → Sandfort Help** in the app.
    Before creating or rebuilding, choose whether the baseline should include
    Python 3 development tools and the latest official Node.js LTS/npm. Git, curl,
    and jq are always included. Node's Linux ARM64 archive is SHA-256 verified.
-   Advanced mode also accepts a custom shell script. It is embedded in cloud-init
+   Advanced mode also accepts a custom shell script, documented with worked
+   examples in [docs/custom-setup-scripts.md](docs/custom-setup-scripts.md). It
+   is embedded in cloud-init
    and runs as root inside the selected Linux guest during baseline creation,
    never on the macOS host.
 4. The app downloads the profile's official ARM64 cloud image, shows byte-based
