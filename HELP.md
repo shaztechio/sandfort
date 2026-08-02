@@ -14,10 +14,10 @@ Before creating a sandbox:
 
 To create Sandfort for the first time:
 
-1. Open Sandfort, choose an Ubuntu, Fedora, or Debian environment, and select the development tools you want.
+1. Open Sandfort, choose an Ubuntu, Fedora, Debian, or openSUSE environment, and select the development tools you want.
 2. Click the selected distribution's **Create Environment** action.
 3. Leave the setup VM running in UTM while Linux updates itself and installs the desktop and selected tools.
-4. Wait for the setup VM to power itself off automatically. Ubuntu commonly takes 10–30 minutes; Fedora and Debian commonly take 20–45 minutes. Any distribution can take longer on a slow package mirror.
+4. Wait for the setup VM to power itself off automatically. Ubuntu commonly takes 10–30 minutes; Fedora, Debian, and openSUSE commonly take 20–45 minutes. Any distribution can take longer on a slow package mirror.
 5. Return to Sandfort and click **Finish Setup**.
 6. Sandfort protects the completed baseline and creates **Sandbox Instance 1**.
 
@@ -27,7 +27,7 @@ Do not manually shut down the setup VM. Do not click **Finish Setup** while Linu
 
 Each Linux environment has its own **Protected Baseline**, credentials, development-tool configuration, and numbered instances. Never start a baseline directly in UTM and never use it for suspicious work.
 
-Use **Add Linux Environment** to create Ubuntu, Fedora, and Debian environments side by side. Select an environment card to manage its instances. Instances from different environments can run at the same time because their disks, firmware state, VM identifiers, and network addresses are independent.
+Use **Add Linux Environment** to create Ubuntu, Fedora, Debian, and openSUSE environments side by side. Select an environment card to manage its instances. Instances from different environments can run at the same time because their disks, firmware state, VM identifiers, and network addresses are independent.
 
 The selected environment's baseline contains its Linux distribution, desktop, security settings, updates, and development tools. Changes made inside an instance do not update the baseline. **Rebuild** replaces only the selected environment. **Delete Environment** removes only the selected environment after confirmation. Both leave other environments and verified image downloads unchanged.
 
@@ -168,7 +168,7 @@ Sandfort will not copy, reset, rename, delete, or rebuild a VM whose disk is in 
 
 Sandfort stores its state, verified image cache, Protected Baseline, and instances under the current user's `Library/Application Support/Sandfort` directory.
 
-Open **Sandfort → Settings** to see the exact Linux image-cache location. The settings pane can reveal it in Finder or copy its path. Its read-only **Environment downloads** section lists the exact official HTTPS source URL used for each Ubuntu, Fedora, and Debian image. Production environments share `~/Library/Application Support/Sandfort/Cache`; isolated verification builds use their own cache directory.
+Open **Sandfort → Settings** to see the exact Linux image-cache location. The settings pane can reveal it in Finder or copy its path. Its read-only **Environment downloads** section lists the exact official HTTPS source URL used for each Ubuntu, Fedora, Debian, and openSUSE image. Production environments share `~/Library/Application Support/Sandfort/Cache`; isolated verification builds use their own cache directory.
 
 Do not manually move or edit these files while Sandfort or UTM is open. Use Sandfort's instance and rebuild controls so its saved state and UTM's library remain consistent.
 

@@ -21,6 +21,7 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
         case ubuntu2404
         case fedora44
         case debian13
+        case opensuseLeap16
 
         func credentials() -> SandboxCredentials {
             switch self {
@@ -30,6 +31,8 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
                 return FedoraCloudInit.credentials()
             case .debian13:
                 return DebianCloudInit.credentials()
+            case .opensuseLeap16:
+                return OpenSUSECloudInit.credentials()
             }
         }
 
@@ -41,6 +44,8 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
                 return try FedoraCloudInit.credentials(password: password)
             case .debian13:
                 return try DebianCloudInit.credentials(password: password)
+            case .opensuseLeap16:
+                return try OpenSUSECloudInit.credentials(password: password)
             }
         }
 
@@ -55,6 +60,8 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
                 return try FedoraCloudInit.seedISO(credentials: credentials, tools: tools)
             case .debian13:
                 return try DebianCloudInit.seedISO(credentials: credentials, tools: tools)
+            case .opensuseLeap16:
+                return try OpenSUSECloudInit.seedISO(credentials: credentials, tools: tools)
             }
         }
     }
@@ -154,10 +161,33 @@ enum LinuxGuestCatalog {
         provisioner: .debian13
     )
 
+    static let opensuseLeap16ARM64 = LinuxGuestProfile(
+        id: "opensuse-leap-16.0-arm64",
+        revision: 3,
+        displayName: "openSUSE Leap 16.0",
+        distributionName: "openSUSE",
+        setupDurationDescription: "20-45 minutes",
+        image: LinuxGuestProfile.Image(
+            url: URL(string: "https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2")!,
+            sha256: "2e9eeb56e7523775f1f01261f4900f289e20c38910226b0c1e5aa7228a84194a",
+            fileName: "Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2",
+            downloadSizeDescription: "about 304 MiB"
+        ),
+        hardware: LinuxGuestProfile.Hardware(
+            architecture: "arm64",
+            utmArchitecture: "aarch64",
+            utmTarget: "virt",
+            memoryMiB: 4096,
+            cpuCount: 4,
+            diskSizeGiB: 64
+        ),
+        provisioner: .opensuseLeap16
+    )
+
     /// Profiles are bundled with the app so image sources and checksums are
     /// reviewed and versioned with the code. Never populate this from an
     /// unsigned remote catalog or arbitrary user input.
-    static let profiles = [ubuntu2404ARM64, fedora44ARM64, debian13ARM64]
+    static let profiles = [ubuntu2404ARM64, fedora44ARM64, debian13ARM64, opensuseLeap16ARM64]
 
     /// Profiles with reviewed download metadata that are not yet safe to
     /// create, repair, or expose in the production app.
@@ -167,7 +197,9 @@ enum LinuxGuestCatalog {
     /// baseline. When a current profile is revised, retain its older value here
     /// until support for baselines created with that revision is deliberately
     /// removed.
-    static let supportedProfiles = [ubuntu2404ARM64, fedora44ARM64, debian13ARM64]
+    static let supportedProfiles = [
+        ubuntu2404ARM64, fedora44ARM64, debian13ARM64, opensuseLeap16ARM64
+    ]
     static let defaultProfile = ubuntu2404ARM64
 
     static func profile(id: String) -> LinuxGuestProfile? {

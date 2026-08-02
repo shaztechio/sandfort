@@ -3,7 +3,8 @@
 ## Enforced boundaries
 
 - Official immutable cloud images with profile-specific pinned SHA-256 values.
-  Ubuntu 24.04, Fedora 44, and Debian 13 are currently supported.
+  Ubuntu 24.04, Fedora 44, Debian 13, and openSUSE Leap 16 are currently
+  supported.
 - UTM QEMU backend with Apple Hypervisor acceleration.
 - An independent protected setup baseline per Linux environment, used to restore
   that environment's selected instance disk and UEFI state before every clean run.
@@ -16,15 +17,19 @@
 - Distribution-specific cloud-init disables SSH, denies unsolicited inbound
   traffic, applies upgrades, and enables unattended security updates. Ubuntu
   uses UFW and unattended-upgrades; Fedora uses firewalld and
-  security-only DNF5 automatic updates while requiring SELinux enforcing mode.
+  security-only DNF5 automatic updates while requiring SELinux enforcing mode;
+  Debian uses UFW, AppArmor, and unattended-upgrades; openSUSE Leap uses
+  firewalld and an app-owned daily `zypper patch --category security` timer
+  while requiring SELinux enforcing mode.
 - A unique initial guest password is generated locally and shown in the app.
   Rebuild allows an explicit replacement after local validation; cloud-init
   safely quotes it before embedding it in the NoCloud seed. Its authentication
   quality and limitations are documented in `password-strength.md`.
 - Distribution qualification uses a separately signed app identity, Application
-  Support root, allowed-profile set, and UTM name prefix. Fedora and Debian
-  verification builds cannot resolve production state. Production baselines
-  persist their exact Ubuntu, Fedora, or Debian profile identity and checksum.
+  Support root, allowed-profile set, and UTM name prefix. Fedora, Debian, and
+  openSUSE verification builds cannot resolve production state. Production
+  baselines persist their exact Ubuntu, Fedora, Debian, or openSUSE profile
+  identity and checksum.
 
 The initial provisioning VM becomes the persistent, clearly labeled Protected
 Baseline. The user must wait for cloud-init to finish and shut it down before
@@ -57,6 +62,35 @@ running, Sandfort launches it with `NSWorkspace` and waits for its Apple Event
 interface to become ready. The workflow also waits until UTM can no longer resolve
 each exact VM name before removing the parent directory, so UTM cannot race the
 filesystem cleanup or retain a stale registration.
+
+## Image signature verification (security-critical code)
+
+`OpenPGPSignatureVerifier.swift` and `TrustedSigningKeys.swift` are
+security-critical and are called out as such here because a signature verifier
+has an asymmetric failure mode: a bug makes it accept a signature it should
+reject, and nothing downstream notices. Treat both files as review-gated.
+
+The verifier parses OpenPGP detached signatures and checks them with
+Security.framework RSA PKCS#1 v1.5, so no `gpg` dependency or other runtime
+shell tool is introduced. Its rules are deliberate:
+
+- Every read is bounds-checked; declared lengths are never trusted.
+- Only what is needed is accepted. Unknown packet versions, non-RSA algorithms,
+  SHA-1 and MD5, text-mode signatures, and partial or indeterminate packet
+  lengths are refused rather than skipped or guessed.
+- The stored left-16 digest bits are a corruption check only, never proof.
+- The trust anchor is the pinned fingerprint in `TrustedSigningKeys.swift`. A
+  signature verifies against a key; only a pinned fingerprint makes it the right
+  key. Keys are bundled and reviewed, never fetched at runtime, because a key
+  retrieved alongside a signature proves nothing about who built the artifact.
+
+This runs at profile intake, not in the download path. The pinned SHA-256 in
+reviewed source is already the stronger runtime anchor: an attacker who can
+substitute an image still cannot match the pinned hash. What the signature adds
+is provenance, confirming that the pinned value is one the distribution signed
+rather than one merely observed at a URL. Signature coverage is therefore
+recorded per profile in `linux-profile-provenance.md`, and a profile whose
+signature has not been verified must say so rather than imply that it was.
 
 ## Residual risk
 

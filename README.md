@@ -2,7 +2,8 @@
 
 ![Sandfort app icon](assets/Sandfort.png) Sandfort is a native SwiftUI app that
 creates disposable Linux VMs for untrusted work. Its curated catalog currently
-supports Ubuntu 24.04 LTS, Fedora Cloud 44, and Debian 13. The first
+supports Ubuntu 24.04 LTS, Fedora Cloud 44, Debian 13, and openSUSE Leap 16.
+The first
 provider supports Apple Silicon macOS and [UTM](https://mac.getutm.app/).
 
 **A clean machine for untrusted work.**
@@ -26,7 +27,8 @@ native Help Book available from **Help → Sandfort Help** in the app.
 
 1. Download and install [UTM](https://mac.getutm.app/).
 2. Run `make app`.
-3. Open `dist/Sandfort.app`, choose an Ubuntu, Fedora, or Debian environment,
+3. Open `dist/Sandfort.app`, choose an Ubuntu, Fedora, Debian, or openSUSE
+   environment,
    and click its **Create Environment** action.
    Before creating or rebuilding, choose whether the baseline should include
    Python 3 development tools and the latest official Node.js LTS/npm. Git, curl,
@@ -72,7 +74,7 @@ address, disk, and UEFI state are freshly generated or restored.
 
 Each Linux environment has an independent protected baseline, credentials,
 tool configuration, and numbered instances. Use **Add Linux Environment** to
-create Ubuntu, Fedora, and Debian environments side by side; instances from
+create Ubuntu, Fedora, Debian, and openSUSE environments side by side; instances from
 those environments can run concurrently. Verified image downloads are shared, but VM disks and
 state are not.
 

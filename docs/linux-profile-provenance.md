@@ -5,6 +5,81 @@ must use the exact profile URL and pass the pinned SHA-256 before Sandfort opens
 or modifies the image. A new image or provisioning policy receives a new profile
 revision; an existing revision is never retargeted.
 
+## openSUSE Leap 16.0 ARM64
+
+Status: qualified and selectable in the production catalog.
+
+- Profile: `opensuse-leap-16.0-arm64`, revision 3
+- Artifact: `Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2`
+- Official immutable URL:
+  `https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2`
+- Official SHA-256 file:
+  `https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2.sha256`
+- Official detached checksum signature:
+  `https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2.sha256.asc`
+- Published and pinned SHA-256:
+  `2e9eeb56e7523775f1f01261f4900f289e20c38910226b0c1e5aa7228a84194a`
+- Artifact size: 318,963,712 bytes
+- openSUSE Project Signing Key fingerprint:
+  `AD48 5664 E901 B867 051A B15F 35A2 F86E 29B7 00A4`
+- Intake date: 2026-08-02
+- Signature verification date: 2026-08-02
+
+During intake, the exact cloud image, published checksum, detached signature,
+and official CycloneDX SBOM were obtained from openSUSE's versioned Leap 16.0
+appliance directory. The downloaded artifact independently matched the
+published SHA-256 and passed Sandfort's native QCOW2 geometry validation. The
+SBOM confirms that the base image contains cloud-init, NetworkManager, SELinux
+policy and tools, OpenSSH, and qemu-guest-agent. Leap's official repository
+metadata was also checked for every package name encoded by the provisioner.
+
+The detached OpenPGP signature over the published `.sha256` file was
+cryptographically verified without the `gpg` tool, using Sandfort's own
+`OpenPGPSignatureVerifier` (security-critical code; see `security-model.md`).
+`OpenPGPSignatureVerifierTests` reproduces this verification on every `make
+test` run and asserts that the signed checksum still equals the value pinned in
+the catalog. The signature is a version 3
+RSA packet over SHA-512, issued by key ID `35A2F86E29B700A4`. That key ID
+matches the openSUSE Project Signing Key published at
+`https://download.opensuse.org/distribution/leap/16.0/repo/oss/repodata/repomd.xml.key`,
+whose full fingerprint is recorded above. RSA PKCS#1 v1.5 recovery over the
+4096-bit modulus reproduced the exact EMSA padding and SHA-512 DigestInfo, and
+the signed checksum is byte-identical to the SHA-256 pinned in this catalog. The
+signature therefore covers the exact artifact Sandfort downloads, and the pinned
+hash is a value openSUSE actually signed rather than only a value observed at a
+URL.
+
+`OpenSUSECloudInit.swift` installs GNOME/GDM, Firefox, selected development
+tools, NetworkManager, qemu/SPICE guest agents, firewalld, and an app-owned
+daily security-patch timer through Zypper. It disables and masks SSH, requires
+SELinux enforcing mode, installs a MAC-independent DHCP connection for
+disposable instances, configures an empty DROP-target firewall zone, verifies
+every requirement, and powers off only after writing Sandfort's completion
+marker. Revision 3 passed the real-UTM matrix in `opensuse-qualification.md` on
+2026-08-02 and was promoted to the production catalog.
+
+Revision 2 adds the browser. Unlike Ubuntu's `ubuntu-desktop-minimal`, Fedora's
+`workstation-product-environment`, and Debian's `task-gnome-desktop`, Leap's
+`patterns-gnome-gnome` requires only `gnome-session-wayland` and declares no
+recommends, so revision 1 produced a desktop with no way to browse the web.
+Leap 16 keeps browsers in `patterns-gnome-gnome_internet`, whose recommends
+also include Evolution, Polari, Transmission, and VPN plugins that a disposable
+sandbox must not ship. Revision 2 therefore installs `MozillaFirefox` (140 ESR,
+aarch64, `/usr/bin/firefox`) explicitly and pins
+`MozillaFirefox-branding-openSUSE`, because two packages provide the required
+`MozillaFirefox-branding` capability and the unattended solver must not be left
+to choose between them. Both are verified during setup.
+
+Revision 3 masks `getty@tty1.service`. Instances are built with a display and
+no serial device, so the VT1 getty parked a text `sandfort login:` prompt on the
+framebuffer from multi-user.target until GDM started, which reads as though the
+sandbox must be used from a command line. Masking that one unit leaves VT1 free
+for the greeter. It deliberately does not mask the `getty@` or `autovt@`
+templates, so logind still spawns a console on demand and Ctrl+Alt+F2 remains a
+rescue path if the desktop fails. Baseline setup is unaffected: the setup VM has
+a serial device and no display, and its failure path still uses
+`serial-getty@ttyAMA0`.
+
 ## Debian 13 (Trixie) ARM64
 
 Status: qualified and selectable in the production catalog.

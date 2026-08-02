@@ -1,9 +1,8 @@
 # Why these Linux profiles
 
-Sandfort's four-profile roadmap is Ubuntu 24.04 LTS, Fedora Cloud 44,
-Debian 13, and openSUSE Leap. The first three are production-supported on Apple
-Silicon. openSUSE Leap is the planned fourth profile and is not currently
-exposed in the app.
+Sandfort's four curated profiles are Ubuntu 24.04 LTS, Fedora Cloud 44,
+Debian 13, and openSUSE Leap 16. All four are production-supported on Apple
+Silicon.
 
 The catalog is deliberately small. Sandfort does not aim to list every Linux
 distribution; every entry becomes trusted baseline-building code that must be
@@ -78,7 +77,7 @@ References: [Debian 13 release and lifecycle](https://www.debian.org/releases/tr
 [Debian 13 cloud-image support](https://www.debian.org/News/2025/20250809.en.html),
 [Sandfort Debian provenance](linux-profile-provenance.md#debian-13-trixie-arm64).
 
-## openSUSE Leap — planned fourth profile
+## openSUSE Leap — fourth production profile
 
 openSUSE Leap was chosen as the fourth candidate because it adds the SUSE and
 Zypper ecosystem while retaining a stable, enterprise-oriented release model.
@@ -95,11 +94,13 @@ release plan. Those properties make it a better current fourth candidate than
 an image that would require an interactive ISO installation or an unofficial
 ARM conversion.
 
-It is not yet a production profile. Sandfort still needs to pin one immutable
-Leap AArch64 build, verify its signature and checksum chain, implement a
-separate openSUSE provisioner, and complete the full UTM matrix. Qualification
-must cover Zypper updates, desktop/login setup, NetworkManager, SELinux,
-firewalld, guest agents, offline and Internet-enabled clean instances, reset,
+Sandfort pins Leap 16.0 AArch64 Cloud Build 18.7 and its official SHA-256, and
+the separate openSUSE provisioner implements Zypper updates, desktop/login
+setup, NetworkManager, SELinux, firewalld, guest agents, and automatic security
+patches. Qualification exposed two Leap-specific gaps that the other three
+profiles do not have, because Leap's GNOME pattern neither pulls in a browser
+nor leaves VT1 to the graphical greeter. Revision 3 fixes both and passed the
+full UTM matrix, including offline and Internet-enabled clean instances, reset,
 resume, deletion, and concurrent environments.
 
 References: [official openSUSE Leap AArch64 cloud images](https://download.opensuse.org/download/distribution/openSUSE-current/appliances/),

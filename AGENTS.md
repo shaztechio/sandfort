@@ -3,7 +3,7 @@
 ## Project and architecture
 
 Sandfort is a native SwiftUI macOS 13+ app that creates disposable Ubuntu 24.04,
-Fedora 44, and Debian 13 ARM64 VMs for UTM on Apple silicon. Keep the current implementation
+Fedora 44, Debian 13, and openSUSE Leap 16 ARM64 VMs for UTM on Apple silicon. Keep the current implementation
 provider-oriented so Intel macOS, Windows, and Linux installers can be added
 without weakening the common provisioning policy.
 
@@ -25,8 +25,24 @@ without weakening the common provisioning policy.
   automatic-update, and completion policy.
 - `DebianCloudInit.swift`: Debian 13 APT, GNOME/GDM, AppArmor, UFW,
   unattended-upgrade, and completion policy. Debian revision 3 is production-supported.
+- `OpenSUSECloudInit.swift`: openSUSE Leap 16 Zypper, GNOME/GDM, Firefox,
+  NetworkManager, firewalld, SELinux, security-patch timer, and completion
+  policy. Leap's GNOME pattern ships no browser and its VT1 getty would show a
+  console login before GDM, so the profile installs a browser explicitly and
+  masks `getty@tty1.service`. Leap revision 3 is production-supported.
 - `NativeDownloader.swift`, `DiskUtilities.swift`, `ISO9660Writer.swift`: native
   download, verification, disk manipulation, and NoCloud ISO generation.
+- `OpenPGPSignatureVerifier.swift`: **security-critical.** Minimal OpenPGP
+  detached-signature verifier used during profile intake, so a pinned checksum
+  can be confirmed as a value the distribution actually signed without
+  depending on the `gpg` tool. A verifier fails open when it is wrong, so a
+  parsing mistake turns "invalid signature" into "accepted". Keep it strictly
+  bounds-checked, keep the algorithm allowlist narrow, and never let the stored
+  left-16 digest bits stand in for real verification.
+- `TrustedSigningKeys.swift`: **security-critical data.** Reviewed, bundled
+  distribution signing keys and their pinned fingerprints. The fingerprint is
+  the trust anchor; never fetch a key from a keyserver, mirror, or any runtime
+  source.
 - `tests/sandfortapptests`: policy and bundle-format regression tests.
 - `tools/packaging`: development app-bundle packaging metadata and script.
 - `HELP.md`: canonical user help source. Packaging renders it into Sandfort's
@@ -40,8 +56,8 @@ without weakening the common provisioning policy.
 
 ## Planned Linux guest catalog work
 
-The bundled production catalog contains proven Ubuntu 24.04 LTS, Fedora 44, and
-Debian 13 ARM64 profiles. Continue extending the curated Linux catalog without accepting
+The bundled production catalog contains proven Ubuntu 24.04 LTS, Fedora 44,
+Debian 13, and openSUSE Leap 16 ARM64 profiles. Continue extending the curated Linux catalog without accepting
 arbitrary downloads:
 
 - Add curated Debian, Fedora, and other Linux profiles only after their official
@@ -67,6 +83,23 @@ arbitrary downloads:
 
 Catalog entries must remain bundled, reviewed, and version-controlled. Never
 populate the trusted catalog from an unsigned remote source or user-supplied URL.
+
+### Known deferred defect: console login prompt before the greeter
+
+Ubuntu, Fedora, and Debian all set `graphical.target` and enable GDM but none
+mask `getty@tty1.service`, and their instances are built with a display and no
+serial device. A text `sandfort login:` prompt therefore sits on the framebuffer
+from multi-user.target until the greeter starts, which reads as though the
+sandbox must be driven from a command line. openSUSE revision 3 fixed this by
+masking that one unit while leaving the `getty@` and `autovt@` templates alone,
+so Ctrl+Alt+F2 remains a rescue path.
+
+The user deliberately deferred the same fix for the three older profiles on
+2026-08-02, so all four can be re-qualified in one pass. Do not change
+`CloudInit.swift`, `FedoraCloudInit.swift`, or `DebianCloudInit.swift` for this
+without asking again: it needs a revision bump per profile, forces every
+existing user to **Rebuild** (destroying their baseline and instances), and
+requires a real UTM smoke test for each profile before release.
 
 ## Planned network observability and filtering
 
@@ -145,6 +178,8 @@ make qualification-app
 codesign --verify --deep --strict "dist/Sandfort Fedora Qualification.app"
 make debian-qualification-app
 codesign --verify --deep --strict "dist/Sandfort Debian Qualification.app"
+make opensuse-qualification-app
+codesign --verify --deep --strict "dist/Sandfort openSUSE Qualification.app"
 ```
 
 `make test` supplies repository-local Swift module-cache paths and runs
@@ -163,12 +198,22 @@ is a development verification tool, not the production profile selector. Follow
 regression build. Follow `docs/debian-qualification.md`; never use production
 state for qualification.
 
+`make opensuse-qualification-app` creates the corresponding isolated openSUSE
+Leap 16 regression build. Follow `docs/opensuse-qualification.md`; never use
+production state for qualification.
+
 ## Security invariants
 
 Treat these as requirements, not optional defaults:
 
 - Download only an immutable official image for the exact guest architecture
   and verify its pinned SHA-256 before use. Never silently accept a mismatch.
+- Treat `OpenPGPSignatureVerifier.swift` and `TrustedSigningKeys.swift` as
+  security-critical. Changes there need the full negative-test set kept green,
+  not only the passing signature: tampered payload, tampered signature,
+  unpinned key, corrupted armor checksum, truncated packet, and garbage input.
+  Never relax a check to make a new distribution's signature parse; add the
+  format explicitly or leave it unverified and say so in the provenance record.
 - Restore both the selected instance's disk and UEFI state from the trusted
   setup baseline before every untrusted launch. Multiple numbered instances
   must remain independent and receive unique UUIDs and MAC addresses. Never

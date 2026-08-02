@@ -186,7 +186,10 @@ final class SandfortAppTests: XCTestCase {
     func testLinuxGuestCatalogContainsTheCuratedProductionProfiles() throws {
         XCTAssertEqual(
             LinuxGuestCatalog.profiles.map(\.id),
-            ["ubuntu-24.04-arm64", "fedora-44-arm64", "debian-13-arm64"]
+            [
+                "ubuntu-24.04-arm64", "fedora-44-arm64", "debian-13-arm64",
+                "opensuse-leap-16.0-arm64"
+            ]
         )
         XCTAssertEqual(LinuxGuestCatalog.profile(id: "ubuntu-24.04-arm64"), LinuxGuestCatalog.defaultProfile)
         XCTAssertNil(LinuxGuestCatalog.profile(id: "arbitrary-linux"))
@@ -285,6 +288,38 @@ final class SandfortAppTests: XCTestCase {
             tools: .recommended
         )
         XCTAssertNotNil(iso.range(of: Data("Debian baseline setup has started".utf8)))
+    }
+
+    func testOpenSUSELeap16ProductionProfileHasImmutableVerifiedMetadata() throws {
+        let opensuse = LinuxGuestCatalog.opensuseLeap16ARM64
+        XCTAssertEqual(opensuse.id, "opensuse-leap-16.0-arm64")
+        XCTAssertEqual(opensuse.revision, 3)
+        XCTAssertEqual(opensuse.displayName, "openSUSE Leap 16.0")
+        XCTAssertEqual(opensuse.distributionName, "openSUSE")
+        XCTAssertEqual(opensuse.setupDurationDescription, "20-45 minutes")
+        XCTAssertEqual(opensuse.provisioner, .opensuseLeap16)
+        XCTAssertEqual(opensuse.image.url.scheme, "https")
+        XCTAssertEqual(opensuse.image.url.host, "download.opensuse.org")
+        XCTAssertTrue(opensuse.image.url.path.contains("/distribution/leap/16.0/appliances/"))
+        XCTAssertTrue(opensuse.image.url.path.hasSuffix("Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2"))
+        XCTAssertFalse(opensuse.image.url.absoluteString.lowercased().contains("current"))
+        XCTAssertFalse(opensuse.image.url.absoluteString.lowercased().contains("latest"))
+        XCTAssertEqual(opensuse.image.sha256, "2e9eeb56e7523775f1f01261f4900f289e20c38910226b0c1e5aa7228a84194a")
+        XCTAssertEqual(opensuse.image.fileName, "Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2")
+        XCTAssertEqual(opensuse.hardware.memoryMiB, 4096)
+        XCTAssertEqual(opensuse.hardware.cpuCount, 4)
+        XCTAssertEqual(opensuse.hardware.diskSizeGiB, 64)
+
+        XCTAssertEqual(LinuxGuestCatalog.qualificationProfiles, [])
+        XCTAssertTrue(LinuxGuestCatalog.profiles.contains(opensuse))
+        XCTAssertTrue(LinuxGuestCatalog.supportedProfiles.contains(opensuse))
+        XCTAssertEqual(LinuxGuestCatalog.profile(id: opensuse.id), opensuse)
+        XCTAssertEqual(LinuxGuestCatalog.qualificationProfile(id: opensuse.id), opensuse)
+        let iso = try opensuse.seedISO(
+            credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
+            tools: .recommended
+        )
+        XCTAssertNotNil(iso.range(of: Data("openSUSE baseline setup has started".utf8)))
     }
 
     func testSandboxLibraryPreservesLegacyEnvironmentAndIsolatesOtherProfiles() throws {
@@ -399,6 +434,73 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertTrue(finalizer.contains("touch /var/lib/sandfort/setup-complete"))
         XCTAssertFalse(finalizer.contains("apt-get"))
         XCTAssertFalse(finalizer.contains("dpkg-query"))
+        XCTAssertFalse(finalizer.contains("ufw "))
+        XCTAssertFalse(isoText.lowercased().contains("selinux=0"))
+        XCTAssertFalse(isoText.lowercased().contains("setenforce 0"))
+    }
+
+    func testOpenSUSECloudInitEnforcesDistributionSpecificProvisioningAndSecurity() throws {
+        let credentials = SandboxCredentials(username: "sandfort", password: "safe'opensuse-phrase")
+        let iso = try OpenSUSECloudInit.seedISO(credentials: credentials, tools: .recommended)
+        let isoText = String(decoding: iso, as: UTF8.self)
+        let finalizer = try decodedFinalizer(from: iso)
+
+        XCTAssertTrue(isoText.contains("groups: [wheel]"))
+        XCTAssertTrue(isoText.contains("password: 'safe''opensuse-phrase'"))
+        XCTAssertTrue(isoText.contains("PasswordAuthentication no"))
+        XCTAssertTrue(isoText.contains("PermitRootLogin no"))
+        XCTAssertTrue(isoText.contains("AllowTcpForwarding no"))
+        XCTAssertTrue(isoText.contains("<zone target=\"DROP\">"))
+        XCTAssertTrue(isoText.contains("network: {config: disabled}"))
+        XCTAssertTrue(isoText.contains("id=sandfort"))
+        XCTAssertTrue(isoText.contains("Type=oneshot"))
+        XCTAssertTrue(isoText.contains("OnCalendar=daily"))
+        XCTAssertTrue(isoText.contains("mode: poweroff"))
+        XCTAssertTrue(isoText.contains("condition: [test, -f, /var/lib/sandfort/setup-complete]"))
+
+        XCTAssertTrue(finalizer.contains("for attempt in 1 2 3"))
+        XCTAssertTrue(finalizer.contains("zypper --non-interactive --gpg-auto-import-keys refresh"))
+        XCTAssertTrue(finalizer.contains("zypper --non-interactive update"))
+        XCTAssertTrue(finalizer.contains("rpm -q patterns-gnome-gnome"))
+        XCTAssertTrue(finalizer.contains("rpm -q qemu-guest-agent"))
+        XCTAssertTrue(finalizer.contains("rpm -q spice-vdagent"))
+        // Leap's GNOME pattern ships no browser, so the profile must request one
+        // explicitly and pin the branding provider for the unattended solver.
+        XCTAssertTrue(isoText.contains("MozillaFirefox"))
+        XCTAssertTrue(isoText.contains("MozillaFirefox-branding-openSUSE"))
+        XCTAssertTrue(finalizer.contains("rpm -q MozillaFirefox"))
+        XCTAssertTrue(finalizer.contains("command -v firefox"))
+        // A sandbox must not gain a mail client, IRC client, BitTorrent client,
+        // or VPN plugins from the broader openSUSE internet pattern.
+        XCTAssertFalse(isoText.contains("patterns-gnome-gnome_internet"))
+        XCTAssertFalse(isoText.contains("transmission"))
+        XCTAssertFalse(isoText.contains("evolution"))
+        XCTAssertTrue(finalizer.contains("systemctl mask sshd.service sshd.socket"))
+        XCTAssertTrue(finalizer.contains("systemctl is-active --quiet sshd.service"))
+        XCTAssertTrue(finalizer.contains("rm -f /etc/NetworkManager/system-connections/cloud-init-*"))
+        XCTAssertTrue(finalizer.contains("systemctl enable --now firewalld.service"))
+        XCTAssertTrue(finalizer.contains("firewall-cmd --set-default-zone=sandfort"))
+        XCTAssertTrue(finalizer.contains("firewall-cmd --zone=sandfort --query-service=ssh"))
+        XCTAssertTrue(finalizer.contains("test \"$(getenforce)\" = Enforcing"))
+        XCTAssertTrue(finalizer.contains("systemctl enable sandfort-security-update.timer"))
+        XCTAssertTrue(finalizer.contains("systemctl enable gdm.service || systemctl enable display-manager.service"))
+        // Instances have a display and no serial device, so a VT1 getty would
+        // show a text login prompt before GDM and read as the only way in.
+        XCTAssertTrue(finalizer.contains("systemctl mask getty@tty1.service"))
+        XCTAssertTrue(finalizer.contains("systemctl is-enabled getty@tty1.service"))
+        // Masking one instance must not disable the Ctrl+Alt+F2 rescue console.
+        XCTAssertFalse(finalizer.contains("systemctl mask getty@.service"))
+        XCTAssertFalse(finalizer.contains("mask autovt@"))
+        XCTAssertTrue(finalizer.contains("systemctl enable qemu-guest-agent.service"))
+        XCTAssertTrue(finalizer.contains("systemctl enable NetworkManager.service"))
+        XCTAssertTrue(finalizer.contains("https://nodejs.org/dist/index.json"))
+        XCTAssertTrue(finalizer.contains("linux-arm64.tar.xz"))
+        XCTAssertTrue(finalizer.contains("sha256sum --check"))
+        XCTAssertTrue(finalizer.contains("command -v python3"))
+        XCTAssertTrue(finalizer.contains("python3.13 -m pip --version"))
+        XCTAssertTrue(finalizer.contains("touch /var/lib/sandfort/setup-complete"))
+        XCTAssertFalse(finalizer.contains("apt-get"))
+        XCTAssertFalse(finalizer.contains("dnf5"))
         XCTAssertFalse(finalizer.contains("ufw "))
         XCTAssertFalse(isoText.lowercased().contains("selinux=0"))
         XCTAssertFalse(isoText.lowercased().contains("setenforce 0"))
@@ -550,6 +652,17 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertEqual(
             try DiskUtilities.sha256(of: URL(fileURLWithPath: path)),
             LinuxGuestCatalog.debian13ARM64.image.sha256
+        )
+        XCTAssertNoThrow(try DiskUtilities.validateQCOW2Geometry(at: URL(fileURLWithPath: path)))
+    }
+
+    func testNativeHasherMatchesDownloadedOpenSUSEProfileWhenProvided() throws {
+        guard let path = ProcessInfo.processInfo.environment["SANDFORT_OPENSUSE_IMAGE"] else {
+            throw XCTSkip("Set SANDFORT_OPENSUSE_IMAGE to independently verify the openSUSE profile")
+        }
+        XCTAssertEqual(
+            try DiskUtilities.sha256(of: URL(fileURLWithPath: path)),
+            LinuxGuestCatalog.opensuseLeap16ARM64.image.sha256
         )
         XCTAssertNoThrow(try DiskUtilities.validateQCOW2Geometry(at: URL(fileURLWithPath: path)))
     }
@@ -824,6 +937,76 @@ final class SandfortAppTests: XCTestCase {
                     return XCTFail("Expected Debian revision \(incompatibleRevision) to require rebuild")
                 }
                 XCTAssertEqual(profileID, debian.id)
+            }
+        }
+    }
+
+    func testOpenSUSEQualificationRuntimeIsIsolatedFromProduction() throws {
+        let opensuse = LinuxGuestCatalog.opensuseLeap16ARM64
+        let qualification = SandfortRuntimeConfiguration.configuration(
+            qualificationProfileID: opensuse.id
+        )
+        XCTAssertTrue(qualification.isQualification)
+        XCTAssertEqual(qualification.defaultProfile, opensuse)
+        XCTAssertEqual(qualification.displayName, "Sandfort — openSUSE Qualification")
+        XCTAssertEqual(
+            qualification.workflowEnvironment.supportDirectoryName,
+            "Sandfort openSUSE Qualification"
+        )
+        XCTAssertEqual(
+            qualification.workflowEnvironment.vmNamePrefix,
+            "Sandfort openSUSE Qualification"
+        )
+        XCTAssertNil(qualification.workflowEnvironment.legacySupportDirectoryName)
+        XCTAssertEqual(qualification.workflowEnvironment.supportedProfiles, [opensuse])
+        XCTAssertEqual(qualification.workflowEnvironment.legacyProfiles, [])
+        XCTAssertEqual(qualification.selectableProfiles, [opensuse])
+        XCTAssertTrue(qualification.cacheURL.path.hasSuffix(
+            "/Application Support/Sandfort openSUSE Qualification/Cache"
+        ))
+
+        let state = SandboxState(
+            stage: .provisioning,
+            credentials: SandboxCredentials(username: "sandfort", password: "river-lantern-amber-willow"),
+            tools: .recommended,
+            setupBundlePath: "/tmp/openSUSE Qualification.utm",
+            sandboxBundlePath: nil,
+            guestProfileID: opensuse.id,
+            guestProfileRevision: opensuse.revision,
+            guestImageSHA256: opensuse.image.sha256
+        )
+        XCTAssertEqual(
+            try SandfortWorkflow.resolveGuestProfile(
+                for: state,
+                environment: qualification.workflowEnvironment,
+                requireExactMetadata: true
+            ),
+            opensuse
+        )
+        XCTAssertEqual(
+            try SandfortWorkflow.resolveGuestProfile(
+                for: state,
+                environment: .production,
+                requireExactMetadata: true
+            ),
+            opensuse
+        )
+
+        // Revisions 1 and 2 were only ever built by qualification builds: 1 had
+        // no browser and 2 still showed a console login prompt before GDM.
+        // Neither may be silently reused under the promoted contract.
+        for incompatibleRevision in [1, 2] {
+            var incompatibleState = state
+            incompatibleState.guestProfileRevision = incompatibleRevision
+            XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(
+                for: incompatibleState,
+                environment: qualification.workflowEnvironment,
+                requireExactMetadata: true
+            )) { error in
+                guard case let SandboxError.incompatibleGuestProfile(profileID) = error else {
+                    return XCTFail("Expected openSUSE revision \(incompatibleRevision) to require rebuild")
+                }
+                XCTAssertEqual(profileID, opensuse.id)
             }
         }
     }

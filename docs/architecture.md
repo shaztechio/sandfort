@@ -9,7 +9,8 @@ The runtime is native Swift and has four boundaries:
 | Portable core | downloader, checksum, cloud-init, ISO writer, workflow | Trusted image acquisition and provisioning policy |
 | Host provider | `UTMBundleBuilder.swift`, `UTMLauncher` | Hypervisor bundle format and native host launch |
 
-The production catalog exposes tested Ubuntu 24.04, Fedora 44, and Debian 13 ARM64 profiles.
+The production catalog exposes tested Ubuntu 24.04, Fedora 44, Debian 13, and
+openSUSE Leap 16 ARM64 profiles.
 The workflow and UTM builder consume the selected profile rather than embedding
 image and hardware constants. `CloudInit.swift` and `FedoraCloudInit.swift`
 contain separate distribution provisioning strategies. Future distributions
@@ -33,6 +34,22 @@ GNOME/GDM, NetworkManager, AppArmor, UFW, guest-agent, and unattended-upgrade
 policy. Its separately packaged regression build uses an independent bundle
 identifier, Application Support directory, cache, and UTM prefix. Its release
 matrix is retained in `debian-qualification.md`.
+
+openSUSE Leap 16 is the fourth production provisioner. `OpenSUSECloudInit.swift`
+generates Leap-specific Zypper, GNOME/GDM, NetworkManager, SELinux, firewalld,
+guest-agent, and security-patch timer policy, and compensates for two Leap
+specifics: its GNOME pattern pulls in no browser, and its VT1 getty would
+otherwise show a console login prompt before the graphical greeter. Revision 3
+passed its matrix and was promoted; that matrix is retained in
+`opensuse-qualification.md` and its separately packaged regression build keeps
+an independent bundle identifier, Application Support directory, cache, and UTM
+prefix.
+
+`OpenPGPSignatureVerifier.swift` and `TrustedSigningKeys.swift` sit beside the
+catalog as security-critical intake support. They confirm that a pinned image
+checksum is a value the distribution signed, using Security.framework RSA rather
+than a `gpg` dependency. `security-model.md` states the rules that keep them
+safe to change.
 
 Profile-sensitive provider calls receive the resolved `LinuxGuestProfile`
 explicitly. Setup, clean creation, reset, and repair therefore use the baseline's
