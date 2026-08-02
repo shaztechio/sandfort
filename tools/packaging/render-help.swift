@@ -1,12 +1,21 @@
 import Foundation
 
-guard CommandLine.arguments.count == 3 else {
-    FileHandle.standardError.write(Data("usage: render-help.swift INPUT.md OUTPUT.html\n".utf8))
+guard CommandLine.arguments.count == 3 || CommandLine.arguments.count == 4 else {
+    FileHandle.standardError.write(Data(
+        "usage: render-help.swift INPUT.md OUTPUT.html [HELP_BOOK_IDENTIFIER]\n".utf8
+    ))
     exit(64)
 }
 
 let inputURL = URL(fileURLWithPath: CommandLine.arguments[1])
 let outputURL = URL(fileURLWithPath: CommandLine.arguments[2])
+/// Help Viewer resolves a book by this value, which must match both the help
+/// bundle's CFBundleIdentifier and the app's CFBundleHelpBookName. Qualification
+/// builds pass their own identifier so several installed Sandfort apps cannot
+/// each claim the same book.
+let helpBookIdentifier = CommandLine.arguments.count == 4
+    ? CommandLine.arguments[3]
+    : "app.sandfort.help"
 let markdown = try String(contentsOf: inputURL, encoding: .utf8)
 
 func escapeHTML(_ value: String) -> String {
@@ -128,7 +137,7 @@ let html = """
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="AppleTitle" content="app.sandfort.help" />
+  <meta name="AppleTitle" content="\(escapeHTML(helpBookIdentifier))" />
   <meta name="AppleIcon" content="../shrd/Sandfort.png" />
   <meta name="description" content="Create, run, reset, and troubleshoot protected Sandfort virtual machines." />
   <meta name="keywords" content="UTM, Ubuntu, protected baseline, clean instance, offline, Internet, troubleshooting" />

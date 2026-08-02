@@ -40,7 +40,32 @@ mkdir -p "$help_lproj" "$help_book/Contents/Resources/shrd"
 cp "$root/tools/packaging/SandfortHelp-Info.plist" "$help_book/Contents/Info.plist"
 cp "$root/tools/packaging/SandfortHelp-InfoPlist.strings" "$help_lproj/InfoPlist.strings"
 cp "$root/assets/Sandfort.png" "$help_book/Contents/Resources/shrd/Sandfort.png"
-swift "$root/tools/packaging/render-help.swift" "$root/HELP.md" "$help_lproj/Sandfort.html"
+
+# Help Viewer resolves a book by identifier, so every installed Sandfort build
+# needs its own. Sharing one identifier across the production and qualification
+# apps makes helpd serve whichever registration it indexed last, which shows up
+# as a blank Help window.
+if [[ -n "$qualification_profile_id" ]]; then
+  help_identifier="app.sandfort.help.${qualification_distribution}Qualification"
+  help_title="Sandfort $qualification_distribution Qualification Help"
+else
+  help_identifier="app.sandfort.help"
+  help_title="Sandfort Help"
+fi
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $help_identifier" "$help_book/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleName $help_title" "$help_book/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :HPDBookTitle $help_title" "$help_book/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleHelpBookName $help_identifier" "$contents/Info.plist"
+
+# Keep the help book's version in step with the app. helpd caches a registered
+# book by identifier and version, so a frozen version makes it keep serving
+# stale content after the help source changes.
+app_short_version="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$contents/Info.plist")"
+app_build_version="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$contents/Info.plist")"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $app_short_version" "$help_book/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $app_build_version" "$help_book/Contents/Info.plist"
+
+swift "$root/tools/packaging/render-help.swift" "$root/HELP.md" "$help_lproj/Sandfort.html" "$help_identifier"
 hiutil -I lsm -C -ag -s en -l en -f "$help_lproj/Sandfort.helpindex" "$help_lproj"
 test -s "$help_lproj/Sandfort.html"
 test -s "$help_lproj/Sandfort.helpindex"
