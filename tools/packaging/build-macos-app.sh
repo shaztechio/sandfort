@@ -2,7 +2,13 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
-app="$root/dist/Sandfort.app"
+qualification_profile_id="${SANDFORT_QUALIFICATION_PROFILE_ID:-}"
+qualification_distribution="${SANDFORT_QUALIFICATION_DISTRIBUTION:-Fedora}"
+if [[ -n "$qualification_profile_id" ]]; then
+  app="$root/dist/Sandfort $qualification_distribution Qualification.app"
+else
+  app="$root/dist/Sandfort.app"
+fi
 legacy_app="$root/dist/Sandbox VM.app"
 contents="$app/Contents"
 help_book="$contents/Resources/Sandfort.help"
@@ -16,10 +22,19 @@ export SWIFTPM_MODULECACHE_OVERRIDE="$module_cache"
 cd "$root"
 swift build -c release --disable-sandbox
 
-rm -rf "$app" "$legacy_app"
+rm -rf "$app"
+if [[ -z "$qualification_profile_id" ]]; then
+  rm -rf "$legacy_app"
+fi
 mkdir -p "$contents/MacOS" "$contents/Resources"
 cp "$root/.build/release/SandfortApp" "$contents/MacOS/SandfortApp"
 cp "$root/tools/packaging/Info.plist" "$contents/Info.plist"
+if [[ -n "$qualification_profile_id" ]]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Sandfort $qualification_distribution Qualification" "$contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleName Sandfort $qualification_distribution Qualification" "$contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier app.sandfort.Sandfort.${qualification_distribution}Qualification" "$contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Add :SandfortQualificationProfileID string $qualification_profile_id" "$contents/Info.plist"
+fi
 cp "$root/assets/Sandfort.icns" "$contents/Resources/Sandfort.icns"
 mkdir -p "$help_lproj" "$help_book/Contents/Resources/shrd"
 cp "$root/tools/packaging/SandfortHelp-Info.plist" "$help_book/Contents/Info.plist"

@@ -1,6 +1,6 @@
 import Foundation
 
-enum UbuntuCloudInit {
+enum FedoraCloudInit {
     static func credentials() -> SandboxCredentials {
         GuestProvisioningSupport.credentials()
     }
@@ -14,21 +14,26 @@ enum UbuntuCloudInit {
         tools: SandboxToolSelection = .recommended
     ) throws -> Data {
         var packages = [
-            "ubuntu-desktop-minimal", "curl", "git", "jq",
-            "qemu-guest-agent", "spice-vdagent", "ufw", "unattended-upgrades"
+            "ca-certificates", "curl", "dnf5-plugin-automatic", "firewalld",
+            "gdm", "git", "jq", "NetworkManager", "policycoreutils",
+            "qemu-guest-agent", "spice-vdagent"
         ]
-        if tools.python { packages += ["python3", "python3-pip", "python3-venv"] }
-        if tools.nodeJS { packages += ["ca-certificates", "xz-utils"] }
+        if tools.python { packages += ["python3", "python3-pip"] }
+        if tools.nodeJS { packages += ["xz"] }
         let packageList = packages.map { "  - \($0)" }.joined(separator: "\n")
         let customSetup = try GuestProvisioningSupport.customSetupScript(from: tools.customSetupScript)
         let customWriteFile = customSetup?.writeFileEntry ?? ""
         let customCommand = customSetup?.command ?? ""
         var verificationCommands = [
             "command -v git", "command -v curl", "command -v jq",
-            "dpkg-query -W ubuntu-desktop-minimal", "dpkg-query -W qemu-guest-agent",
-            "dpkg-query -W spice-vdagent", "dpkg-query -W gdm3", "test -x /usr/sbin/gdm3"
+            "rpm -q gdm", "rpm -q gnome-shell", "rpm -q NetworkManager",
+            "rpm -q qemu-guest-agent", "rpm -q spice-vdagent",
+            "rpm -q firewalld", "rpm -q dnf5-plugin-automatic",
+            "test -x /usr/sbin/gdm"
         ]
-        if tools.python { verificationCommands += ["command -v python3", "command -v pip3"] }
+        if tools.python {
+            verificationCommands += ["command -v python3", "command -v pip3", "python3 -m venv --help >/dev/null"]
+        }
         if tools.nodeJS { verificationCommands += ["command -v node", "command -v npm"] }
         let loggingSetup = tools.verboseSetupLogging == true ? """
         exec > >(tee -a /var/log/sandfort-setup.log) 2>&1
@@ -60,11 +65,13 @@ enum UbuntuCloudInit {
         }
         trap setup_failed ERR
         set -x
-        export DEBIAN_FRONTEND=noninteractive
+        export LANG=C.UTF-8
         installed=false
         for attempt in 1 2 3; do
-          status "Installing and updating baseline packages (attempt $attempt of 3). This can take 10-30 minutes."
-          if apt-get update && apt-get upgrade -y && apt-get install -y \(packages.joined(separator: " ")); then
+          status "Installing and updating Fedora baseline packages (attempt $attempt of 3). This can take 20-45 minutes."
+          if dnf5 -y upgrade --refresh \
+            && dnf5 -y install \(packages.joined(separator: " ")) \
+            && dnf5 -y environment install workstation-product-environment; then
             installed=true
             break
           fi
@@ -72,30 +79,50 @@ enum UbuntuCloudInit {
           sleep 15
         done
         if [[ "$installed" != true ]]; then
-          status "ERROR: Packages could not be installed. The VM will remain on and no baseline will be created."
+          status "ERROR: Fedora packages could not be installed. The VM will remain on and no baseline will be created."
           false
         fi
         \(nodeInstallCommands)
-        status "Verifying every selected tool and the graphical desktop."
+        status "Verifying every selected tool and the Fedora Workstation desktop."
+        dnf5 environment info workstation-product-environment | grep -Eq '^Installed[[:space:]]*:[[:space:]]*(True|yes)$'
         \(verificationCommands.joined(separator: "\n"))
-        status "Applying sandbox security settings."
-        systemctl disable --now ssh.service || true
-        status "Removing Ubuntu's unnecessary network wait from clean-session startup."
-        systemctl mask systemd-networkd-wait-online.service
-        systemctl mask NetworkManager-wait-online.service
-        ufw default deny incoming
-        ufw default allow outgoing
-        ufw --force enable
+        status "Applying Fedora sandbox security settings."
+        systemctl disable --now sshd.service sshd.socket || true
+        systemctl mask sshd.service sshd.socket
+        systemctl enable NetworkManager.service
         systemctl enable qemu-guest-agent.service
+        systemctl enable --now firewalld.service
+        firewall-cmd --set-default-zone=sandfort
+        firewall-cmd --reload
+        test "$(firewall-cmd --get-default-zone)" = sandfort
+        test -z "$(firewall-cmd --zone=sandfort --list-services)"
+        test -z "$(firewall-cmd --zone=sandfort --list-ports)"
+        if firewall-cmd --zone=sandfort --query-service=ssh; then
+          status "ERROR: The Fedora firewall unexpectedly allows SSH."
+          false
+        fi
+        test "$(getenforce)" = Enforcing
+        systemctl enable dnf5-automatic.timer
+        systemctl is-enabled --quiet dnf5-automatic.timer
         systemctl set-default graphical.target
-        printf '%s\\n' /usr/sbin/gdm3 > /etc/X11/default-display-manager
-        systemctl unmask gdm3.service
-        systemctl enable gdm3.service
-        systemctl is-enabled --quiet gdm3.service
+        systemctl enable gdm.service
+        systemctl is-enabled --quiet gdm.service
+        systemctl is-enabled --quiet firewalld.service
+        systemctl is-active --quiet firewalld.service
+        systemctl is-enabled --quiet qemu-guest-agent.service
+        systemctl is-enabled --quiet NetworkManager.service
+        if systemctl is-enabled --quiet sshd.service || systemctl is-enabled --quiet sshd.socket; then
+          status "ERROR: SSH is still enabled."
+          false
+        fi
+        if systemctl is-active --quiet sshd.service || systemctl is-active --quiet sshd.socket; then
+          status "ERROR: SSH is still running."
+          false
+        fi
         \(customCommand.isEmpty ? "" : "status \"Running the custom baseline setup script.\"")
         \(customCommand)
-        status "Preparing a fast, clean baseline: compacting journals and package caches."
-        apt-get clean
+        status "Preparing a fast, clean Fedora baseline: compacting journals and package caches."
+        dnf5 clean all
         journalctl --rotate
         journalctl --vacuum-size=16M
         systemctl mask systemd-journal-flush.service
@@ -115,7 +142,7 @@ enum UbuntuCloudInit {
         users:
           - name: \(credentials.username)
             gecos: Sandbox User
-            groups: [adm, sudo]
+            groups: [wheel]
             shell: /bin/bash
             lock_passwd: false
             sudo: "ALL=(ALL) ALL"
@@ -127,7 +154,7 @@ enum UbuntuCloudInit {
               type: text
         bootcmd:
           - [systemctl, mask, --runtime, --now, serial-getty@ttyAMA0.service]
-          - [sh, -c, "echo '[Sandfort] Baseline setup has started. Leave this VM running until it powers itself off automatically. Installation commonly takes 10-30 minutes.' > /dev/console"]
+          - [sh, -c, "echo '[Sandfort] Fedora baseline setup has started. Leave this VM running until it powers itself off automatically. Installation commonly takes 20-45 minutes.' > /dev/console"]
         # sandfort packages:
         \(packageList.replacingOccurrences(of: "  - ", with: "#   - "))
         write_files:
@@ -137,6 +164,31 @@ enum UbuntuCloudInit {
               [Journal]
               Storage=volatile
               RuntimeMaxUse=16M
+          - path: /etc/ssh/sshd_config.d/99-sandfort.conf
+            permissions: '0644'
+            content: |
+              PasswordAuthentication no
+              PermitRootLogin no
+              AllowTcpForwarding no
+          - path: /etc/firewalld/zones/sandfort.xml
+            permissions: '0644'
+            content: |
+              <?xml version="1.0" encoding="utf-8"?>
+              <zone target="DROP">
+                <short>Sandfort</short>
+                <description>Blocks unsolicited inbound sandbox traffic.</description>
+              </zone>
+          - path: /etc/dnf/automatic.conf
+            permissions: '0644'
+            content: |
+              [commands]
+              upgrade_type = security
+              download_updates = true
+              apply_updates = true
+              random_sleep = 900
+              reboot = never
+              [emitters]
+              emit_via = motd
           - path: /etc/motd
             permissions: '0644'
             content: |
@@ -150,10 +202,10 @@ enum UbuntuCloudInit {
           - [bash, /var/lib/sandfort/baseline-finalize.sh]
         power_state:
           mode: poweroff
-          message: Sandbox setup verified; powering off for baseline creation
+          message: Fedora sandbox setup verified; powering off for baseline creation
           timeout: 30
           condition: [test, -f, \(GuestProvisioningSupport.completionMarkerPath)]
-        final_message: Sandbox setup complete after $UPTIME seconds
+        final_message: Fedora sandbox setup complete after $UPTIME seconds
         """
         let metaData = """
         instance-id: sandfort-\(UUID().uuidString.lowercased())
@@ -164,5 +216,4 @@ enum UbuntuCloudInit {
             ("meta-data", Data(metaData.utf8))
         ])
     }
-
 }

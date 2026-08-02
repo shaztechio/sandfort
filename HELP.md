@@ -2,34 +2,34 @@
 
 Sandfort creates disposable Linux virtual machines for work you do not trust. It uses UTM on Apple silicon Macs and keeps a protected baseline separate from the sandbox instances you run.
 
-Sandfort reduces risk, but a virtual machine is not a perfect security boundary. Keep macOS, UTM, and Ubuntu updated, and never put personal accounts, secrets, wallets, SSH keys, cloud credentials, or important files inside a sandbox.
+Sandfort reduces risk, but a virtual machine is not a perfect security boundary. Keep macOS, UTM, and the selected Linux distribution updated, and never put personal accounts, secrets, wallets, SSH keys, cloud credentials, or important files inside a sandbox.
 
 ## Start here
 
 Before creating a sandbox:
 
 - Install [UTM](https://mac.getutm.app/).
-- Make sure the Mac has enough free space for the Ubuntu download, protected baseline, and each independent instance.
+- Make sure the Mac has enough free space for the selected Linux download, protected baseline, and each independent instance.
 - Quit or stop any Sandfort VMs before rebuilding or resetting them.
 
 To create Sandfort for the first time:
 
-1. Open Sandfort and select the development tools you want in the baseline.
-2. Click **Create Sandbox**.
-3. Leave the setup VM running in UTM while Ubuntu updates itself and installs the desktop and selected tools.
-4. Wait for the setup VM to power itself off automatically. This commonly takes 10–30 minutes and can take longer on a slow package mirror.
+1. Open Sandfort, choose an Ubuntu, Fedora, or Debian environment, and select the development tools you want.
+2. Click the selected distribution's **Create Environment** action.
+3. Leave the setup VM running in UTM while Linux updates itself and installs the desktop and selected tools.
+4. Wait for the setup VM to power itself off automatically. Ubuntu commonly takes 10–30 minutes; Fedora and Debian commonly take 20–45 minutes. Any distribution can take longer on a slow package mirror.
 5. Return to Sandfort and click **Finish Setup**.
 6. Sandfort protects the completed baseline and creates **Sandbox Instance 1**.
 
-Do not manually shut down the setup VM. Do not click **Finish Setup** while Ubuntu is still running or installing packages.
+Do not manually shut down the setup VM. Do not click **Finish Setup** while Linux is still running or installing packages.
 
-## Understand the protected baseline
+## Linux environments and protected baselines
 
-The **Protected Baseline** is the trusted source used to make clean instances. Never start it directly in UTM and never use it for suspicious work.
+Each Linux environment has its own **Protected Baseline**, credentials, development-tool configuration, and numbered instances. Never start a baseline directly in UTM and never use it for suspicious work.
 
-The baseline contains Ubuntu, the desktop, security settings, updates, and the development tools selected when it was built. Changes made inside an instance do not update the baseline.
+Use **Add Linux Environment** to create Ubuntu, Fedora, and Debian environments side by side. Select an environment card to manage its instances. Instances from different environments can run at the same time because their disks, firmware state, VM identifiers, and network addresses are independent.
 
-Use **Rebuild** when you want to change the baseline itself. Rebuild deletes the protected baseline and every sandbox instance after confirmation, while retaining the verified Ubuntu download.
+The selected environment's baseline contains its Linux distribution, desktop, security settings, updates, and development tools. Changes made inside an instance do not update the baseline. **Rebuild** replaces only the selected environment. **Delete Environment** removes only the selected environment after confirmation. Both leave other environments and verified image downloads unchanged.
 
 ## Run a sandbox instance
 
@@ -38,7 +38,7 @@ Select an instance, then open **Run Instance**.
 - **Resume Instance** continues the instance exactly where you left it. Its files, changes, contamination, and last selected network mode remain.
 - **Reset & Run Clean** deletes that instance's changes and restores it from the Protected Baseline.
 - **Rename Instance** adds or changes its descriptive label without changing its number, disk, or identity.
-- **Delete Instance** moves the stopped instance bundle to macOS Trash. It does not change the baseline or other instances.
+- **Delete Instance** unregisters the stopped instance from UTM, waits for UTM to confirm its removal, and moves its bundle to macOS Trash. It does not change the baseline or other instances.
 
 Use **New Clean Sandbox** to create another independent numbered instance. Instances have separate disks, UEFI state, VM identifiers, and network addresses, so more than one can run at the same time.
 
@@ -63,16 +63,16 @@ Git, curl, and jq are always installed. Python development tools and the latest 
 
 Advanced mode accepts a custom setup script. The script:
 
-- Runs as root inside Ubuntu during trusted baseline creation.
+- Runs as root inside the selected Linux guest during trusted baseline creation.
 - Never runs on the Mac host.
 - Applies only to the next baseline rebuild.
 - Must never contain code copied from an untrusted challenge.
 
 Changing a tool option or script does not modify an existing baseline. Choose **Rebuild** to apply the new configuration.
 
-## Ubuntu sign-in
+## Linux sign-in
 
-Sandfort displays the Ubuntu username and password in the app. New baselines use the username `sandfort` and a memorable four-word, hyphen-separated password.
+Sandfort displays the guest username and password in the app. New baselines use the username `sandfort` and a memorable four-word, hyphen-separated password.
 
 Every instance created from one baseline shares that baseline's credentials. The password is generated locally and is not transmitted or logged.
 
@@ -80,14 +80,14 @@ During Rebuild, Sandfort prefills the current password. You can keep it, enter a
 
 ## Rebuild safely
 
-Rebuild is destructive. It removes the Protected Baseline and all recorded instances from UTM, then deletes the app-owned VM bundles.
+Rebuild is destructive within the selected environment. It removes that Protected Baseline and its recorded instances from UTM, then deletes those app-owned VM bundles. Other Linux environments are not changed.
 
 Before rebuilding:
 
 1. Shut down every Sandfort VM.
 2. Confirm that no instance contains work you need to keep.
 3. Review the development-tool choices and custom setup script.
-4. Confirm the Ubuntu password for the new baseline.
+4. Confirm the password for the selected environment's replacement baseline.
 
 Sandfort opens UTM automatically if it is closed and waits for its automation interface to become ready. If macOS asks whether Sandfort may control UTM, allow it. Sandfort uses native Apple Events to remove only the recorded Sandfort VMs. It does not use AppleScript or UI automation.
 
@@ -115,7 +115,7 @@ Turn off **Show detailed setup output** before the next Rebuild for concise Sand
 
 ### Copy the Sandfort activity log
 
-Use the copy icon beside the status heading to copy the complete activity log to the macOS clipboard. You can paste it into a text file or support message when diagnosing a problem. Sandfort does not intentionally write the Ubuntu password to this log, but review copied text before sharing it.
+Use the copy icon beside the status heading to copy the complete activity log to the macOS clipboard. You can paste it into a text file or support message when diagnosing a problem. Sandfort does not intentionally write the guest password to this log, but review copied text before sharing it.
 
 ## Troubleshooting clean instances
 
@@ -127,7 +127,7 @@ Confirm that you launched a numbered instance through Sandfort rather than start
 
 ### The desktop login does not appear
 
-Ubuntu can display boot and journal messages before the graphical login manager starts. Wait several minutes, especially on the first clean boot. If it never appears, stop the VM, use **Reset & Run Clean**, and ensure the baseline originally powered itself off before **Finish Setup** was clicked.
+Linux can display boot and journal messages before the graphical login manager starts. Wait several minutes, especially on the first clean boot. If it never appears, stop the VM, use **Reset & Run Clean**, and ensure the baseline originally powered itself off before **Finish Setup** was clicked.
 
 ### A selected tool is missing
 
@@ -135,7 +135,7 @@ Tool selections apply only while building a baseline. Expanding the tool section
 
 Choose **Rebuild**, select the tool, let setup power itself off automatically, then click **Finish Setup**. New and reset instances created from that baseline will contain the tool.
 
-### Node.js is an older Ubuntu version
+### Node.js is an older distribution version
 
 When **Latest Node.js LTS + npm** is selected, Sandfort downloads and verifies the official Linux ARM64 Node.js LTS archive during baseline setup. Rebuild the baseline to replace an older distribution package. Verify with `node --version` and `npm --version` inside a new or reset instance.
 
@@ -147,7 +147,7 @@ Stop the VM, choose **Reset & Run Clean**, and select **Continue With Internet**
 
 ### UTM shows an unavailable or duplicate entry
 
-Always create, reset, rename, and delete instances through Sandfort. If UTM still shows an unavailable entry after Sandfort moved its bundle to Trash, select only that unavailable entry in UTM and use UTM's trash button to remove the stale registration.
+Always create, reset, rename, and delete instances through Sandfort. Current versions wait for UTM to confirm removal before deleting app state. An unavailable entry left by an older Sandfort version is no longer recorded by the app; select only that unavailable entry in UTM and use UTM's trash button once.
 
 ### Sandfort says a VM is running
 
@@ -162,11 +162,13 @@ Sandfort will not copy, reset, rename, delete, or rebuild a VM whose disk is in 
 - Never run the Protected Baseline directly.
 - Treat a resumed instance as potentially contaminated.
 - Reset the selected instance before beginning unrelated untrusted work.
-- Keep macOS, UTM, Ubuntu, and Sandfort updated.
+- Keep macOS, UTM, the selected Linux distribution, and Sandfort updated.
 
 ## Where Sandfort stores data
 
 Sandfort stores its state, verified image cache, Protected Baseline, and instances under the current user's `Library/Application Support/Sandfort` directory.
+
+Open **Sandfort → Settings** to see the exact Linux image-cache location. The settings pane can reveal it in Finder or copy its path. Its read-only **Environment downloads** section lists the exact official HTTPS source URL used for each Ubuntu, Fedora, and Debian image. Production environments share `~/Library/Application Support/Sandfort/Cache`; isolated verification builds use their own cache directory.
 
 Do not manually move or edit these files while Sandfort or UTM is open. Use Sandfort's instance and rebuild controls so its saved state and UTM's library remain consistent.
 

@@ -5,16 +5,6 @@ enum SandboxNetworkMode: Sendable {
     case internet
 }
 
-struct SandfortConfiguration: Sendable {
-    static let current = SandfortConfiguration()
-
-    let guestProfile: LinuxGuestProfile
-
-    init(guestProfile: LinuxGuestProfile = LinuxGuestCatalog.defaultProfile) {
-        self.guestProfile = guestProfile
-    }
-}
-
 struct SandboxCredentials: Codable, Sendable {
     let username: String
     let password: String
@@ -75,6 +65,8 @@ struct SandboxState: Codable, Sendable {
     var instances: [SandboxInstance]? = nil
     var nextInstanceNumber: Int? = nil
     var guestProfileID: String? = nil
+    var guestProfileRevision: Int? = nil
+    var guestImageSHA256: String? = nil
 
     var resolvedInstances: [SandboxInstance] {
         if let instances, !instances.isEmpty {
@@ -130,6 +122,8 @@ enum SandboxError: LocalizedError {
     case invalidInstanceName
     case invalidGuestPassword
     case unsupportedGuestProfile(String)
+    case incompatibleGuestProfile(String)
+    case incompleteSetupProfileMetadata
 
     var errorDescription: String? {
         switch self {
@@ -161,6 +155,10 @@ enum SandboxError: LocalizedError {
             return "The guest password must contain 8 to 128 visible characters with no spaces or line breaks."
         case let .unsupportedGuestProfile(profileID):
             return "This sandbox uses the unsupported Linux guest profile '\(profileID)'. Reinstall a compatible Sandfort version or rebuild it with a supported profile."
+        case let .incompatibleGuestProfile(profileID):
+            return "This baseline uses an incompatible revision or image of the Linux guest profile '\(profileID)'. You may Resume an existing instance without changing it, or choose Rebuild to create a compatible baseline."
+        case .incompleteSetupProfileMetadata:
+            return "This unfinished setup predates exact Linux profile tracking, so Sandfort cannot safely recreate its setup media. Choose Rebuild to start a verified setup."
         }
     }
 }

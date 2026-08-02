@@ -1,31 +1,100 @@
 import AppKit
 import Foundation
 
+struct SandfortWorkflowEnvironment: Sendable {
+    let supportDirectoryName: String
+    let legacySupportDirectoryName: String?
+    let vmNamePrefix: String
+    let defaultProfile: LinuxGuestProfile
+    let supportedProfiles: [LinuxGuestProfile]
+    let legacyProfiles: [LinuxGuestProfile]
+    let rootURLOverride: URL?
+    let cacheURLOverride: URL?
+    let preserveExistingDisplayNames: Bool
+
+    static let production = SandfortWorkflowEnvironment(
+        supportDirectoryName: "Sandfort",
+        legacySupportDirectoryName: "Sandbox" + "VM",
+        vmNamePrefix: "Sandfort",
+        defaultProfile: LinuxGuestCatalog.defaultProfile,
+        supportedProfiles: LinuxGuestCatalog.supportedProfiles,
+        legacyProfiles: [LinuxGuestCatalog.ubuntu2404ARM64],
+        rootURLOverride: nil,
+        cacheURLOverride: nil,
+        preserveExistingDisplayNames: false
+    )
+
+    static func qualification(profile: LinuxGuestProfile) -> SandfortWorkflowEnvironment {
+        SandfortWorkflowEnvironment(
+            supportDirectoryName: "Sandfort \(profile.distributionName) Qualification",
+            legacySupportDirectoryName: nil,
+            vmNamePrefix: "Sandfort \(profile.distributionName) Qualification",
+            defaultProfile: profile,
+            supportedProfiles: [profile],
+            legacyProfiles: [],
+            rootURLOverride: nil,
+            cacheURLOverride: nil,
+            preserveExistingDisplayNames: false
+        )
+    }
+
+    static func productionWorkspace(
+        profile: LinuxGuestProfile,
+        rootURL: URL,
+        cacheURL: URL,
+        preserveExistingDisplayNames: Bool = false
+    ) -> SandfortWorkflowEnvironment {
+        SandfortWorkflowEnvironment(
+            supportDirectoryName: "Sandfort",
+            legacySupportDirectoryName: nil,
+            vmNamePrefix: "Sandfort — \(profile.displayName)",
+            defaultProfile: profile,
+            supportedProfiles: [profile],
+            legacyProfiles: profile.id == LinuxGuestCatalog.ubuntu2404ARM64.id
+                ? [LinuxGuestCatalog.ubuntu2404ARM64]
+                : [],
+            rootURLOverride: rootURL,
+            cacheURLOverride: cacheURL,
+            preserveExistingDisplayNames: preserveExistingDisplayNames
+        )
+    }
+}
+
 actor SandfortWorkflow {
-    private let configuration: SandfortConfiguration
+    typealias DeleteUTMRegistration = @Sendable (String) async throws -> Void
+
     private let downloader = NativeDownloader()
     private let fileManager = FileManager.default
     private let provider: any VirtualMachineProvider
+    private let environment: SandfortWorkflowEnvironment
+    private let deleteUTMRegistration: DeleteUTMRegistration
 
     init(
-        configuration: SandfortConfiguration = .current,
-        provider: (any VirtualMachineProvider)? = nil
+        environment: SandfortWorkflowEnvironment = .production,
+        provider: (any VirtualMachineProvider)? = nil,
+        deleteUTMRegistration: @escaping DeleteUTMRegistration = {
+            try await UTMRegistryController.deleteVirtualMachine(named: $0)
+        }
     ) {
-        self.configuration = configuration
-        self.provider = provider ?? UTMBundleBuilder(configuration: configuration)
+        self.environment = environment
+        self.provider = provider ?? UTMBundleBuilder()
+        self.deleteUTMRegistration = deleteUTMRegistration
     }
 
     private var canonicalRootURL: URL {
+        if let rootURLOverride = environment.rootURLOverride { return rootURLOverride }
         let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return support.appendingPathComponent("Sandfort", isDirectory: true)
+        return support.appendingPathComponent(environment.supportDirectoryName, isDirectory: true)
     }
 
-    private var legacyRootURL: URL {
+    private var legacyRootURL: URL? {
+        guard let legacySupportDirectoryName = environment.legacySupportDirectoryName else { return nil }
         let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return support.appendingPathComponent("Sandbox" + "VM", isDirectory: true)
+        return support.appendingPathComponent(legacySupportDirectoryName, isDirectory: true)
     }
 
     private var rootURL: URL {
+        guard let legacyRootURL else { return canonicalRootURL }
         if fileManager.fileExists(atPath: canonicalRootURL.path)
             || !fileManager.fileExists(atPath: legacyRootURL.path) {
             return canonicalRootURL
@@ -33,7 +102,9 @@ actor SandfortWorkflow {
         return legacyRootURL
     }
 
-    private var cacheURL: URL { rootURL.appendingPathComponent("Cache", isDirectory: true) }
+    private var cacheURL: URL {
+        environment.cacheURLOverride ?? rootURL.appendingPathComponent("Cache", isDirectory: true)
+    }
     private var vmURL: URL { rootURL.appendingPathComponent("Virtual Machines", isDirectory: true) }
     private var stateURL: URL { rootURL.appendingPathComponent("state.plist") }
     func currentState() -> SandboxState? {
@@ -43,15 +114,18 @@ actor SandfortWorkflow {
         if migrateNamesAndInstances(in: &state) {
             try? save(state)
         }
-        try? provider.repairBundle(at: URL(fileURLWithPath: state.setupBundlePath))
-        for instance in state.resolvedInstances {
-            try? provider.repairBundle(at: URL(fileURLWithPath: instance.bundlePath))
+        if let profile = try? guestProfile(for: state) {
+            try? provider.repairBundle(at: URL(fileURLWithPath: state.setupBundlePath), profile: profile)
+            for instance in state.resolvedInstances {
+                try? provider.repairBundle(at: URL(fileURLWithPath: instance.bundlePath), profile: profile)
+            }
         }
         return state
     }
 
     private func migrateLegacySupportDirectoryIfNeeded() {
-        guard !fileManager.fileExists(atPath: canonicalRootURL.path),
+        guard let legacyRootURL,
+              !fileManager.fileExists(atPath: canonicalRootURL.path),
               fileManager.fileExists(atPath: legacyRootURL.path) else { return }
         do {
             let oldRoot = legacyRootURL
@@ -97,12 +171,15 @@ actor SandfortWorkflow {
 
     func create(
         rebuild: Bool = false,
+        profile: LinuxGuestProfile = LinuxGuestCatalog.defaultProfile,
         tools: SandboxToolSelection,
         password: String? = nil,
         event: @escaping @Sendable (WorkflowEvent) -> Void
     ) async throws -> SandboxState {
+        guard environment.supportedProfiles.contains(profile) else {
+            throw SandboxError.unsupportedGuestProfile(profile.id)
+        }
         // Validate user input before deleting an existing baseline during Rebuild.
-        let profile = configuration.guestProfile
         let requestedCredentials = try password.map { try profile.credentials(password: $0) }
         guard await UTMLauncher.isInstalled else { throw SandboxError.utmNotInstalled }
         if rebuild {
@@ -121,7 +198,7 @@ actor SandfortWorkflow {
                 event(.log("Opening UTM if needed, then waiting for it to confirm each old registration is removed."))
                 for name in existingState.utmRegistrationNames {
                     event(.log("Removing \(name) from the UTM library."))
-                    try await UTMRegistryController.deleteVirtualMachine(named: name)
+                    try await deleteUTMRegistration(name)
                     event(.log("UTM confirmed that \(name) was removed."))
                 }
             }
@@ -134,7 +211,7 @@ actor SandfortWorkflow {
 
         try fileManager.createDirectory(at: cacheURL, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: vmURL, withIntermediateDirectories: true)
-        let imageURL = try await verifiedImage(event: event)
+        let imageURL = try await verifiedImage(for: profile, event: event)
         let credentials = requestedCredentials ?? profile.credentials()
         let instanceTag = String(UUID().uuidString.prefix(6)).uppercased()
         let setupName = baselineSetupName(tag: instanceTag)
@@ -145,6 +222,7 @@ actor SandfortWorkflow {
             at: setupURL,
             name: setupName,
             from: imageURL,
+            profile: profile,
             credentials: credentials,
             tools: tools
         )
@@ -156,25 +234,58 @@ actor SandfortWorkflow {
             sandboxBundlePath: nil,
             setupVMName: setupName,
             sandboxVMName: nil,
-            guestProfileID: profile.id
+            guestProfileID: profile.id,
+            guestProfileRevision: profile.revision,
+            guestImageSHA256: profile.image.sha256
         )
         try save(state)
         event(.log("\(profile.distributionName) setup opens in a text terminal while it updates itself and installs: \(tools.description), the desktop, and sandbox protections."))
-        event(.log("Watch for [Sandfort] status messages in UTM. Setup commonly takes 10-30 minutes and may pause while packages are configured."))
+        event(.log("Watch for [Sandfort] status messages in UTM. Setup commonly takes \(profile.setupDurationDescription) and may pause while packages are configured."))
         event(.log("Leave setup running until it verifies every selected tool and powers itself off automatically. Then click Finish Setup."))
         event(.phase("Opening \(profile.distributionName) setup in UTM…"))
         await UTMLauncher.openAndStart(bundle: setupURL, name: setupName)
         return state
     }
 
+    func deleteEnvironment(
+        event: @escaping @Sendable (WorkflowEvent) -> Void
+    ) async throws {
+        guard let existingState = currentState() else { throw SandboxError.sandboxNotCreated }
+        let baseline = URL(fileURLWithPath: existingState.setupBundlePath)
+        if fileManager.fileExists(atPath: baseline.path) {
+            try provider.ensureBundleNotRunning(at: baseline)
+        }
+        for instance in existingState.resolvedInstances {
+            let bundle = URL(fileURLWithPath: instance.bundlePath)
+            if fileManager.fileExists(atPath: bundle.path) {
+                try provider.ensureBundleNotRunning(at: bundle)
+            }
+        }
+        event(.phase("Removing the environment from UTM…"))
+        for name in existingState.utmRegistrationNames {
+            event(.log("Removing \(name) from the UTM library."))
+            try await deleteUTMRegistration(name)
+            event(.log("UTM confirmed that \(name) was removed."))
+        }
+        event(.phase("Removing the app-owned environment…"))
+        if fileManager.fileExists(atPath: vmURL.path) { try fileManager.removeItem(at: vmURL) }
+        if fileManager.fileExists(atPath: stateURL.path) { try fileManager.removeItem(at: stateURL) }
+        if environment.rootURLOverride != nil,
+           let contents = try? fileManager.contentsOfDirectory(atPath: rootURL.path),
+           contents.isEmpty {
+            try? fileManager.removeItem(at: rootURL)
+        }
+    }
+
     func finishSetup(event: @escaping @Sendable (WorkflowEvent) -> Void) async throws -> SandboxState {
         guard var state = currentState() else { throw SandboxError.sandboxNotCreated }
         guard state.stage == .provisioning else { return state }
         let setupURL = URL(fileURLWithPath: state.setupBundlePath)
+        let profile = try guestProfile(for: state, requireExactMetadata: true)
         let instanceTag = tag(for: state)
         let protectedName = protectedBaselineName(tag: instanceTag)
         try provider.setDisplayName(protectedName, at: setupURL)
-        try provider.repairBundle(at: setupURL)
+        try provider.repairBundle(at: setupURL, profile: profile)
         let cleanName = instanceName(number: 1, tag: instanceTag)
         let cleanURL = bundleURL(named: cleanName)
         if fileManager.fileExists(atPath: cleanURL.path) { try fileManager.removeItem(at: cleanURL) }
@@ -183,6 +294,7 @@ actor SandfortWorkflow {
             from: setupURL,
             at: cleanURL,
             name: cleanName,
+            profile: profile,
             networkMode: .offline
         )
         state.stage = .ready
@@ -204,6 +316,7 @@ actor SandfortWorkflow {
     ) async throws -> SandboxState {
         guard var state = currentState() else { throw SandboxError.sandboxNotCreated }
         guard state.stage == .ready else { throw SandboxError.setupNotComplete }
+        let profile = try guestProfile(for: state)
         let instances = state.resolvedInstances
         let number = state.allocateInstanceNumber()
         let normalizedLabel = try SandboxInstance.normalizedLabel(label)
@@ -215,6 +328,7 @@ actor SandfortWorkflow {
             from: URL(fileURLWithPath: state.setupBundlePath),
             at: destination,
             name: name,
+            profile: profile,
             networkMode: networkMode
         )
         let instance = SandboxInstance(
@@ -231,17 +345,28 @@ actor SandfortWorkflow {
         return state
     }
 
-    func deleteInstance(number: Int) throws -> SandboxState {
+    func deleteInstance(
+        number: Int,
+        event: @escaping @Sendable (WorkflowEvent) -> Void
+    ) async throws -> SandboxState {
         guard var state = currentState() else { throw SandboxError.sandboxNotCreated }
         guard state.stage == .ready else { throw SandboxError.setupNotComplete }
         var instances = state.resolvedInstances
         guard let index = instances.firstIndex(where: { $0.number == number }) else {
             throw SandboxError.sandboxInstanceNotFound
         }
-        let bundle = URL(fileURLWithPath: instances[index].bundlePath)
+        let instance = instances[index]
+        let bundle = URL(fileURLWithPath: instance.bundlePath)
         var trashedURL: NSURL?
         if fileManager.fileExists(atPath: bundle.path) {
             try provider.ensureBundleNotRunning(at: bundle)
+        }
+        event(.phase("Removing Instance \(number) from the UTM library…"))
+        event(.log("Waiting for UTM to confirm that \(instance.vmName) is unregistered."))
+        try await deleteUTMRegistration(instance.vmName)
+        event(.log("UTM confirmed that \(instance.vmName) was removed."))
+        if fileManager.fileExists(atPath: bundle.path) {
+            event(.phase("Moving Instance \(number) to macOS Trash…"))
             try fileManager.trashItem(at: bundle, resultingItemURL: &trashedURL)
         }
         instances.remove(at: index)
@@ -281,6 +406,7 @@ actor SandfortWorkflow {
     ) async throws {
         guard let state = currentState() else { throw SandboxError.sandboxNotCreated }
         guard state.stage == .ready else { throw SandboxError.setupNotComplete }
+        let profile = try guestProfile(for: state)
         guard let instance = state.resolvedInstances.first(where: { $0.number == instanceNumber }) else {
             throw SandboxError.sandboxInstanceNotFound
         }
@@ -289,7 +415,7 @@ actor SandfortWorkflow {
             try provider.ensureBundleNotRunning(at: bundle)
         }
         event(.phase("Removing Instance \(instanceNumber)'s previous UTM registration…"))
-        try await UTMRegistryController.deleteVirtualMachine(named: instance.vmName)
+        try await deleteUTMRegistration(instance.vmName)
         if fileManager.fileExists(atPath: bundle.path) {
             try fileManager.removeItem(at: bundle)
         }
@@ -300,6 +426,7 @@ actor SandfortWorkflow {
             from: URL(fileURLWithPath: state.setupBundlePath),
             at: bundle,
             name: instance.vmName,
+            profile: profile,
             networkMode: networkMode
         )
         event(.log("Instance \(instanceNumber) was restored with a new VM identity, disk, UEFI state, and network configuration."))
@@ -327,8 +454,8 @@ actor SandfortWorkflow {
         guard let state = currentState() else { throw SandboxError.sandboxNotCreated }
         guard state.stage == .provisioning else { throw SandboxError.setupNotComplete }
         let bundleURL = URL(fileURLWithPath: state.setupBundlePath)
-        try provider.repairBundle(at: bundleURL)
-        let profile = try guestProfile(for: state)
+        let profile = try guestProfile(for: state, requireExactMetadata: true)
+        try provider.repairBundle(at: bundleURL, profile: profile)
         try profile.seedISO(credentials: state.credentials, tools: state.tools ?? .recommended).write(
             to: bundleURL.appendingPathComponent("Data/seed.iso"),
             options: .atomic
@@ -336,8 +463,10 @@ actor SandfortWorkflow {
         await UTMLauncher.openAndStart(bundle: bundleURL, name: state.setupVMName ?? "Sandfort — Baseline Setup")
     }
 
-    private func verifiedImage(event: @escaping @Sendable (WorkflowEvent) -> Void) async throws -> URL {
-        let profile = configuration.guestProfile
+    private func verifiedImage(
+        for profile: LinuxGuestProfile,
+        event: @escaping @Sendable (WorkflowEvent) -> Void
+    ) async throws -> URL {
         let image = profile.image
         let imageURL = cacheURL.appendingPathComponent(image.fileName)
         if fileManager.fileExists(atPath: imageURL.path) {
@@ -365,12 +494,44 @@ actor SandfortWorkflow {
         return downloaded
     }
 
-    private func guestProfile(for state: SandboxState) throws -> LinuxGuestProfile {
-        guard let profileID = state.guestProfileID else {
-            return LinuxGuestCatalog.defaultProfile
-        }
-        guard let profile = LinuxGuestCatalog.profile(id: profileID) else {
+    private func guestProfile(
+        for state: SandboxState,
+        requireExactMetadata: Bool = false
+    ) throws -> LinuxGuestProfile {
+        try Self.resolveGuestProfile(
+            for: state,
+            environment: environment,
+            requireExactMetadata: requireExactMetadata
+        )
+    }
+
+    nonisolated static func resolveGuestProfile(
+        for state: SandboxState,
+        environment: SandfortWorkflowEnvironment = .production,
+        requireExactMetadata: Bool = false
+    ) throws -> LinuxGuestProfile {
+        let profileID = state.guestProfileID ?? environment.defaultProfile.id
+        let candidates = environment.supportedProfiles.filter { $0.id == profileID }
+        guard !candidates.isEmpty else {
             throw SandboxError.unsupportedGuestProfile(profileID)
+        }
+        if requireExactMetadata,
+           (state.guestProfileRevision == nil || state.guestImageSHA256 == nil) {
+            throw SandboxError.incompleteSetupProfileMetadata
+        }
+        let profile: LinuxGuestProfile?
+        if let revision = state.guestProfileRevision {
+            profile = candidates.first {
+                $0.revision == revision
+                    && (state.guestImageSHA256 == nil || $0.image.sha256 == state.guestImageSHA256)
+            }
+        } else if let imageSHA256 = state.guestImageSHA256 {
+            profile = candidates.first { $0.image.sha256 == imageSHA256 }
+        } else {
+            profile = environment.legacyProfiles.first { $0.id == profileID }
+        }
+        guard let profile else {
+            throw SandboxError.incompatibleGuestProfile(profileID)
         }
         return profile
     }
@@ -386,20 +547,20 @@ actor SandfortWorkflow {
     }
 
     private func baselineSetupName(tag: String) -> String {
-        "Sandfort — Baseline Setup \(tag)"
+        "\(environment.vmNamePrefix) — Baseline Setup \(tag)"
     }
 
     private func protectedBaselineName(tag: String) -> String {
-        "Sandfort — Protected Baseline \(tag)"
+        "\(environment.vmNamePrefix) — Protected Baseline \(tag)"
     }
 
     private func instanceName(number: Int, label: String? = nil, tag: String) -> String {
         let labelComponent = label.map { " — \($0)" } ?? ""
-        return "Sandfort — Instance \(number)\(labelComponent) — \(tag)"
+        return "\(environment.vmNamePrefix) — Instance \(number)\(labelComponent) — \(tag)"
     }
 
     private func instanceBundleName(number: Int, tag: String) -> String {
-        "Sandfort — Instance \(number) — \(tag)"
+        "\(environment.vmNamePrefix) — Instance \(number) — \(tag)"
     }
 
     private func tag(for state: SandboxState) -> String {
@@ -413,7 +574,8 @@ actor SandfortWorkflow {
             ? baselineSetupName(tag: tag)
             : protectedBaselineName(tag: tag)
         var changed = false
-        if state.setupVMName != desiredBaselineName,
+        if !environment.preserveExistingDisplayNames,
+           state.setupVMName != desiredBaselineName,
            (try? provider.setDisplayName(desiredBaselineName, at: URL(fileURLWithPath: state.setupBundlePath))) != nil {
             state.setupVMName = desiredBaselineName
             changed = true
@@ -426,7 +588,8 @@ actor SandfortWorkflow {
                 label: instances[index].label,
                 tag: tag
             )
-            guard instances[index].vmName != desiredName else { continue }
+            guard !environment.preserveExistingDisplayNames,
+                  instances[index].vmName != desiredName else { continue }
             if (try? provider.setDisplayName(desiredName, at: URL(fileURLWithPath: instances[index].bundlePath))) != nil {
                 instances[index].vmName = desiredName
                 changed = true

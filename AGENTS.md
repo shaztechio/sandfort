@@ -2,20 +2,29 @@
 
 ## Project and architecture
 
-Sandfort is a native SwiftUI macOS 13+ app that creates disposable Ubuntu
-24.04 ARM64 VMs for UTM on Apple silicon. Keep the current implementation
+Sandfort is a native SwiftUI macOS 13+ app that creates disposable Ubuntu 24.04,
+Fedora 44, and Debian 13 ARM64 VMs for UTM on Apple silicon. Keep the current implementation
 provider-oriented so Intel macOS, Windows, and Linux installers can be added
 without weakening the common provisioning policy.
 
 - `sources/sandfortapp/SandfortApp.swift`: SwiftUI views and user-facing state.
 - `SandfortWorkflow.swift`: app-owned state, verified downloads, baseline/session
   lifecycle, and native UTM launch.
+- `SandboxLibrary.swift`: multi-environment paths, shared cache, and preservation
+  of the pre-Phase-7 singleton environment without moving or silently
+  re-registering its VM bundles. New and rebuilt VMs include the distribution.
 - `LinuxGuestCatalog.swift`: curated guest metadata, immutable verified images,
   hardware requirements, and the provisioning strategy boundary.
+- `GuestProvisioningSupport.swift`: distribution-neutral credential validation,
+  custom-script embedding, Node.js verification, MOTD, and completion helpers.
 - `PlatformProvider.swift`: `VirtualMachineProvider` boundary for future hosts.
 - `UTMBundleBuilder.swift`: UTM plist/bundle generation and clean-session reset.
 - `CloudInit.swift`: current Ubuntu credentials, packages, hardening, and
   baseline setup behind the catalog profile.
+- `FedoraCloudInit.swift`: Fedora 44 DNF5, Workstation, firewalld, SELinux,
+  automatic-update, and completion policy.
+- `DebianCloudInit.swift`: Debian 13 APT, GNOME/GDM, AppArmor, UFW,
+  unattended-upgrade, and completion policy. Debian revision 3 is production-supported.
 - `NativeDownloader.swift`, `DiskUtilities.swift`, `ISO9660Writer.swift`: native
   download, verification, disk manipulation, and NoCloud ISO generation.
 - `tests/sandfortapptests`: policy and bundle-format regression tests.
@@ -24,33 +33,105 @@ without weakening the common provisioning policy.
   indexed native macOS Help Book; do not edit generated Help Book HTML directly.
 - `docs/architecture.md`, `docs/security-model.md`, and
   `docs/adding-a-platform.md`: design intent and provider requirements.
+- `docs/password-strength.md`: generated guest-password entropy, storage,
+  threat-model limitations, and stronger user-selected password guidance.
+- `docs/linux-profile-provenance.md`: immutable guest-image intake records and
+  qualification status.
 
 ## Planned Linux guest catalog work
 
-The bundled catalog currently contains one proven profile: Ubuntu 24.04 LTS
-ARM64. Extend this into a user-selectable Linux catalog without accepting
+The bundled production catalog contains proven Ubuntu 24.04 LTS, Fedora 44, and
+Debian 13 ARM64 profiles. Continue extending the curated Linux catalog without accepting
 arbitrary downloads:
 
 - Add curated Debian, Fedora, and other Linux profiles only after their official
   immutable cloud images, pinned SHA-256 values, ARM64 boot behavior, desktop,
   guest agents, package manager, firewall, and completion checks are tested.
-- Add the distribution selector to Create/Rebuild, not the routine instance-run
-  screen. Preserve the existing baseline and clean-instance flow after selection.
-- Persist a profile revision and image checksum with the existing profile ID so
-  an app update can detect baseline incompatibility instead of silently applying
+- Add new distributions as independent environments. Rebuild and routine
+  instance actions must remain scoped to the selected environment.
+- Preserve the persisted profile revision and image checksum alongside the
+  profile ID. Keep explicit legacy mappings and supported old revisions so an
+  app update detects baseline incompatibility instead of silently applying
   another distribution's provisioning or hardware assumptions.
 - Keep distribution provisioning separate from the host provider: profiles own
   guest setup and verification; UTM and future hypervisors own VM packaging,
   isolation, firmware, launch, and reset behavior.
-- Decide explicitly whether a selected distribution replaces the one protected
-  baseline or whether a later release supports multiple independent baselines.
-  Do not retain or delete old baselines implicitly.
+- Pass the resolved profile explicitly to every profile-sensitive workflow and
+  provider operation. Never consult a process-wide default while repairing,
+  resetting, or recreating a baseline or instance identified by saved state.
+- Preserve one independently managed protected baseline per selected profile.
+  Never delete or rebuild another environment implicitly.
 - Require automated profile-contract tests plus a real UTM boot smoke test through
   setup, automatic poweroff, graphical login, offline reset, and Internet-enabled
   reset before exposing a profile in the UI.
 
 Catalog entries must remain bundled, reviewed, and version-controlled. Never
 populate the trusted catalog from an unsigned remote source or user-supplied URL.
+
+## Planned network observability and filtering
+
+Future work may add per-sandbox egress monitoring and filtering. Treat this as a
+separate signed Network Extension/system-extension project, not as a small UTM
+configuration change. Follow Apple's supported Network Extension content-filter
+APIs; do not modify Packet Filter rules, routing tables, install packet-capture
+shell tools, or add unreviewed QEMU arguments.
+
+Implementation plan:
+
+1. Prototype a macOS `NEFilterDataProvider` and, if required for pre-NAT
+   attribution, `NEFilterPacketProvider`. Package it as an app or system
+   extension with the required entitlements, Developer ID signing, user consent,
+   and documented uninstall behavior.
+2. Prove attribution with two concurrently running Internet-enabled UTM/QEMU
+   instances. UTM's Emulated VLAN traffic is presented to macOS as originating
+   from the UTM process, so process identity alone is insufficient. Correlate
+   only with stable, observed VM metadata such as the instance's unique MAC,
+   subnet, or pre-NAT packet context. Never guess the environment from timing.
+3. If reliable concurrent attribution is not possible, either introduce a
+   dedicated per-instance logging gateway or explicitly restrict monitored
+   Internet access to one running instance. Do not show potentially incorrect
+   instance attribution as authoritative.
+4. Keep **Offline** unchanged as the safest mode. Add **Monitored Internet** only
+   after the extension is active and healthy. Decide separately whether a
+   direct, unmonitored Internet mode remains available.
+5. Record metadata only: timestamp, environment ID, instance number, destination
+   IP, destination port, protocol, allow/block verdict, byte counts, and a domain
+   name only when it is genuinely observable from plaintext DNS or equivalent
+   flow metadata.
+6. Do not promise full URLs or complete domain visibility. HTTPS paths are
+   encrypted; encrypted DNS and TLS ECH can hide hostnames. Never capture packet
+   payloads, credentials, request bodies, cookies, or other content.
+7. Add an in-app activity view with filters for environment, instance, time,
+   domain, IP, protocol, and verdict. Include pause, clear, configurable
+   retention, and metadata-only JSONL/CSV export.
+8. Store logs under an app-owned `Network Logs/<environment-id>/<instance-id>`
+   hierarchy with per-run identifiers. Apply bounded retention and make log
+   deletion explicit and recoverable where practical. Never include the guest
+   password or custom setup script.
+9. Add reviewed allowlist and denylist policies with clear precedence and a safe
+   failure mode. If the monitor/filter is unavailable, a requested monitored run
+   must fail closed rather than silently launch with unrestricted Internet.
+10. Test DNS, direct IP connections, TCP, UDP, ICMP, IPv4, IPv6, encrypted DNS,
+    concurrent instances, extension restarts, app crashes, sleep/wake, and UTM
+    upgrades before release.
+
+A host content filter generally cannot observe attempts that UTM blocks inside a
+truly offline network. Logging attempted offline connections would require
+guest-side telemetry (tamperable by guest root) or a dedicated gateway that
+receives, records, and denies traffic. Preserve this distinction in the UI:
+"no observed traffic" must never be presented as proof that no connection was
+attempted.
+
+Primary references:
+
+- UTM QEMU network behavior:
+  <https://docs.getutm.app/settings-qemu/devices/network/network/>
+- Apple Network Extension content filters:
+  <https://developer.apple.com/documentation/networkextension/content-filter-providers>
+- Apple TN3120, including why packet tunnels are not content filters:
+  <https://developer.apple.com/documentation/technotes/tn3120-expected-use-cases-for-network-extension-packet-tunnel-providers>
+- Apple TN3134 provider deployment:
+  <https://developer.apple.com/documentation/technotes/tn3134-network-extension-provider-deployment>
 
 ## Build, test, and package
 
@@ -60,6 +141,10 @@ Run commands from the repository root:
 make test
 make app
 codesign --verify --deep --strict "dist/Sandfort.app"
+make qualification-app
+codesign --verify --deep --strict "dist/Sandfort Fedora Qualification.app"
+make debian-qualification-app
+codesign --verify --deep --strict "dist/Sandfort Debian Qualification.app"
 ```
 
 `make test` supplies repository-local Swift module-cache paths and runs
@@ -68,6 +153,15 @@ codesign --verify --deep --strict "dist/Sandfort.app"
 still needs Developer ID signing and notarization for distribution. When
 shipping a user-visible change, update both version values in
 `tools/packaging/Info.plist` deliberately and rebuild the app.
+
+`make qualification-app` creates a separately identified Fedora-only regression
+app with isolated Application Support state and clearly prefixed UTM names. It
+is a development verification tool, not the production profile selector. Follow
+`docs/fedora-qualification.md`; never use production state for qualification.
+
+`make debian-qualification-app` creates the corresponding isolated Debian
+regression build. Follow `docs/debian-qualification.md`; never use production
+state for qualification.
 
 ## Security invariants
 
@@ -79,6 +173,9 @@ Treat these as requirements, not optional defaults:
   setup baseline before every untrusted launch. Multiple numbered instances
   must remain independent and receive unique UUIDs and MAC addresses. Never
   copy or restore a running VM.
+- Keep every Linux environment's state, VM directory, baseline, credentials, and
+  instance numbering independent. Sharing the verified-image cache is allowed;
+  sharing mutable guest disks or firmware is not.
 - Treat optional instance labels as display metadata only. Renaming must preserve
   the permanent number, bundle path, UUID, MAC address, disk, and UEFI state.
 - Keep instance deletion app-owned, recoverable through macOS Trash, and guarded
@@ -111,10 +208,10 @@ security-relevant configuration change.
 ## Baseline and compatibility implications
 
 Changes embedded in the guest do not update an existing baseline. Any change to
-`CloudInit.swift`, credentials, packages/tools, desktop/login services, firewall,
-journald, wait-online behavior, or the custom setup path requires the user to
-stop the VM and choose **Rebuild**. State this clearly in release notes and the
-handoff. A new app binary alone is insufficient.
+`CloudInit.swift`, `GuestProvisioningSupport.swift`, credentials, packages/tools,
+desktop/login services, firewall, journald, wait-online behavior, or the custom
+setup path requires the user to stop the VM and choose **Rebuild**. State this
+clearly in release notes and the handoff. A new app binary alone is insufficient.
 
 Host-side clean-bundle configuration in `UTMBundleBuilder.swift` is generally
 reapplied by **Run Clean Sandbox**, but verify behavior for existing saved state

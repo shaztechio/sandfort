@@ -1,27 +1,35 @@
 import Foundation
 
-struct LinuxGuestProfile: Identifiable, Sendable, Equatable {
-    struct Image: Sendable, Equatable {
+struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
+    struct Image: Sendable, Hashable {
         let url: URL
         let sha256: String
         let fileName: String
         let downloadSizeDescription: String
     }
 
-    struct Hardware: Sendable, Equatable {
+    struct Hardware: Sendable, Hashable {
         let architecture: String
+        let utmArchitecture: String
+        let utmTarget: String
         let memoryMiB: Int
         let cpuCount: Int
         let diskSizeGiB: UInt64
     }
 
-    enum Provisioner: String, Sendable {
+    enum Provisioner: String, Sendable, Hashable {
         case ubuntu2404
+        case fedora44
+        case debian13
 
         func credentials() -> SandboxCredentials {
             switch self {
             case .ubuntu2404:
                 return UbuntuCloudInit.credentials()
+            case .fedora44:
+                return FedoraCloudInit.credentials()
+            case .debian13:
+                return DebianCloudInit.credentials()
             }
         }
 
@@ -29,6 +37,10 @@ struct LinuxGuestProfile: Identifiable, Sendable, Equatable {
             switch self {
             case .ubuntu2404:
                 return try UbuntuCloudInit.credentials(password: password)
+            case .fedora44:
+                return try FedoraCloudInit.credentials(password: password)
+            case .debian13:
+                return try DebianCloudInit.credentials(password: password)
             }
         }
 
@@ -39,13 +51,19 @@ struct LinuxGuestProfile: Identifiable, Sendable, Equatable {
             switch self {
             case .ubuntu2404:
                 return try UbuntuCloudInit.seedISO(credentials: credentials, tools: tools)
+            case .fedora44:
+                return try FedoraCloudInit.seedISO(credentials: credentials, tools: tools)
+            case .debian13:
+                return try DebianCloudInit.seedISO(credentials: credentials, tools: tools)
             }
         }
     }
 
     let id: String
+    let revision: Int
     let displayName: String
     let distributionName: String
+    let setupDurationDescription: String
     let image: Image
     let hardware: Hardware
     let provisioner: Provisioner
@@ -69,8 +87,10 @@ struct LinuxGuestProfile: Identifiable, Sendable, Equatable {
 enum LinuxGuestCatalog {
     static let ubuntu2404ARM64 = LinuxGuestProfile(
         id: "ubuntu-24.04-arm64",
+        revision: 1,
         displayName: "Ubuntu 24.04 LTS",
         distributionName: "Ubuntu",
+        setupDurationDescription: "10-30 minutes",
         image: LinuxGuestProfile.Image(
             url: URL(string: "https://cloud-images.ubuntu.com/releases/noble/release-20260725/ubuntu-24.04-server-cloudimg-arm64.img")!,
             sha256: "2eaec7286c49fdea713dddabcf5012cafa7097a658e916acb48f4bc5fdc8e419",
@@ -79,6 +99,8 @@ enum LinuxGuestCatalog {
         ),
         hardware: LinuxGuestProfile.Hardware(
             architecture: "arm64",
+            utmArchitecture: "aarch64",
+            utmTarget: "virt",
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64
@@ -86,13 +108,108 @@ enum LinuxGuestCatalog {
         provisioner: .ubuntu2404
     )
 
+    static let fedora44ARM64 = LinuxGuestProfile(
+        id: "fedora-44-arm64",
+        revision: 1,
+        displayName: "Fedora Cloud 44",
+        distributionName: "Fedora",
+        setupDurationDescription: "20-45 minutes",
+        image: LinuxGuestProfile.Image(
+            url: URL(string: "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2")!,
+            sha256: "55c60a3b80d3616a08705afd0459e75fe9f03c54aba7a46e4002a41a72fa0d5b",
+            fileName: "Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2",
+            downloadSizeDescription: "about 504 MiB"
+        ),
+        hardware: LinuxGuestProfile.Hardware(
+            architecture: "arm64",
+            utmArchitecture: "aarch64",
+            utmTarget: "virt",
+            memoryMiB: 4096,
+            cpuCount: 4,
+            diskSizeGiB: 64
+        ),
+        provisioner: .fedora44
+    )
+
+    static let debian13ARM64 = LinuxGuestProfile(
+        id: "debian-13-arm64",
+        revision: 3,
+        displayName: "Debian 13 (Trixie)",
+        distributionName: "Debian",
+        setupDurationDescription: "20-45 minutes",
+        image: LinuxGuestProfile.Image(
+            url: URL(string: "https://cloud.debian.org/images/cloud/trixie/20260712-2537/debian-13-generic-arm64-20260712-2537.qcow2")!,
+            sha256: "7e556159a995fa4634e2ea52228ec7a4226193e2d1a87e2c7158e4c6d53ed5fe",
+            fileName: "debian-13-generic-arm64-20260712-2537.qcow2",
+            downloadSizeDescription: "about 412 MiB"
+        ),
+        hardware: LinuxGuestProfile.Hardware(
+            architecture: "arm64",
+            utmArchitecture: "aarch64",
+            utmTarget: "virt",
+            memoryMiB: 4096,
+            cpuCount: 4,
+            diskSizeGiB: 64
+        ),
+        provisioner: .debian13
+    )
+
     /// Profiles are bundled with the app so image sources and checksums are
     /// reviewed and versioned with the code. Never populate this from an
     /// unsigned remote catalog or arbitrary user input.
-    static let profiles = [ubuntu2404ARM64]
+    static let profiles = [ubuntu2404ARM64, fedora44ARM64, debian13ARM64]
+
+    /// Profiles with reviewed download metadata that are not yet safe to
+    /// create, repair, or expose in the production app.
+    static let qualificationProfiles: [LinuxGuestProfile] = []
+
+    /// Every profile revision that can still safely operate an existing
+    /// baseline. When a current profile is revised, retain its older value here
+    /// until support for baselines created with that revision is deliberately
+    /// removed.
+    static let supportedProfiles = [ubuntu2404ARM64, fedora44ARM64, debian13ARM64]
     static let defaultProfile = ubuntu2404ARM64
 
     static func profile(id: String) -> LinuxGuestProfile? {
         profiles.first { $0.id == id }
+    }
+
+    /// The separate qualification build may exercise a production profile for
+    /// regression testing as well as a profile that has not yet been promoted.
+    static func qualificationProfile(id: String) -> LinuxGuestProfile? {
+        qualificationProfiles.first { $0.id == id } ?? profile(id: id)
+    }
+
+    static func supportedProfile(
+        id: String,
+        revision: Int?,
+        imageSHA256: String?
+    ) -> LinuxGuestProfile? {
+        let candidates = supportedProfiles.filter { $0.id == id }
+        if let revision {
+            return candidates.first {
+                $0.revision == revision
+                    && (imageSHA256 == nil || $0.image.sha256 == imageSHA256)
+            }
+        }
+        if let imageSHA256 {
+            return candidates.first { $0.image.sha256 == imageSHA256 }
+        }
+        return legacyProfile(id: id)
+    }
+
+    /// State written before profile revisions were persisted is intentionally
+    /// mapped to the profile that those Sandfort versions used. Do not change
+    /// this to return the newest revision: doing so would silently apply new
+    /// provisioning or hardware assumptions to an old baseline.
+    static func legacyProfile(id: String) -> LinuxGuestProfile? {
+        switch id {
+        case ubuntu2404ARM64.id:
+            return supportedProfiles.first {
+                $0.id == ubuntu2404ARM64.id && $0.revision == 1
+            }
+        default:
+            return nil
+        }
     }
 }

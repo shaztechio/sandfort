@@ -1,11 +1,10 @@
 import Foundation
 
 struct UTMBundleBuilder: VirtualMachineProvider {
-    let configuration: SandfortConfiguration
     var firmwareURLOverride: URL? = nil
     var identifier: String { "macos-arm64.utm-qemu" }
 
-    func createSetupBundle(at bundleURL: URL, name: String, from imageURL: URL, credentials: SandboxCredentials, tools: SandboxToolSelection) throws {
+    func createSetupBundle(at bundleURL: URL, name: String, from imageURL: URL, profile: LinuxGuestProfile, credentials: SandboxCredentials, tools: SandboxToolSelection) throws {
         let fileManager = FileManager.default
         let dataURL = bundleURL.appendingPathComponent("Data", isDirectory: true)
         try fileManager.createDirectory(at: dataURL, withIntermediateDirectories: true)
@@ -13,12 +12,12 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         let diskName = "sandfort.qcow2"
         let diskURL = dataURL.appendingPathComponent(diskName)
         try fileManager.copyItem(at: imageURL, to: diskURL)
-        try DiskUtilities.resizeQCOW2(at: diskURL, toGiB: configuration.guestProfile.hardware.diskSizeGiB)
+        try DiskUtilities.resizeQCOW2(at: diskURL, toGiB: profile.hardware.diskSizeGiB)
         guard let firmwareURL = firmwareURLOverride ?? Self.utmFirmwareURL() else {
             throw SandboxError.utmResourcesMissing
         }
         try fileManager.copyItem(at: firmwareURL, to: dataURL.appendingPathComponent("efi_vars.fd"))
-        try configuration.guestProfile.seedISO(credentials: credentials, tools: tools).write(
+        try profile.seedISO(credentials: credentials, tools: tools).write(
             to: dataURL.appendingPathComponent("seed.iso"),
             options: .atomic
         )
@@ -26,6 +25,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             at: bundleURL,
             name: name,
             diskName: diskName,
+            profile: profile,
             setupMode: true
         )
     }
@@ -34,6 +34,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         from setupURL: URL,
         at destinationURL: URL,
         name: String,
+        profile: LinuxGuestProfile,
         networkMode: SandboxNetworkMode
     ) throws {
         let fileManager = FileManager.default
@@ -44,12 +45,13 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             at: destinationURL,
             name: name,
             diskName: diskName,
+            profile: profile,
             setupMode: false
         )
         try setCleanNetworkMode(networkMode, at: destinationURL)
     }
 
-    func resetCleanBundle(from setupURL: URL, at destinationURL: URL, networkMode: SandboxNetworkMode) throws {
+    func resetCleanBundle(from setupURL: URL, at destinationURL: URL, profile: LinuxGuestProfile, networkMode: SandboxNetworkMode) throws {
         let fileManager = FileManager.default
         try DiskUtilities.ensureNotInUse(try diskURL(in: setupURL))
         try DiskUtilities.ensureNotInUse(try diskURL(in: destinationURL))
@@ -65,11 +67,11 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             try fileManager.copyItem(at: source, to: destination)
             try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
         }
-        try repairBundle(at: destinationURL)
+        try repairBundle(at: destinationURL, profile: profile)
         try setCleanNetworkMode(networkMode, at: destinationURL)
     }
 
-    func repairBundle(at bundleURL: URL) throws {
+    func repairBundle(at bundleURL: URL, profile: LinuxGuestProfile) throws {
         let configURL = bundleURL.appendingPathComponent("config.plist")
         guard FileManager.default.fileExists(atPath: configURL.path) else { return }
         let data = try Data(contentsOf: configURL)
@@ -122,7 +124,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         try repaired.write(to: configURL, options: .atomic)
         if let disk = try? diskURL(in: bundleURL),
            (try? DiskUtilities.ensureNotInUse(disk)) != nil {
-            try DiskUtilities.resizeQCOW2(at: disk, toGiB: configuration.guestProfile.hardware.diskSizeGiB)
+            try DiskUtilities.resizeQCOW2(at: disk, toGiB: profile.hardware.diskSizeGiB)
         }
     }
 
@@ -158,7 +160,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         return disk
     }
 
-    private func writeConfiguration(at bundleURL: URL, name: String, diskName: String, setupMode: Bool) throws {
+    private func writeConfiguration(at bundleURL: URL, name: String, diskName: String, profile: LinuxGuestProfile, setupMode: Bool) throws {
         let machineID = UUID().uuidString.uppercased()
         let diskID = UUID().uuidString.uppercased()
         let seedID = UUID().uuidString.uppercased()
@@ -171,15 +173,15 @@ struct UTMBundleBuilder: VirtualMachineProvider {
                 "UUID": machineID
             ],
             "System": [
-                "Architecture": "aarch64",
+                "Architecture": profile.hardware.utmArchitecture,
                 "CPU": "default",
-                "CPUCount": configuration.guestProfile.hardware.cpuCount,
+                "CPUCount": profile.hardware.cpuCount,
                 "CPUFlagsAdd": [],
                 "CPUFlagsRemove": [],
                 "ForceMulticore": false,
                 "JITCacheSize": 0,
-                "MemorySize": configuration.guestProfile.hardware.memoryMiB,
-                "Target": "virt"
+                "MemorySize": profile.hardware.memoryMiB,
+                "Target": profile.hardware.utmTarget
             ],
             "QEMU": [
                 "AdditionalArguments": [],

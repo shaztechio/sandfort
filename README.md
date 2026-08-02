@@ -1,7 +1,8 @@
 # Sandfort
 
 ![Sandfort app icon](assets/Sandfort.png) Sandfort is a native SwiftUI app that
-creates disposable Ubuntu VMs for opening untrusted coding challenges. The first
+creates disposable Linux VMs for untrusted work. Its curated catalog currently
+supports Ubuntu 24.04 LTS, Fedora Cloud 44, and Debian 13. The first
 provider supports Apple Silicon macOS and [UTM](https://mac.getutm.app/).
 
 **A clean machine for untrusted work.**
@@ -25,21 +26,23 @@ native Help Book available from **Help → Sandfort Help** in the app.
 
 1. Download and install [UTM](https://mac.getutm.app/).
 2. Run `make app`.
-3. Open `dist/Sandfort.app` and click **Create Sandbox**.
+3. Open `dist/Sandfort.app`, choose an Ubuntu, Fedora, or Debian environment,
+   and click its **Create Environment** action.
    Before creating or rebuilding, choose whether the baseline should include
    Python 3 development tools and the latest official Node.js LTS/npm. Git, curl,
    and jq are always included. Node's Linux ARM64 archive is SHA-256 verified.
    Advanced mode also accepts a custom shell script. It is embedded in cloud-init
-   and runs as root inside Ubuntu during baseline creation, never on the macOS host.
-4. The app downloads the official Ubuntu 24.04 ARM64 cloud image (about 590 MB),
-   shows byte-based percentage progress, verifies Canonical's pinned SHA-256, and
+   and runs as root inside the selected Linux guest during baseline creation,
+   never on the macOS host.
+4. The app downloads the profile's official ARM64 cloud image, shows byte-based
+   percentage progress, verifies its pinned SHA-256, and
    opens the generated VM in UTM.
-5. First boot uses UTM's text terminal because Ubuntu cloud images send setup
+5. First boot uses UTM's text terminal because the cloud images send setup
    output to their serial console. Let it install the desktop, Git, curl, guest
    tools, firewall, and security updates. Leave it running until all selected
    tools are verified, setup journals and package caches are compacted, and the
    VM powers itself off automatically.
-6. Click **Finish Setup**. UTM will clearly label the source VM as
+6. Click **Finish Setup**. UTM will clearly label that environment's source VM as
    **Protected Baseline** and the first disposable VM as **Instance 1**.
 7. Select an instance and use the **Run Instance** menu, or click
    **New Clean Sandbox** to create another numbered instance from the baseline.
@@ -50,9 +53,9 @@ native Help Book available from **Help → Sandfort Help** in the app.
 
 Clean sessions use a small in-memory system journal. This avoids persistent
 journal flushing during disposable boots and discards guest logs with the rest
-of the clean session when it shuts down. Baseline setup also disables Ubuntu's
-wait-online services so an unavailable network does not delay the graphical
-login for up to two minutes.
+of the clean session when it shuts down. Baseline setup also disables
+distribution-specific wait-online services so an unavailable network does not
+delay the graphical login.
 
 The setup login uses a generated, memorable four-word hyphen-separated phrase
 and is displayed in the app. Every numbered instance has an independent disk,
@@ -67,8 +70,14 @@ offline or Internet mode instead of a cached configuration. The permanent
 instance number and optional name remain, while its disposable VM UUID, MAC
 address, disk, and UEFI state are freshly generated or restored.
 
-During **Rebuild**, the app asks for the new baseline's Ubuntu password and
-prefills the current password. The chosen value is validated before any existing
+Each Linux environment has an independent protected baseline, credentials,
+tool configuration, and numbered instances. Use **Add Linux Environment** to
+create Ubuntu, Fedora, and Debian environments side by side; instances from
+those environments can run concurrently. Verified image downloads are shared, but VM disks and
+state are not.
+
+During **Rebuild**, the app rebuilds only the selected environment and asks for
+its new baseline password, prefilling the current password. The chosen value is validated before any existing
 VM data is deleted, then applied by cloud-init and inherited by all new instances.
 After confirmation, macOS may ask permission for Sandfort to control UTM. The
 app uses that permission to remove the old protected baseline and every recorded
@@ -78,15 +87,17 @@ opens UTM automatically if it is closed, then waits for UTM to confirm each
 library removal before continuing. This prevents UTM from retaining a stale entry
 while its deletion is still in progress.
 
+Use **Delete Environment** to remove only the selected distribution's baseline
+and instances. Other environments and cached verified downloads remain.
+
 Instance names can be changed later with **Run Instance → Rename Instance**.
 The permanent instance number, bundle path, VM UUID, disk, and baseline
 relationship do not change when a display name changes.
 
 Use **Run Instance → Delete Instance** to remove a stopped instance. The app
-moves its bundle to macOS Trash and removes it from saved state without changing
-the Protected Baseline or other instances. Deleted instance numbers are not
-reused. If UTM retains an unavailable entry, its trash button removes that stale
-registration; destructive instance deletion remains app-owned.
+unregisters it from UTM, waits for confirmation, moves its bundle to macOS Trash,
+and removes it from saved state without changing the Protected Baseline or other
+instances. Deleted instance numbers are not reused.
 
 Each instance creation and clean launch asks whether the guest should have Internet access. The default
 is offline. Internet-enabled runs still disable shared folders, clipboard, USB
@@ -100,5 +111,7 @@ AppleScript, `curl`, `qemu-img`, or `hdiutil`. Swift code performs the download,
 streaming progress, SHA-256 verification, QCOW2 resize, ISO-9660 cloud-init media
 creation, UTM plist generation, and launch through `NSWorkspace`.
 
-Run tests with `make test`. Read [the architecture](docs/architecture.md) and
-[security model](docs/security-model.md) before using the VM with hostile code.
+Run tests with `make test`. Read [why these Linux profiles were chosen](docs/linux-profile-selection.md),
+[the architecture](docs/architecture.md), [security model](docs/security-model.md), and
+[sandbox password-strength assessment](docs/password-strength.md) before using
+the VM with hostile code.

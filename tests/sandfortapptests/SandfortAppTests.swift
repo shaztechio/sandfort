@@ -4,16 +4,43 @@ import XCTest
 
 final class SandfortAppTests: XCTestCase {
     func testGeneratedCredentialsUseAMemorableHyphenatedPhrase() {
-        let credentials = CloudInit.credentials()
+        let credentials = LinuxGuestCatalog.defaultProfile.credentials()
         let parts = credentials.password.split(separator: "-")
         XCTAssertEqual(credentials.username, "sandfort")
         XCTAssertEqual(parts.count, 4)
         XCTAssertTrue(parts.allSatisfy { $0.allSatisfy(\.isLowercase) })
     }
 
+    func testSharedGuestProvisioningSupportPreservesCommonSecurityInputs() throws {
+        XCTAssertEqual(GuestProvisioningSupport.yamlSingleQuoted("safe'phrase"), "safe''phrase")
+        XCTAssertEqual(GuestProvisioningSupport.completionMarkerPath, "/var/lib/sandfort/setup-complete")
+        XCTAssertTrue(GuestProvisioningSupport.motd.contains("Do not enter personal credentials"))
+
+        let custom = try XCTUnwrap(GuestProvisioningSupport.customSetupScript(
+            from: "  #!/bin/sh\necho ready  \n"
+        ))
+        XCTAssertEqual(custom.command, "/var/lib/sandfort/custom-setup.sh")
+        XCTAssertTrue(custom.writeFileEntry.contains(Data("#!/bin/sh\necho ready".utf8).base64EncodedString()))
+        XCTAssertNil(try GuestProvisioningSupport.customSetupScript(from: " \n "))
+
+        let node = GuestProvisioningSupport.nodeLTSInstallCommands(
+            enabled: true,
+            linuxArchiveArchitecture: "arm64"
+        )
+        XCTAssertTrue(node.contains("node-${nodeVersion}-linux-arm64.tar.xz"))
+        XCTAssertTrue(node.contains("sha256sum --check"))
+        XCTAssertEqual(
+            GuestProvisioningSupport.nodeLTSInstallCommands(
+                enabled: false,
+                linuxArchiveArchitecture: "arm64"
+            ),
+            ""
+        )
+    }
+
     func testCloudInitISOHasCIDATAVolumeAndExpectedFiles() throws {
         let credentials = SandboxCredentials(username: "sandfort", password: "safe-test")
-        let iso = try CloudInit.seedISO(credentials: credentials)
+        let iso = try LinuxGuestCatalog.defaultProfile.seedISO(credentials: credentials)
         XCTAssertEqual(String(data: iso.subdata(in: 32_769..<32_774), encoding: .ascii), "CD001")
         XCTAssertEqual(String(data: iso.subdata(in: 32_808..<32_814), encoding: .ascii), "CIDATA")
         XCTAssertNotNil(iso.range(of: Data("USER_DAT;1".utf8)))
@@ -65,7 +92,7 @@ final class SandfortAppTests: XCTestCase {
     }
 
     func testCloudInitOmitsOptionalToolsWhenDeselected() throws {
-        let iso = try CloudInit.seedISO(
+        let iso = try LinuxGuestCatalog.defaultProfile.seedISO(
             credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
             tools: SandboxToolSelection(python: false, nodeJS: false)
         )
@@ -76,18 +103,18 @@ final class SandfortAppTests: XCTestCase {
     }
 
     func testCustomGuestPasswordIsValidatedAndSafelyQuoted() throws {
-        let credentials = try CloudInit.credentials(password: "safe'phrase-123")
+        let credentials = try LinuxGuestCatalog.defaultProfile.credentials(password: "safe'phrase-123")
         XCTAssertEqual(credentials.password, "safe'phrase-123")
-        let iso = try CloudInit.seedISO(credentials: credentials)
+        let iso = try LinuxGuestCatalog.defaultProfile.seedISO(credentials: credentials)
         XCTAssertNotNil(iso.range(of: Data("password: 'safe''phrase-123'".utf8)))
-        XCTAssertThrowsError(try CloudInit.credentials(password: "short"))
-        XCTAssertThrowsError(try CloudInit.credentials(password: "contains space"))
-        XCTAssertThrowsError(try CloudInit.credentials(password: "contains\nnewline"))
-        XCTAssertThrowsError(try CloudInit.credentials(password: String(repeating: "x", count: 129)))
+        XCTAssertThrowsError(try LinuxGuestCatalog.defaultProfile.credentials(password: "short"))
+        XCTAssertThrowsError(try LinuxGuestCatalog.defaultProfile.credentials(password: "contains space"))
+        XCTAssertThrowsError(try LinuxGuestCatalog.defaultProfile.credentials(password: "contains\nnewline"))
+        XCTAssertThrowsError(try LinuxGuestCatalog.defaultProfile.credentials(password: String(repeating: "x", count: 129)))
     }
 
     func testCloudInitCanMirrorDetailedSetupOutputToTerminal() throws {
-        let iso = try CloudInit.seedISO(
+        let iso = try LinuxGuestCatalog.defaultProfile.seedISO(
             credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
             tools: SandboxToolSelection(
                 python: false,
@@ -102,7 +129,7 @@ final class SandfortAppTests: XCTestCase {
 
     func testCloudInitSafelyEmbedsCustomSetupScript() throws {
         let script = "#!/usr/bin/env bash\nset -euo pipefail\napt-get install -y ripgrep\n"
-        let iso = try CloudInit.seedISO(
+        let iso = try LinuxGuestCatalog.defaultProfile.seedISO(
             credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
             tools: SandboxToolSelection(python: false, nodeJS: false, customSetupScript: script)
         )
@@ -115,7 +142,7 @@ final class SandfortAppTests: XCTestCase {
     }
 
     func testCloudInitRejectsOversizedCustomSetupScript() {
-        XCTAssertThrowsError(try CloudInit.seedISO(
+        XCTAssertThrowsError(try LinuxGuestCatalog.defaultProfile.seedISO(
             credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
             tools: SandboxToolSelection(
                 python: false,
@@ -156,17 +183,22 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertEqual(Array(header[36..<40]), [0, 0, 0, 128])
     }
 
-    func testLinuxGuestCatalogContainsTheCuratedUbuntuProfile() throws {
-        XCTAssertEqual(LinuxGuestCatalog.profiles.map(\.id), ["ubuntu-24.04-arm64"])
+    func testLinuxGuestCatalogContainsTheCuratedProductionProfiles() throws {
+        XCTAssertEqual(
+            LinuxGuestCatalog.profiles.map(\.id),
+            ["ubuntu-24.04-arm64", "fedora-44-arm64", "debian-13-arm64"]
+        )
         XCTAssertEqual(LinuxGuestCatalog.profile(id: "ubuntu-24.04-arm64"), LinuxGuestCatalog.defaultProfile)
         XCTAssertNil(LinuxGuestCatalog.profile(id: "arbitrary-linux"))
 
         let profile = LinuxGuestCatalog.defaultProfile
-        let configuration = SandfortConfiguration.current
-        XCTAssertEqual(configuration.guestProfile, profile)
         XCTAssertEqual(profile.displayName, "Ubuntu 24.04 LTS")
+        XCTAssertEqual(profile.revision, 1)
+        XCTAssertEqual(profile.setupDurationDescription, "10-30 minutes")
         XCTAssertEqual(profile.distributionName, "Ubuntu")
         XCTAssertEqual(profile.hardware.architecture, "arm64")
+        XCTAssertEqual(profile.hardware.utmArchitecture, "aarch64")
+        XCTAssertEqual(profile.hardware.utmTarget, "virt")
         XCTAssertEqual(profile.hardware.memoryMiB, 4096)
         XCTAssertEqual(profile.hardware.cpuCount, 4)
         XCTAssertEqual(profile.hardware.diskSizeGiB, 64)
@@ -184,6 +216,344 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertTrue(finalizer.contains("systemctl enable gdm3.service"))
     }
 
+    func testFedora44ProductionProfileHasImmutableVerifiedMetadata() throws {
+        let fedora = LinuxGuestCatalog.fedora44ARM64
+        XCTAssertEqual(fedora.id, "fedora-44-arm64")
+        XCTAssertEqual(fedora.revision, 1)
+        XCTAssertEqual(fedora.displayName, "Fedora Cloud 44")
+        XCTAssertEqual(fedora.distributionName, "Fedora")
+        XCTAssertEqual(fedora.setupDurationDescription, "20-45 minutes")
+        XCTAssertEqual(fedora.provisioner, .fedora44)
+        XCTAssertEqual(fedora.image.url.scheme, "https")
+        XCTAssertEqual(fedora.image.url.host, "download.fedoraproject.org")
+        XCTAssertTrue(fedora.image.url.path.contains("/releases/44/"))
+        XCTAssertTrue(fedora.image.url.path.contains("Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2"))
+        XCTAssertFalse(fedora.image.url.absoluteString.lowercased().contains("latest"))
+        XCTAssertEqual(fedora.image.sha256, "55c60a3b80d3616a08705afd0459e75fe9f03c54aba7a46e4002a41a72fa0d5b")
+        XCTAssertEqual(fedora.image.sha256.count, 64)
+        XCTAssertTrue(fedora.image.sha256.allSatisfy { $0.isHexDigit && !$0.isUppercase })
+        XCTAssertEqual(fedora.image.fileName, "Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2")
+        XCTAssertEqual(fedora.hardware.architecture, "arm64")
+        XCTAssertEqual(fedora.hardware.utmArchitecture, "aarch64")
+        XCTAssertEqual(fedora.hardware.utmTarget, "virt")
+        XCTAssertEqual(fedora.hardware.memoryMiB, 4096)
+        XCTAssertEqual(fedora.hardware.cpuCount, 4)
+        XCTAssertEqual(fedora.hardware.diskSizeGiB, 64)
+
+        XCTAssertEqual(LinuxGuestCatalog.qualificationProfiles, [])
+        XCTAssertTrue(LinuxGuestCatalog.profiles.contains(fedora))
+        XCTAssertTrue(LinuxGuestCatalog.supportedProfiles.contains(fedora))
+        XCTAssertEqual(LinuxGuestCatalog.profile(id: fedora.id), fedora)
+        XCTAssertEqual(LinuxGuestCatalog.supportedProfile(
+            id: fedora.id,
+            revision: fedora.revision,
+            imageSHA256: fedora.image.sha256
+        ), fedora)
+        let iso = try fedora.seedISO(
+            credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
+            tools: .recommended
+        )
+        XCTAssertNotNil(iso.range(of: Data("Fedora baseline setup has started".utf8)))
+    }
+
+    func testDebian13ProductionProfileHasImmutableVerifiedMetadata() throws {
+        let debian = LinuxGuestCatalog.debian13ARM64
+        XCTAssertEqual(debian.id, "debian-13-arm64")
+        XCTAssertEqual(debian.revision, 3)
+        XCTAssertEqual(debian.displayName, "Debian 13 (Trixie)")
+        XCTAssertEqual(debian.distributionName, "Debian")
+        XCTAssertEqual(debian.setupDurationDescription, "20-45 minutes")
+        XCTAssertEqual(debian.provisioner, .debian13)
+        XCTAssertEqual(debian.image.url.scheme, "https")
+        XCTAssertEqual(debian.image.url.host, "cloud.debian.org")
+        XCTAssertTrue(debian.image.url.path.contains("/trixie/20260712-2537/"))
+        XCTAssertTrue(debian.image.url.path.hasSuffix("debian-13-generic-arm64-20260712-2537.qcow2"))
+        XCTAssertFalse(debian.image.url.absoluteString.lowercased().contains("latest"))
+        XCTAssertEqual(debian.image.sha256, "7e556159a995fa4634e2ea52228ec7a4226193e2d1a87e2c7158e4c6d53ed5fe")
+        XCTAssertEqual(debian.image.fileName, "debian-13-generic-arm64-20260712-2537.qcow2")
+        XCTAssertEqual(debian.hardware.memoryMiB, 4096)
+        XCTAssertEqual(debian.hardware.cpuCount, 4)
+        XCTAssertEqual(debian.hardware.diskSizeGiB, 64)
+
+        XCTAssertEqual(LinuxGuestCatalog.qualificationProfiles, [])
+        XCTAssertTrue(LinuxGuestCatalog.profiles.contains(debian))
+        XCTAssertTrue(LinuxGuestCatalog.supportedProfiles.contains(debian))
+        XCTAssertEqual(LinuxGuestCatalog.profile(id: debian.id), debian)
+        XCTAssertEqual(LinuxGuestCatalog.qualificationProfile(id: debian.id), debian)
+        let iso = try debian.seedISO(
+            credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
+            tools: .recommended
+        )
+        XCTAssertNotNil(iso.range(of: Data("Debian baseline setup has started".utf8)))
+    }
+
+    func testSandboxLibraryPreservesLegacyEnvironmentAndIsolatesOtherProfiles() throws {
+        let support = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: support) }
+        let library = SandboxLibrary(applicationSupportURL: support)
+        let ubuntu = LinuxGuestCatalog.ubuntu2404ARM64
+        let fedora = LinuxGuestCatalog.fedora44ARM64
+        let debian = LinuxGuestCatalog.debian13ARM64
+
+        XCTAssertEqual(
+            library.location(for: ubuntu).rootURL,
+            library.rootURL.appendingPathComponent("Environments/\(ubuntu.id)", isDirectory: true)
+        )
+        XCTAssertEqual(library.cacheURL, library.rootURL.appendingPathComponent("Cache", isDirectory: true))
+
+        try FileManager.default.createDirectory(at: library.rootURL, withIntermediateDirectories: true)
+        let legacyState = SandboxState(
+            stage: .ready,
+            credentials: SandboxCredentials(username: "sandfort", password: "river-lantern-amber-willow"),
+            tools: .recommended,
+            setupBundlePath: "/tmp/Legacy Ubuntu.utm",
+            sandboxBundlePath: "/tmp/Legacy Instance.utm",
+            guestProfileID: ubuntu.id,
+            guestProfileRevision: ubuntu.revision,
+            guestImageSHA256: ubuntu.image.sha256
+        )
+        try PropertyListEncoder().encode(legacyState).write(
+            to: library.rootURL.appendingPathComponent("state.plist"),
+            options: .atomic
+        )
+
+        let ubuntuLocation = library.location(for: ubuntu)
+        let fedoraLocation = library.location(for: fedora)
+        let debianLocation = library.location(for: debian)
+        XCTAssertEqual(ubuntuLocation.rootURL, library.rootURL)
+        XCTAssertTrue(ubuntuLocation.usesLegacyRoot)
+        XCTAssertEqual(
+            fedoraLocation.rootURL,
+            library.rootURL.appendingPathComponent("Environments/\(fedora.id)", isDirectory: true)
+        )
+        XCTAssertFalse(fedoraLocation.usesLegacyRoot)
+        XCTAssertEqual(
+            debianLocation.rootURL,
+            library.rootURL.appendingPathComponent("Environments/\(debian.id)", isDirectory: true)
+        )
+        XCTAssertFalse(debianLocation.usesLegacyRoot)
+        XCTAssertEqual(
+            SandfortWorkflowEnvironment.productionWorkspace(
+                profile: fedora,
+                rootURL: fedoraLocation.rootURL,
+                cacheURL: library.cacheURL
+            ).vmNamePrefix,
+            "Sandfort — Fedora Cloud 44"
+        )
+        XCTAssertEqual(library.existingLocations(in: LinuxGuestCatalog.profiles), [ubuntuLocation])
+
+        try FileManager.default.createDirectory(at: fedoraLocation.rootURL, withIntermediateDirectories: true)
+        var fedoraState = legacyState
+        fedoraState.guestProfileID = fedora.id
+        fedoraState.guestProfileRevision = fedora.revision
+        fedoraState.guestImageSHA256 = fedora.image.sha256
+        try PropertyListEncoder().encode(fedoraState).write(to: fedoraLocation.stateURL, options: .atomic)
+        XCTAssertEqual(
+            library.existingLocations(in: LinuxGuestCatalog.profiles),
+            [ubuntuLocation, fedoraLocation]
+        )
+    }
+
+    func testFedoraCloudInitEnforcesDistributionSpecificProvisioningAndSecurity() throws {
+        let credentials = SandboxCredentials(username: "sandfort", password: "safe'fedora-phrase")
+        let iso = try FedoraCloudInit.seedISO(credentials: credentials, tools: .recommended)
+        let isoText = String(decoding: iso, as: UTF8.self)
+        let finalizer = try decodedFinalizer(from: iso)
+
+        XCTAssertTrue(isoText.contains("groups: [wheel]"))
+        XCTAssertTrue(isoText.contains("password: 'safe''fedora-phrase'"))
+        XCTAssertTrue(isoText.contains("PasswordAuthentication no"))
+        XCTAssertTrue(isoText.contains("PermitRootLogin no"))
+        XCTAssertTrue(isoText.contains("AllowTcpForwarding no"))
+        XCTAssertTrue(isoText.contains("<zone target=\"DROP\">"))
+        XCTAssertTrue(isoText.contains("upgrade_type = security"))
+        XCTAssertTrue(isoText.contains("apply_updates = true"))
+        XCTAssertTrue(isoText.contains("reboot = never"))
+        XCTAssertTrue(isoText.contains("mode: poweroff"))
+        XCTAssertTrue(isoText.contains("condition: [test, -f, /var/lib/sandfort/setup-complete]"))
+
+        XCTAssertTrue(finalizer.contains("for attempt in 1 2 3"))
+        XCTAssertTrue(finalizer.contains("dnf5 -y upgrade --refresh"))
+        XCTAssertTrue(finalizer.contains("dnf5 -y environment install workstation-product-environment"))
+        XCTAssertTrue(finalizer.contains("dnf5 environment info workstation-product-environment"))
+        XCTAssertTrue(finalizer.contains("rpm -q gnome-shell"))
+        XCTAssertTrue(finalizer.contains("rpm -q qemu-guest-agent"))
+        XCTAssertTrue(finalizer.contains("rpm -q spice-vdagent"))
+        XCTAssertTrue(finalizer.contains("systemctl mask sshd.service sshd.socket"))
+        XCTAssertTrue(finalizer.contains("systemctl is-active --quiet sshd.service"))
+        XCTAssertTrue(finalizer.contains("systemctl enable --now firewalld.service"))
+        XCTAssertTrue(finalizer.contains("firewall-cmd --set-default-zone=sandfort"))
+        XCTAssertTrue(finalizer.contains("firewall-cmd --zone=sandfort --query-service=ssh"))
+        XCTAssertTrue(finalizer.contains("test \"$(getenforce)\" = Enforcing"))
+        XCTAssertTrue(finalizer.contains("systemctl enable dnf5-automatic.timer"))
+        XCTAssertTrue(finalizer.contains("systemctl enable gdm.service"))
+        XCTAssertTrue(finalizer.contains("systemctl enable qemu-guest-agent.service"))
+        XCTAssertTrue(finalizer.contains("systemctl enable NetworkManager.service"))
+        XCTAssertTrue(finalizer.contains("https://nodejs.org/dist/index.json"))
+        XCTAssertTrue(finalizer.contains("linux-arm64.tar.xz"))
+        XCTAssertTrue(finalizer.contains("sha256sum --check"))
+        XCTAssertTrue(finalizer.contains("command -v python3"))
+        XCTAssertTrue(finalizer.contains("python3 -m venv --help"))
+        XCTAssertTrue(finalizer.contains("systemctl unmask --runtime serial-getty@ttyAMA0.service"))
+        XCTAssertTrue(finalizer.contains("touch /var/lib/sandfort/setup-complete"))
+        XCTAssertFalse(finalizer.contains("apt-get"))
+        XCTAssertFalse(finalizer.contains("dpkg-query"))
+        XCTAssertFalse(finalizer.contains("ufw "))
+        XCTAssertFalse(isoText.lowercased().contains("selinux=0"))
+        XCTAssertFalse(isoText.lowercased().contains("setenforce 0"))
+    }
+
+    func testFedoraCloudInitHonorsOptionalToolsAndCustomSetupSafety() throws {
+        let script = "#!/usr/bin/env bash\nset -euo pipefail\ndnf5 -y install ripgrep\n"
+        let iso = try FedoraCloudInit.seedISO(
+            credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
+            tools: SandboxToolSelection(
+                python: false,
+                nodeJS: false,
+                customSetupScript: script,
+                verboseSetupLogging: true
+            )
+        )
+        let isoText = String(decoding: iso, as: UTF8.self)
+        let finalizer = try decodedFinalizer(from: iso)
+        let encodedScript = Data(script.trimmingCharacters(in: .whitespacesAndNewlines).utf8).base64EncodedString()
+        XCTAssertTrue(isoText.contains(encodedScript))
+        XCTAssertFalse(isoText.contains("dnf5 -y install ripgrep"))
+        XCTAssertTrue(finalizer.contains("/var/lib/sandfort/custom-setup.sh"))
+        XCTAssertTrue(finalizer.contains("exec > >(tee -a /var/log/sandfort-setup.log) 2>&1"))
+        XCTAssertFalse(finalizer.contains("command -v python3"))
+        XCTAssertFalse(finalizer.contains("command -v node"))
+        XCTAssertFalse(finalizer.contains("https://nodejs.org/dist/index.json"))
+
+        XCTAssertThrowsError(try FedoraCloudInit.seedISO(
+            credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
+            tools: SandboxToolSelection(
+                python: false,
+                nodeJS: false,
+                customSetupScript: String(repeating: "x", count: 65_537)
+            )
+        ))
+    }
+
+    func testDebianCloudInitEnforcesDistributionSpecificProvisioningAndSecurity() throws {
+        let credentials = SandboxCredentials(username: "sandfort", password: "safe'debian-phrase")
+        let iso = try DebianCloudInit.seedISO(credentials: credentials, tools: .recommended)
+        let isoText = String(decoding: iso, as: UTF8.self)
+        let finalizer = try decodedFinalizer(from: iso)
+
+        XCTAssertTrue(isoText.contains("groups: [adm, sudo]"))
+        XCTAssertTrue(isoText.contains("password: 'safe''debian-phrase'"))
+        XCTAssertTrue(isoText.contains("PasswordAuthentication no"))
+        XCTAssertTrue(isoText.contains("PermitRootLogin no"))
+        XCTAssertTrue(isoText.contains("AllowTcpForwarding no"))
+        XCTAssertTrue(isoText.contains("APT::Periodic::Unattended-Upgrade \"1\""))
+        XCTAssertTrue(isoText.contains("/etc/NetworkManager/system-connections/sandfort.nmconnection"))
+        XCTAssertTrue(isoText.contains("autoconnect-priority=100"))
+        XCTAssertTrue(isoText.contains("[ifupdown]"))
+        XCTAssertTrue(isoText.contains("managed=true"))
+        XCTAssertTrue(isoText.contains("99-sandfort-disable-network-config.cfg"))
+        XCTAssertTrue(isoText.contains("network: {config: disabled}"))
+        XCTAssertFalse(isoText.contains("mac-address="))
+        XCTAssertFalse(isoText.contains("interface-name="))
+        XCTAssertTrue(isoText.contains("mode: poweroff"))
+        XCTAssertTrue(isoText.contains("condition: [test, -f, /var/lib/sandfort/setup-complete]"))
+
+        XCTAssertTrue(finalizer.contains("for attempt in 1 2 3"))
+        XCTAssertTrue(finalizer.contains("apt-get update"))
+        XCTAssertTrue(finalizer.contains("apt-get install -y apparmor"))
+        XCTAssertTrue(finalizer.contains("task-gnome-desktop"))
+        XCTAssertTrue(finalizer.contains("dpkg-query -W gdm3"))
+        XCTAssertTrue(finalizer.contains("systemctl mask ssh.service ssh.socket"))
+        XCTAssertTrue(finalizer.contains("rm -f /etc/network/interfaces.d/50-cloud-init"))
+        XCTAssertTrue(finalizer.contains("rm -f /etc/netplan/*.yaml"))
+        XCTAssertTrue(finalizer.contains("rm -f /run/udev/rules.d/90-netplan.rules"))
+        XCTAssertTrue(finalizer.contains("systemctl disable networking.service"))
+        XCTAssertTrue(finalizer.contains("MAC-independent DHCP profile"))
+        XCTAssertTrue(finalizer.contains("mac-address|interface-name"))
+        XCTAssertTrue(finalizer.contains("systemctl is-active --quiet ssh.service"))
+        XCTAssertTrue(finalizer.contains("ufw default deny incoming"))
+        XCTAssertTrue(finalizer.contains("ufw default allow outgoing"))
+        XCTAssertTrue(finalizer.contains("ufw --force enable"))
+        XCTAssertTrue(finalizer.contains("aa-enabled"))
+        XCTAssertTrue(finalizer.contains("systemctl enable unattended-upgrades.service"))
+        XCTAssertTrue(finalizer.contains("systemctl enable gdm3.service"))
+        XCTAssertTrue(finalizer.contains("systemctl enable qemu-guest-agent.service"))
+        XCTAssertTrue(finalizer.contains("systemctl enable NetworkManager.service"))
+        XCTAssertTrue(finalizer.contains("https://nodejs.org/dist/index.json"))
+        XCTAssertTrue(finalizer.contains("linux-arm64.tar.xz"))
+        XCTAssertTrue(finalizer.contains("sha256sum --check"))
+        XCTAssertTrue(finalizer.contains("command -v python3"))
+        XCTAssertTrue(finalizer.contains("python3 -m venv --help"))
+        XCTAssertTrue(finalizer.contains("touch /var/lib/sandfort/setup-complete"))
+        XCTAssertFalse(finalizer.contains("dnf5"))
+        XCTAssertFalse(finalizer.contains("firewall-cmd"))
+    }
+
+    func testDebianCloudInitHonorsOptionalToolsAndCustomSetupSafety() throws {
+        let script = "#!/usr/bin/env bash\nset -euo pipefail\napt-get install -y ripgrep\n"
+        let iso = try DebianCloudInit.seedISO(
+            credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
+            tools: SandboxToolSelection(
+                python: false,
+                nodeJS: false,
+                customSetupScript: script,
+                verboseSetupLogging: true
+            )
+        )
+        let isoText = String(decoding: iso, as: UTF8.self)
+        let finalizer = try decodedFinalizer(from: iso)
+        let encodedScript = Data(script.trimmingCharacters(in: .whitespacesAndNewlines).utf8).base64EncodedString()
+        XCTAssertTrue(isoText.contains(encodedScript))
+        XCTAssertFalse(isoText.contains("apt-get install -y ripgrep"))
+        XCTAssertTrue(finalizer.contains("/var/lib/sandfort/custom-setup.sh"))
+        XCTAssertTrue(finalizer.contains("exec > >(tee -a /var/log/sandfort-setup.log) 2>&1"))
+        XCTAssertFalse(finalizer.contains("command -v python3"))
+        XCTAssertFalse(finalizer.contains("command -v node"))
+        XCTAssertFalse(finalizer.contains("https://nodejs.org/dist/index.json"))
+    }
+
+    func testEveryCatalogEntryHasAUniqueStableContract() {
+        let entries = LinuxGuestCatalog.profiles + LinuxGuestCatalog.qualificationProfiles
+        XCTAssertEqual(Set(entries.map(\.id)).count, entries.count)
+        XCTAssertEqual(Set(entries.map { "\($0.id)@\($0.revision)" }).count, entries.count)
+        XCTAssertEqual(Set(entries.map(\.image.fileName)).count, entries.count)
+        for profile in entries {
+            XCTAssertGreaterThan(profile.revision, 0)
+            XCTAssertEqual(profile.image.url.scheme, "https")
+            XCTAssertEqual(profile.image.sha256.count, 64)
+            XCTAssertTrue(profile.image.sha256.allSatisfy { $0.isHexDigit && !$0.isUppercase })
+            XCTAssertEqual(profile.hardware.architecture, "arm64")
+            XCTAssertEqual(profile.hardware.utmArchitecture, "aarch64")
+            XCTAssertEqual(profile.hardware.utmTarget, "virt")
+            XCTAssertGreaterThanOrEqual(profile.hardware.memoryMiB, 2048)
+            XCTAssertGreaterThanOrEqual(profile.hardware.cpuCount, 2)
+            XCTAssertGreaterThanOrEqual(profile.hardware.diskSizeGiB, 32)
+        }
+    }
+
+    func testNativeHasherMatchesDownloadedFedoraProfileWhenProvided() throws {
+        guard let path = ProcessInfo.processInfo.environment["SANDFORT_FEDORA_IMAGE"] else {
+            throw XCTSkip("Set SANDFORT_FEDORA_IMAGE to independently verify the Fedora profile")
+        }
+        XCTAssertEqual(
+            try DiskUtilities.sha256(of: URL(fileURLWithPath: path)),
+            LinuxGuestCatalog.fedora44ARM64.image.sha256
+        )
+        XCTAssertNoThrow(try DiskUtilities.validateQCOW2Geometry(at: URL(fileURLWithPath: path)))
+    }
+
+    func testNativeHasherMatchesDownloadedDebianProfileWhenProvided() throws {
+        guard let path = ProcessInfo.processInfo.environment["SANDFORT_DEBIAN_IMAGE"] else {
+            throw XCTSkip("Set SANDFORT_DEBIAN_IMAGE to independently verify the Debian profile")
+        }
+        XCTAssertEqual(
+            try DiskUtilities.sha256(of: URL(fileURLWithPath: path)),
+            LinuxGuestCatalog.debian13ARM64.image.sha256
+        )
+        XCTAssertNoThrow(try DiskUtilities.validateQCOW2Geometry(at: URL(fileURLWithPath: path)))
+    }
+
     func testLegacySingleInstanceStateDecodesAsInstanceOne() throws {
         let legacy: [String: Any] = [
             "stage": "ready",
@@ -197,6 +567,8 @@ final class SandfortAppTests: XCTestCase {
         let state = try PropertyListDecoder().decode(SandboxState.self, from: data)
         XCTAssertNil(state.instances)
         XCTAssertNil(state.guestProfileID)
+        XCTAssertNil(state.guestProfileRevision)
+        XCTAssertNil(state.guestImageSHA256)
         XCTAssertEqual(state.resolvedInstances, [SandboxInstance(
             number: 1,
             bundlePath: "/tmp/Legacy Sandbox.utm",
@@ -204,7 +576,8 @@ final class SandfortAppTests: XCTestCase {
         )])
     }
 
-    func testGuestProfileIDRoundTripsInSandboxState() throws {
+    func testExactGuestProfileIdentityRoundTripsInSandboxState() throws {
+        let profile = LinuxGuestCatalog.defaultProfile
         let state = SandboxState(
             stage: .provisioning,
             credentials: SandboxCredentials(username: "sandfort", password: "river-lantern-amber-willow"),
@@ -213,13 +586,246 @@ final class SandfortAppTests: XCTestCase {
             sandboxBundlePath: nil,
             setupVMName: "Sandfort — Baseline Setup ABC123",
             sandboxVMName: nil,
-            guestProfileID: LinuxGuestCatalog.defaultProfile.id
+            guestProfileID: profile.id,
+            guestProfileRevision: profile.revision,
+            guestImageSHA256: profile.image.sha256
         )
         let decoded = try PropertyListDecoder().decode(
             SandboxState.self,
             from: PropertyListEncoder().encode(state)
         )
         XCTAssertEqual(decoded.guestProfileID, "ubuntu-24.04-arm64")
+        XCTAssertEqual(decoded.guestProfileRevision, 1)
+        XCTAssertEqual(decoded.guestImageSHA256, profile.image.sha256)
+    }
+
+    func testCatalogResolvesExactAndLegacyBaselineProfilesWithoutGuessing() {
+        let profile = LinuxGuestCatalog.defaultProfile
+        XCTAssertEqual(
+            LinuxGuestCatalog.supportedProfile(
+                id: profile.id,
+                revision: profile.revision,
+                imageSHA256: profile.image.sha256
+            ),
+            profile
+        )
+        XCTAssertEqual(
+            LinuxGuestCatalog.supportedProfile(
+                id: profile.id,
+                revision: nil,
+                imageSHA256: nil
+            ),
+            profile
+        )
+        XCTAssertNil(LinuxGuestCatalog.supportedProfile(
+            id: profile.id,
+            revision: profile.revision + 1,
+            imageSHA256: profile.image.sha256
+        ))
+        XCTAssertNil(LinuxGuestCatalog.supportedProfile(
+            id: profile.id,
+            revision: profile.revision,
+            imageSHA256: String(repeating: "0", count: 64)
+        ))
+        XCTAssertNil(LinuxGuestCatalog.supportedProfile(
+            id: "unknown-linux",
+            revision: nil,
+            imageSHA256: nil
+        ))
+    }
+
+    func testWorkflowProfileCompatibilityAllowsLegacyReadyStateButRequiresExactSetupMetadata() throws {
+        let profile = LinuxGuestCatalog.defaultProfile
+        func state(
+            stage: SandboxState.Stage = .ready,
+            id: String? = nil,
+            revision: Int? = nil,
+            sha256: String? = nil
+        ) -> SandboxState {
+            SandboxState(
+                stage: stage,
+                credentials: SandboxCredentials(username: "sandfort", password: "river-lantern-amber-willow"),
+                tools: .recommended,
+                setupBundlePath: "/tmp/Baseline.utm",
+                sandboxBundlePath: "/tmp/Instance 1.utm",
+                guestProfileID: id,
+                guestProfileRevision: revision,
+                guestImageSHA256: sha256
+            )
+        }
+
+        XCTAssertEqual(try SandfortWorkflow.resolveGuestProfile(for: state()), profile)
+        XCTAssertEqual(try SandfortWorkflow.resolveGuestProfile(
+            for: state(id: profile.id)
+        ), profile)
+        XCTAssertEqual(try SandfortWorkflow.resolveGuestProfile(
+            for: state(
+                id: profile.id,
+                revision: profile.revision,
+                sha256: profile.image.sha256
+            ),
+            requireExactMetadata: true
+        ), profile)
+
+        XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(
+            for: state(stage: .provisioning, id: profile.id),
+            requireExactMetadata: true
+        )) { error in
+            guard case SandboxError.incompleteSetupProfileMetadata = error else {
+                return XCTFail("Expected incomplete setup metadata error, received \(error)")
+            }
+        }
+        XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(
+            for: state(id: profile.id, revision: profile.revision + 1, sha256: profile.image.sha256)
+        )) { error in
+            guard case SandboxError.incompatibleGuestProfile(_) = error else {
+                return XCTFail("Expected incompatible profile error, received \(error)")
+            }
+        }
+        XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(
+            for: state(
+                id: profile.id,
+                revision: profile.revision,
+                sha256: String(repeating: "0", count: 64)
+            )
+        )) { error in
+            guard case SandboxError.incompatibleGuestProfile(_) = error else {
+                return XCTFail("Expected incompatible profile error, received \(error)")
+            }
+        }
+        XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(
+            for: state(id: "unknown-linux")
+        )) { error in
+            guard case SandboxError.unsupportedGuestProfile(_) = error else {
+                return XCTFail("Expected unsupported profile error, received \(error)")
+            }
+        }
+    }
+
+    func testFedoraQualificationRuntimeIsIsolatedFromProduction() throws {
+        let production = SandfortRuntimeConfiguration.configuration(qualificationProfileID: nil)
+        XCTAssertFalse(production.isQualification)
+        XCTAssertEqual(production.displayName, "Sandfort")
+        XCTAssertEqual(production.defaultProfile, LinuxGuestCatalog.defaultProfile)
+        XCTAssertEqual(production.workflowEnvironment.supportDirectoryName, "Sandfort")
+        XCTAssertEqual(production.workflowEnvironment.vmNamePrefix, "Sandfort")
+        XCTAssertEqual(production.workflowEnvironment.supportedProfiles, LinuxGuestCatalog.supportedProfiles)
+        XCTAssertEqual(production.selectableProfiles, LinuxGuestCatalog.profiles)
+        XCTAssertTrue(production.cacheURL.path.hasSuffix("/Application Support/Sandfort/Cache"))
+
+        let qualification = SandfortRuntimeConfiguration.configuration(
+            qualificationProfileID: LinuxGuestCatalog.fedora44ARM64.id
+        )
+        let fedora = LinuxGuestCatalog.fedora44ARM64
+        XCTAssertTrue(qualification.isQualification)
+        XCTAssertEqual(qualification.defaultProfile, fedora)
+        XCTAssertEqual(
+            qualification.workflowEnvironment.supportDirectoryName,
+            "Sandfort Fedora Qualification"
+        )
+        XCTAssertEqual(
+            qualification.workflowEnvironment.vmNamePrefix,
+            "Sandfort Fedora Qualification"
+        )
+        XCTAssertNil(qualification.workflowEnvironment.legacySupportDirectoryName)
+        XCTAssertEqual(qualification.workflowEnvironment.supportedProfiles, [fedora])
+        XCTAssertEqual(qualification.workflowEnvironment.legacyProfiles, [])
+        XCTAssertEqual(qualification.selectableProfiles, [fedora])
+        XCTAssertTrue(qualification.cacheURL.path.hasSuffix(
+            "/Application Support/Sandfort Fedora Qualification/Cache"
+        ))
+
+        let fedoraState = SandboxState(
+            stage: .provisioning,
+            credentials: SandboxCredentials(username: "sandfort", password: "river-lantern-amber-willow"),
+            tools: .recommended,
+            setupBundlePath: "/tmp/Fedora Qualification.utm",
+            sandboxBundlePath: nil,
+            guestProfileID: fedora.id,
+            guestProfileRevision: fedora.revision,
+            guestImageSHA256: fedora.image.sha256
+        )
+        XCTAssertEqual(
+            try SandfortWorkflow.resolveGuestProfile(
+                for: fedoraState,
+                requireExactMetadata: true
+            ),
+            fedora
+        )
+        XCTAssertEqual(
+            try SandfortWorkflow.resolveGuestProfile(
+                for: fedoraState,
+                environment: qualification.workflowEnvironment,
+                requireExactMetadata: true
+            ),
+            fedora
+        )
+    }
+
+    func testDebianQualificationRuntimeIsIsolatedFromProduction() throws {
+        let debian = LinuxGuestCatalog.debian13ARM64
+        let qualification = SandfortRuntimeConfiguration.configuration(
+            qualificationProfileID: debian.id
+        )
+        XCTAssertTrue(qualification.isQualification)
+        XCTAssertEqual(qualification.defaultProfile, debian)
+        XCTAssertEqual(qualification.displayName, "Sandfort — Debian Qualification")
+        XCTAssertEqual(
+            qualification.workflowEnvironment.supportDirectoryName,
+            "Sandfort Debian Qualification"
+        )
+        XCTAssertEqual(
+            qualification.workflowEnvironment.vmNamePrefix,
+            "Sandfort Debian Qualification"
+        )
+        XCTAssertEqual(qualification.workflowEnvironment.supportedProfiles, [debian])
+        XCTAssertEqual(qualification.workflowEnvironment.legacyProfiles, [])
+        XCTAssertEqual(qualification.selectableProfiles, [debian])
+        XCTAssertTrue(qualification.cacheURL.path.hasSuffix(
+            "/Application Support/Sandfort Debian Qualification/Cache"
+        ))
+
+        let state = SandboxState(
+            stage: .provisioning,
+            credentials: SandboxCredentials(username: "sandfort", password: "river-lantern-amber-willow"),
+            tools: .recommended,
+            setupBundlePath: "/tmp/Debian Qualification.utm",
+            sandboxBundlePath: nil,
+            guestProfileID: debian.id,
+            guestProfileRevision: debian.revision,
+            guestImageSHA256: debian.image.sha256
+        )
+        XCTAssertEqual(
+            try SandfortWorkflow.resolveGuestProfile(
+                for: state,
+                environment: qualification.workflowEnvironment,
+                requireExactMetadata: true
+            ),
+            debian
+        )
+        XCTAssertEqual(
+            try SandfortWorkflow.resolveGuestProfile(
+                for: state,
+                environment: .production,
+                requireExactMetadata: true
+            ),
+            debian
+        )
+
+        for incompatibleRevision in [1, 2] {
+            var incompatibleState = state
+            incompatibleState.guestProfileRevision = incompatibleRevision
+            XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(
+                for: incompatibleState,
+                environment: qualification.workflowEnvironment,
+                requireExactMetadata: true
+            )) { error in
+                guard case let SandboxError.incompatibleGuestProfile(profileID) = error else {
+                    return XCTFail("Expected Debian revision \(incompatibleRevision) to require rebuild")
+                }
+                XCTAssertEqual(profileID, debian.id)
+            }
+        }
     }
 
     func testNamedInstanceKeepsItsPermanentNumberAndRoundTrips() throws {
@@ -334,18 +940,40 @@ final class SandfortAppTests: XCTestCase {
         let setup = root.appendingPathComponent("Setup.utm", isDirectory: true)
         let clean = root.appendingPathComponent("Clean.utm", isDirectory: true)
         let clean2 = root.appendingPathComponent("Clean2.utm", isDirectory: true)
-        let builder = UTMBundleBuilder(configuration: .current, firmwareURLOverride: firmware)
+        let ubuntu = LinuxGuestCatalog.defaultProfile
+        let profile = LinuxGuestProfile(
+            id: "test-profile",
+            revision: 7,
+            displayName: "Test Linux",
+            distributionName: "Test",
+            setupDurationDescription: "a few minutes",
+            image: ubuntu.image,
+            hardware: LinuxGuestProfile.Hardware(
+                architecture: "test-arm64",
+                utmArchitecture: "test-aarch64",
+                utmTarget: "test-virt",
+                memoryMiB: 3072,
+                cpuCount: 2,
+                diskSizeGiB: 72
+            ),
+            provisioner: .ubuntu2404
+        )
+        let builder = UTMBundleBuilder(firmwareURLOverride: firmware)
         try builder.createSetupBundle(
             at: setup,
             name: "Sandfort — Baseline Setup TEST01",
             from: image,
+            profile: profile,
             credentials: SandboxCredentials(username: "sandfort", password: "safe-test"),
             tools: .recommended
         )
+        let setupDiskHeader = try Data(contentsOf: setup.appendingPathComponent("Data/sandfort.qcow2")).prefix(32)
+        XCTAssertEqual(Array(setupDiskHeader[24..<32]), [0, 0, 0, 18, 0, 0, 0, 0])
         try builder.createCleanBundle(
             from: setup,
             at: clean,
             name: "Sandfort — Instance 1 — TEST01",
+            profile: profile,
             networkMode: .offline
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: setup.appendingPathComponent("Data/efi_vars.fd").path))
@@ -353,6 +981,11 @@ final class SandfortAppTests: XCTestCase {
         let setupPlistData = try Data(contentsOf: setup.appendingPathComponent("config.plist"))
         let setupPlist = try XCTUnwrap(PropertyListSerialization.propertyList(from: setupPlistData, format: nil) as? [String: Any])
         XCTAssertEqual((setupPlist["Information"] as? [String: Any])?["Name"] as? String, "Sandfort — Baseline Setup TEST01")
+        let setupSystem = try XCTUnwrap(setupPlist["System"] as? [String: Any])
+        XCTAssertEqual(setupSystem["Architecture"] as? String, "test-aarch64")
+        XCTAssertEqual(setupSystem["Target"] as? String, "test-virt")
+        XCTAssertEqual(setupSystem["MemorySize"] as? Int, 3072)
+        XCTAssertEqual(setupSystem["CPUCount"] as? Int, 2)
         XCTAssertEqual((setupPlist["Display"] as? [Any])?.count, 0)
         let setupSerial = try XCTUnwrap((setupPlist["Serial"] as? [[String: Any]])?.first)
         XCTAssertEqual(setupSerial["Mode"] as? String, "Terminal")
@@ -369,7 +1002,7 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertEqual(setupNetwork["IsolateFromHost"] as? Bool, false)
 
         try builder.setDisplayName("Sandfort — Protected Baseline TEST01", at: setup)
-        try builder.repairBundle(at: setup)
+        try builder.repairBundle(at: setup, profile: profile)
         let protectedPlistData = try Data(contentsOf: setup.appendingPathComponent("config.plist"))
         let protectedPlist = try XCTUnwrap(PropertyListSerialization.propertyList(from: protectedPlistData, format: nil) as? [String: Any])
         XCTAssertEqual(
@@ -405,6 +1038,7 @@ final class SandfortAppTests: XCTestCase {
             from: setup,
             at: clean2,
             name: "Sandfort — Instance 2 — TEST01",
+            profile: profile,
             networkMode: .offline
         )
         let secondPlistData = try Data(contentsOf: clean2.appendingPathComponent("config.plist"))
@@ -419,14 +1053,14 @@ final class SandfortAppTests: XCTestCase {
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: clean2.appendingPathComponent("Data/sandfort.qcow2").path))
 
-        try builder.resetCleanBundle(from: setup, at: clean, networkMode: .internet)
+        try builder.resetCleanBundle(from: setup, at: clean, profile: profile, networkMode: .internet)
         let internetPlistData = try Data(contentsOf: clean.appendingPathComponent("config.plist"))
         let internetPlist = try XCTUnwrap(PropertyListSerialization.propertyList(from: internetPlistData, format: nil) as? [String: Any])
         let internetNetwork = try XCTUnwrap((internetPlist["Network"] as? [[String: Any]])?.first)
         XCTAssertEqual(internetNetwork["IsolateFromHost"] as? Bool, false)
         XCTAssertEqual(internetNetwork["PortForward"] as? [String], [])
 
-        try builder.repairBundle(at: clean)
+        try builder.repairBundle(at: clean, profile: profile)
         let resumedPlistData = try Data(contentsOf: clean.appendingPathComponent("config.plist"))
         let resumedPlist = try XCTUnwrap(PropertyListSerialization.propertyList(from: resumedPlistData, format: nil) as? [String: Any])
         let resumedNetwork = try XCTUnwrap((resumedPlist["Network"] as? [[String: Any]])?.first)
@@ -445,7 +1079,7 @@ final class SandfortAppTests: XCTestCase {
             (resumedPlist["Information"] as? [String: Any])?["UUID"] as? String
         )
 
-        try builder.resetCleanBundle(from: setup, at: clean, networkMode: .offline)
+        try builder.resetCleanBundle(from: setup, at: clean, profile: profile, networkMode: .offline)
         let offlinePlistData = try Data(contentsOf: clean.appendingPathComponent("config.plist"))
         let offlinePlist = try XCTUnwrap(PropertyListSerialization.propertyList(from: offlinePlistData, format: nil) as? [String: Any])
         let offlineNetwork = try XCTUnwrap((offlinePlist["Network"] as? [[String: Any]])?.first)
