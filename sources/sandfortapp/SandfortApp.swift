@@ -206,6 +206,19 @@ final class SandfortViewModel: ObservableObject {
     /// Records the acknowledgement before anything can be created. A failure to
     /// write is surfaced rather than swallowed: silently forgetting would make
     /// the user answer again on every launch.
+    /// Quits from the first-run disclosure.
+    ///
+    /// `NSApplication.terminate` is ignored while a sheet is still attached to
+    /// the window, so the sheet is dismissed first and termination requested
+    /// once the dismissal has been committed. Calling terminate directly from
+    /// the sheet silently does nothing.
+    func declineSafetyAcknowledgement(
+        terminate: @escaping () -> Void = { NSApplication.shared.terminate(nil) }
+    ) {
+        showSafetyAcknowledgement = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: terminate)
+    }
+
     func acknowledgeSafety() {
         do {
             try runtime.safetyAcknowledgementStore.record(
@@ -1103,7 +1116,7 @@ struct SafetyAcknowledgementView: View {
             Toggle(SafetyAcknowledgement.confirmationLabel, isOn: $confirmed)
 
             HStack {
-                Button("Quit") { NSApplication.shared.terminate(nil) }
+                Button("Quit") { model.declineSafetyAcknowledgement() }
                 Spacer()
                 Button("Continue") { model.acknowledgeSafety() }
                     .buttonStyle(.borderedProminent)

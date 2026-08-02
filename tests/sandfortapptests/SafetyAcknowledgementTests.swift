@@ -87,6 +87,33 @@ final class SafetyAcknowledgementTests: XCTestCase {
         )
     }
 
+    /// Quit must actually quit. `NSApplication.terminate` is ignored while a
+    /// sheet is still attached, so the sheet has to be dismissed first; this
+    /// asserts both halves happen and that nothing is recorded as accepted.
+    @MainActor
+    func testQuittingDismissesTheSheetBeforeTerminatingAndAcceptsNothing() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        let model = SandfortViewModel()
+        model.showSafetyAcknowledgement = true
+
+        let terminated = expectation(description: "termination requested")
+        model.declineSafetyAcknowledgement { terminated.fulfill() }
+
+        XCTAssertFalse(
+            model.showSafetyAcknowledgement,
+            "the sheet must be dismissed first or terminate is silently ignored"
+        )
+        wait(for: [terminated], timeout: 2)
+        XCTAssertFalse(model.hasAcknowledgedSafety, "quitting must not count as accepting")
+        XCTAssertTrue(
+            SafetyAcknowledgement.Store(supportRootURL: root).needsAcknowledgement,
+            "quitting must not write an acknowledgement"
+        )
+    }
+
     /// The disclosure is the point of the feature; empty or reassuring text
     /// would defeat it.
     func testDisclosureStatesTheLimitsItIsMeantToState() {
