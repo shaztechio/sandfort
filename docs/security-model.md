@@ -101,6 +101,18 @@ rather than one merely observed at a URL. Signature coverage is therefore
 recorded per profile in `linux-profile-provenance.md`, and a profile whose
 signature has not been verified must say so rather than imply that it was.
 
+## First-run disclosure
+
+Before any baseline can be created, Sandfort presents the limits in
+`SafetyAcknowledgement.swift` and requires an explicit acknowledgement, stored
+per app identity so a qualification build never inherits the production answer.
+An unreadable or older record re-prompts rather than passing.
+
+This is a safety disclosure first: the residual risks below are of little use to
+a user who only meets them in a document they never open. It is also the notice
+that accompanies the Apache-2.0 warranty disclaimer. It must stay accurate, and
+must never suggest the sandbox makes the user safe.
+
 ## Residual risk
 
 A VM reduces risk; it is not a perfect malware boundary. Connected malware can

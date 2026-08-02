@@ -12,6 +12,10 @@ Before creating a sandbox:
 - Make sure the Mac has enough free space for the selected Linux download, protected baseline, and each independent instance.
 - Quit or stop any Sandfort VMs before rebuilding or resetting them.
 
+The first time you open Sandfort, it explains what a sandbox does and does not
+protect and asks you to acknowledge those limits. You only see this once, unless
+the disclosure changes.
+
 To create Sandfort for the first time:
 
 1. Open Sandfort, choose an Ubuntu, Fedora, Debian, or openSUSE environment, and select the development tools you want.

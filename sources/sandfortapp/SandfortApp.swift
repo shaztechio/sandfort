@@ -24,7 +24,10 @@ struct SandfortRuntimeConfiguration: Sendable {
 
     var defaultProfile: LinuxGuestProfile { workflowEnvironment.defaultProfile }
     var isQualification: Bool { qualificationNotice != nil }
-    var cacheURL: URL {
+
+    /// Root of this app identity's own state. Qualification builds resolve to
+    /// their isolated directory, so they never read production answers.
+    var supportRootURL: URL {
         if isQualification {
             let support = FileManager.default.urls(
                 for: .applicationSupportDirectory,
@@ -32,9 +35,19 @@ struct SandfortRuntimeConfiguration: Sendable {
             )[0]
             return support
                 .appendingPathComponent(workflowEnvironment.supportDirectoryName, isDirectory: true)
-                .appendingPathComponent("Cache", isDirectory: true)
+        }
+        return SandboxLibrary().rootURL
+    }
+
+    var cacheURL: URL {
+        if isQualification {
+            return supportRootURL.appendingPathComponent("Cache", isDirectory: true)
         }
         return SandboxLibrary().cacheURL
+    }
+
+    var safetyAcknowledgementStore: SafetyAcknowledgement.Store {
+        SafetyAcknowledgement.Store(supportRootURL: supportRootURL)
     }
 
     static let production = SandfortRuntimeConfiguration(
@@ -117,6 +130,8 @@ final class SandfortViewModel: ObservableObject {
     @Published var selectedEnvironmentID: String?
     @Published private(set) var guestProfile: LinuxGuestProfile
     @Published private(set) var baselineCompatibilityIssue: String?
+    @Published var showSafetyAcknowledgement = false
+    @Published private(set) var hasAcknowledgedSafety = true
 
     private var pendingSandboxAction: PendingSandboxAction?
 
@@ -125,6 +140,9 @@ final class SandfortViewModel: ObservableObject {
 
     init(runtime: SandfortRuntimeConfiguration = .current) {
         self.runtime = runtime
+        let needsAcknowledgement = runtime.safetyAcknowledgementStore.needsAcknowledgement
+        hasAcknowledgedSafety = !needsAcknowledgement
+        showSafetyAcknowledgement = needsAcknowledgement
         guestProfile = runtime.defaultProfile
         selectedBaselineProfile = runtime.defaultProfile
         selectedEnvironmentID = runtime.defaultProfile.id
@@ -185,7 +203,26 @@ final class SandfortViewModel: ObservableObject {
         statusLine = "Ready to create \(profile.displayName)"
     }
 
+    /// Records the acknowledgement before anything can be created. A failure to
+    /// write is surfaced rather than swallowed: silently forgetting would make
+    /// the user answer again on every launch.
+    func acknowledgeSafety() {
+        do {
+            try runtime.safetyAcknowledgementStore.record(
+                appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            )
+            hasAcknowledgedSafety = true
+            showSafetyAcknowledgement = false
+        } catch {
+            output = "Could not save your acknowledgement: \(error.localizedDescription)"
+        }
+    }
+
     func create(rebuild: Bool = false, password: String? = nil) {
+        guard hasAcknowledgedSafety else {
+            showSafetyAcknowledgement = true
+            return
+        }
         var pendingTools = tools
         if !advancedMode { pendingTools.customSetupScript = nil }
         let selectedTools = pendingTools
@@ -828,6 +865,9 @@ struct ContentView: View {
         } message: {
             Text("This permanently deletes this environment's Protected Baseline, every numbered instance, and everything stored in them. Other Linux environments are not changed.\n\nOn the next screen, you will configure the password for the replacement \(model.guestProfile.displayName) baseline. Verified image downloads are retained for reuse.")
         }
+        .sheet(isPresented: $model.showSafetyAcknowledgement) {
+            SafetyAcknowledgementView(model: model)
+        }
         .sheet(isPresented: $model.showRebuildPasswordPrompt) {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Configure the new protected baseline")
@@ -1026,6 +1066,53 @@ private struct SandfortDownloadSettingsView: View {
         }
         .formStyle(.grouped)
         .padding(16)
+    }
+}
+
+
+/// First-run disclosure. Presented before any VM can be created, and dismissed
+/// only by accepting, so the limits cannot be skipped past accidentally.
+struct SafetyAcknowledgementView: View {
+    @ObservedObject var model: SandfortViewModel
+    @State private var confirmed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(SafetyAcknowledgement.title).font(.title2.bold())
+            Text(SafetyAcknowledgement.summary).fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(SafetyAcknowledgement.points, id: \.self) { point in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .accessibilityHidden(true)
+                        Text(point).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+            Text(SafetyAcknowledgement.licenseNotice)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Toggle(SafetyAcknowledgement.confirmationLabel, isOn: $confirmed)
+
+            HStack {
+                Button("Quit") { NSApplication.shared.terminate(nil) }
+                Spacer()
+                Button("Continue") { model.acknowledgeSafety() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!confirmed)
+            }
+        }
+        .padding(24)
+        .frame(width: 520)
+        .interactiveDismissDisabled()
     }
 }
 

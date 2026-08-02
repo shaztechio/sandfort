@@ -22,6 +22,10 @@ without weakening the common provisioning policy.
   `docs/password-strength.md` and enforced by tests; do not add, remove, or
   reorder entries without updating both.
 - `PlatformProvider.swift`: `VirtualMachineProvider` boundary for future hosts.
+- `SafetyAcknowledgement.swift`: first-run disclosure text and its stored record.
+  It gates baseline creation. Keep the wording accurate and consistent with
+  `docs/security-model.md`; it must never imply the sandbox makes the user safe.
+  Raise `currentVersion` only when a user should genuinely see it again.
 - `UTMBundleBuilder.swift`: UTM plist/bundle generation and clean-session reset.
 - `CloudInit.swift`: current Ubuntu credentials, packages, hardening, and
   baseline setup behind the catalog profile.
