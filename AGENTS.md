@@ -117,6 +117,26 @@ removing every text console would leave a broken instance unreachable.
 Baseline setup is unaffected. The setup VM is built with a serial device and no
 display, and its failure path still unmasks `serial-getty@ttyAMA0`.
 
+### Only openSUSE verifies that a browser exists
+
+Ubuntu, Fedora, and Debian verify their desktop *metapackage*
+(`ubuntu-desktop-minimal`, `workstation-product-environment`,
+`task-gnome-desktop`) and trust it to pull in a browser. Only openSUSE checks
+for the browser itself, with `rpm -q MozillaFirefox` and `command -v firefox`,
+because Leap's GNOME pattern ships none.
+
+That leaves a gap in the other three: if an upstream metapackage ever stopped
+recommending a browser, setup would still pass and the baseline would boot to a
+desktop with no way to browse the web, which is exactly the defect openSUSE
+revision 1 shipped with. Nothing indicates that is happening today, and closing
+it means a revision bump and a rebuild for every user, so it is not worth doing
+on its own.
+
+Add a browser check to those three the next time each is revised for another
+reason. Verify the binary, not only the package: on Ubuntu both `firefox` and
+`chromium-browser` are transitional packages for snaps, so a package query can
+succeed while nothing usable is installed.
+
 ## Planned network observability and filtering
 
 Future work may add per-sandbox egress monitoring and filtering. Treat this as a
