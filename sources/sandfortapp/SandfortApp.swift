@@ -453,6 +453,9 @@ final class SandfortViewModel: ObservableObject {
         guard !isRunning else { return }
         isRunning = true
         progressFraction = nil
+        // Let the app delegate warn instead of discarding this silently if the
+        // user closes the window or presses Command-Q mid-download.
+        SandfortActivityMonitor.shared.begin()
         Task {
             do {
                 try await operation()
@@ -461,6 +464,7 @@ final class SandfortViewModel: ObservableObject {
                 output += "\n\(error.localizedDescription)\n"
                 progressFraction = nil
             }
+            SandfortActivityMonitor.shared.end()
             isRunning = false
         }
     }
@@ -1216,8 +1220,17 @@ struct SafetyAcknowledgementView: View {
 
 @main
 struct SandfortApp: App {
+    /// Supplies the single-window quit behavior and the in-progress guard.
+    @NSApplicationDelegateAdaptor(SandfortAppDelegate.self) private var appDelegate
+
     var body: some Scene {
-        WindowGroup { ContentView() }
+        // `Window` rather than `WindowGroup`: Sandfort is a single-window
+        // utility, and a second window would be a second view model racing the
+        // first over the same baselines, instances, and UTM bundles. This also
+        // removes the File > New Window command that WindowGroup adds.
+        Window(SandfortRuntimeConfiguration.current.displayName, id: "sandfort-main") {
+            ContentView()
+        }
             .windowResizability(.contentSize)
             .commands {
                 CommandGroup(replacing: .help) {

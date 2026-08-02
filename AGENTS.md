@@ -21,6 +21,10 @@ without weakening the common provisioning policy.
   guest password. Its size is an entropy claim documented in
   `docs/password-strength.md` and enforced by tests; do not add, remove, or
   reorder entries without updating both.
+- `AppLifecycle.swift`: single-window quit behavior and the in-progress guard
+  that warns before discarding a download. Sandfort quits when its window
+  closes, the way System Settings does; a second window would race the first
+  over the same baselines and instances.
 - `PlatformProvider.swift`: `VirtualMachineProvider` boundary for future hosts.
 - `SafetyAcknowledgement.swift`: first-run disclosure text and its stored record.
   It gates baseline creation. Keep the wording accurate and consistent with
