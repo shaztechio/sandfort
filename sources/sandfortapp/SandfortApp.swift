@@ -879,7 +879,11 @@ struct ContentView: View {
             Text("This permanently deletes this environment's Protected Baseline, every numbered instance, and everything stored in them. Other Linux environments are not changed.\n\nOn the next screen, you will configure the password for the replacement \(model.guestProfile.displayName) baseline. Verified image downloads are retained for reuse.")
         }
         .sheet(isPresented: $model.showSafetyAcknowledgement) {
-            SafetyAcknowledgementView(model: model)
+            SafetyAcknowledgementView(
+                mode: .firstRun,
+                onAccept: { model.acknowledgeSafety() },
+                onQuit: { model.declineSafetyAcknowledgement() }
+            )
         }
         .sheet(isPresented: $model.showRebuildPasswordPrompt) {
             VStack(alignment: .leading, spacing: 16) {
@@ -990,8 +994,64 @@ struct SandfortSettingsView: View {
                 .tabItem {
                     Label("Downloads", systemImage: "arrow.down.circle")
                 }
+
+            SandfortSafetySettingsView(runtime: runtime)
+                .tabItem {
+                    Label("Safety", systemImage: "exclamationmark.shield")
+                }
         }
         .frame(width: 760, height: 390)
+    }
+}
+
+/// Lets someone re-read the safety notice without deleting a file, and shows
+/// what they accepted. Presenting it here rather than reaching into the main
+/// window's view model keeps the Settings scene self-contained.
+private struct SandfortSafetySettingsView: View {
+    let runtime: SandfortRuntimeConfiguration
+    @State private var showNotice = false
+
+    private var record: SafetyAcknowledgement.Record? {
+        runtime.safetyAcknowledgementStore.load()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Safety notice").font(.headline)
+            Text(SafetyAcknowledgement.summary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let record {
+                Text("Acknowledged on \(record.acknowledgedAt.formatted(date: .long, time: .shortened))"
+                     + (record.appVersion.map { " in version \($0)" } ?? "") + ".")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Not acknowledged yet. Sandfort asks before creating a sandbox.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button("Show Safety Notice Again") { showNotice = true }
+
+            Text("Sandfort is provided with no warranty under the Apache License 2.0. "
+                 + "The full terms are in the LICENSE file, and the reasoning behind "
+                 + "these limits is in docs/security-model.md.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer()
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .sheet(isPresented: $showNotice) {
+            SafetyAcknowledgementView(
+                mode: .review,
+                acknowledgedAt: record?.acknowledgedAt,
+                onClose: { showNotice = false }
+            )
+        }
     }
 }
 
@@ -1083,10 +1143,21 @@ private struct SandfortDownloadSettingsView: View {
 }
 
 
-/// First-run disclosure. Presented before any VM can be created, and dismissed
-/// only by accepting, so the limits cannot be skipped past accidentally.
+/// The safety disclosure, in one of two modes.
+///
+/// `firstRun` gates baseline creation: it cannot be dismissed except by
+/// accepting or quitting, so the limits are not skipped past accidentally.
+/// `review` is for re-reading it later from Settings, where demanding consent
+/// again would be theater; it just closes.
 struct SafetyAcknowledgementView: View {
-    @ObservedObject var model: SandfortViewModel
+    enum Mode { case firstRun, review }
+
+    let mode: Mode
+    var acknowledgedAt: Date? = nil
+    var onAccept: () -> Void = {}
+    var onQuit: () -> Void = {}
+    var onClose: () -> Void = {}
+
     @State private var confirmed = false
 
     var body: some View {
@@ -1113,19 +1184,33 @@ struct SafetyAcknowledgementView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Toggle(SafetyAcknowledgement.confirmationLabel, isOn: $confirmed)
-
-            HStack {
-                Button("Quit") { model.declineSafetyAcknowledgement() }
-                Spacer()
-                Button("Continue") { model.acknowledgeSafety() }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!confirmed)
+            switch mode {
+            case .firstRun:
+                Toggle(SafetyAcknowledgement.confirmationLabel, isOn: $confirmed)
+                HStack {
+                    Button("Quit") { onQuit() }
+                    Spacer()
+                    Button("Continue") { onAccept() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!confirmed)
+                }
+            case .review:
+                HStack {
+                    if let acknowledgedAt {
+                        Text("You acknowledged this on \(acknowledgedAt.formatted(date: .abbreviated, time: .shortened)).")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Done") { onClose() }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                }
             }
         }
         .padding(24)
         .frame(width: 520)
-        .interactiveDismissDisabled()
+        .interactiveDismissDisabled(mode == .firstRun)
     }
 }
 

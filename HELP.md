@@ -13,8 +13,10 @@ Before creating a sandbox:
 - Quit or stop any Sandfort VMs before rebuilding or resetting them.
 
 The first time you open Sandfort, it explains what a sandbox does and does not
-protect and asks you to acknowledge those limits. You only see this once, unless
-the disclosure changes.
+protect and asks you to acknowledge those limits. You only see this once.
+Updating Sandfort does not ask again; only a change to the notice itself does.
+To read it again at any time, open **Sandfort → Settings → Safety** and choose
+**Show Safety Notice Again**.
 
 To create Sandfort for the first time:
 

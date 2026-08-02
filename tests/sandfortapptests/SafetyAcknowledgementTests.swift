@@ -92,11 +92,11 @@ final class SafetyAcknowledgementTests: XCTestCase {
     /// asserts both halves happen and that nothing is recorded as accepted.
     @MainActor
     func testQuittingDismissesTheSheetBeforeTerminatingAndAcceptsNothing() {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-
         let model = SandfortViewModel()
+        // Deliberately not asserting an absolute value here: this machine may or
+        // may not have a real acknowledgement on disk, and a test that depends
+        // on the developer's own state is worse than no test.
+        let acknowledgedBefore = model.hasAcknowledgedSafety
         model.showSafetyAcknowledgement = true
 
         let terminated = expectation(description: "termination requested")
@@ -107,11 +107,44 @@ final class SafetyAcknowledgementTests: XCTestCase {
             "the sheet must be dismissed first or terminate is silently ignored"
         )
         wait(for: [terminated], timeout: 2)
-        XCTAssertFalse(model.hasAcknowledgedSafety, "quitting must not count as accepting")
-        XCTAssertTrue(
-            SafetyAcknowledgement.Store(supportRootURL: root).needsAcknowledgement,
-            "quitting must not write an acknowledgement"
+        XCTAssertEqual(
+            model.hasAcknowledgedSafety,
+            acknowledgedBefore,
+            "quitting must not change whether the notice was accepted"
         )
+    }
+
+    /// The other half of the same guarantee, isolated from real app state:
+    /// declining writes nothing, so the notice returns on the next launch.
+    func testDecliningLeavesNoRecordBehind() {
+        let store = SafetyAcknowledgement.Store(supportRootURL: temporaryRoot())
+        XCTAssertTrue(store.needsAcknowledgement)
+        XCTAssertNil(store.load())
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: store.fileURL.path),
+            "no file may be created unless the user accepts"
+        )
+    }
+
+    /// Updating the app must not re-prompt. Only the disclosure version does
+    /// that. `appVersion` is recorded for diagnostics and never consulted, so a
+    /// routine release does not nag users who have already read the notice.
+    func testANewAppVersionAloneDoesNotAskAgain() throws {
+        let root = temporaryRoot()
+        let store = SafetyAcknowledgement.Store(supportRootURL: root)
+        try store.record(appVersion: "0.14.0")
+        XCTAssertFalse(store.needsAcknowledgement)
+
+        // Simulate a later release accepting under a different app version.
+        try store.record(appVersion: "9.9.9")
+        XCTAssertFalse(
+            SafetyAcknowledgement.Store(supportRootURL: root).needsAcknowledgement,
+            "the app version must not affect whether the notice is shown"
+        )
+
+        let record = try XCTUnwrap(store.load())
+        XCTAssertEqual(record.version, SafetyAcknowledgement.currentVersion)
+        XCTAssertTrue(record.isCurrent)
     }
 
     /// The disclosure is the point of the feature; empty or reassuring text
