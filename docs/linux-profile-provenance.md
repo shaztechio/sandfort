@@ -88,6 +88,35 @@ rescue path if the desktop fails. Baseline setup is unaffected: the setup VM has
 a serial device and no display, and its failure path still uses
 `serial-getty@ttyAMA0`.
 
+## Ubuntu 24.04 LTS ARM64
+
+Status: qualified and selectable in the production catalog. Default profile.
+
+- Profile: `ubuntu-24.04-arm64`, revision 2
+- Artifact: `ubuntu-24.04-server-cloudimg-arm64.img`
+- Official immutable URL:
+  `https://cloud-images.ubuntu.com/releases/noble/release-20260725/ubuntu-24.04-server-cloudimg-arm64.img`
+- Official checksum manifest:
+  `https://cloud-images.ubuntu.com/releases/noble/release-20260725/SHA256SUMS`
+- Official detached manifest signature:
+  `https://cloud-images.ubuntu.com/releases/noble/release-20260725/SHA256SUMS.gpg`
+- Published and pinned SHA-256:
+  `2eaec7286c49fdea713dddabcf5012cafa7097a658e916acb48f4bc5fdc8e419`
+- UEC Image Automatic Signing Key fingerprint:
+  `D2EB 4462 6FDD C30B 513D 5BB7 1A5D 6C4C 7DB8 7C81`
+- Signature verification date: 2026-08-02
+
+The detached signature over `SHA256SUMS` was verified with Sandfort's own
+`OpenPGPSignatureVerifier`. It is a version 4 RSA packet over SHA-512 from the
+UEC Image Automatic Signing Key `<cdimage@ubuntu.com>`, whose fingerprint is
+pinned in `TrustedSigningKeys.swift`. The signed manifest lists many artifacts;
+the line for `ubuntu-24.04-server-cloudimg-arm64.img` carries the exact SHA-256
+pinned in this catalog, and a test asserts that equality on every `make test`.
+
+Canonical does not publish this key alongside the images, so it was retrieved
+from Canonical's keyserver by full fingerprint and then reviewed and bundled.
+The pin, not the retrieval, is what makes it trusted.
+
 ## Debian 13 (Trixie) ARM64
 
 Status: qualified and selectable in the production catalog.
@@ -159,6 +188,16 @@ manifest's OpenPGP signature was cryptographically verified against Fedora 44
 certificate `36F6 12DC F27F 7D1A 48A8 35E4 DBFC F71C 6D9F 90A6`, downloaded
 from Fedora's official certificate bundle. That fingerprint independently
 matched Fedora's current security page.
+
+That signature has since been re-verified with Sandfort's own
+`OpenPGPSignatureVerifier` rather than `gpg`. The Fedora manifest is
+clearsigned, not detached: it carries a version 4 RSA text-mode signature over
+SHA-256, so the verifier canonicalizes the message first, removing dash-escaping
+and trailing whitespace and joining lines with CRLF. Fedora publishes one binary
+keyring holding several releases' keys, so the Fedora 44 key is selected from it
+by pinned fingerprint rather than by position. Checksums are read from the
+verified message, never from the original document, because only the
+canonicalized text is signed.
 
 The separate Fedora provisioner now installs Fedora's exact
 `workstation-product-environment` through DNF5, selected development tools,

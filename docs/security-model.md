@@ -84,6 +84,15 @@ shell tool is introduced. Its rules are deliberate:
   key. Keys are bundled and reviewed, never fetched at runtime, because a key
   retrieved alongside a signature proves nothing about who built the artifact.
 
+Coverage is per profile and deliberately recorded rather than assumed. Ubuntu
+and openSUSE publish detached signatures; Fedora publishes a clearsigned
+manifest, which is verified over canonicalized text with values read only from
+the verified message; Debian publishes no signature alongside its cloud manifest,
+so that profile remains hash-only and `linux-profile-provenance.md` says so
+plainly. The two signature forms are kept strictly apart: each entry point
+demands the signature type it prepared its payload for, so a text-mode signature
+can never be verified as raw bytes.
+
 This runs at profile intake, not in the download path. The pinned SHA-256 in
 reviewed source is already the stronger runtime anchor: an attacker who can
 substitute an image still cannot match the pinned hash. What the signature adds

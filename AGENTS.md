@@ -40,9 +40,11 @@ without weakening the common provisioning policy.
   bounds-checked, keep the algorithm allowlist narrow, and never let the stored
   left-16 digest bits stand in for real verification.
 - `TrustedSigningKeys.swift`: **security-critical data.** Reviewed, bundled
-  distribution signing keys and their pinned fingerprints. The fingerprint is
-  the trust anchor; never fetch a key from a keyserver, mirror, or any runtime
-  source.
+  Ubuntu, Fedora, and openSUSE signing keys with their pinned fingerprints. The
+  fingerprint is the trust anchor, and keys are selected from vendor key files by
+  fingerprint rather than by position; never fetch a key from a keyserver,
+  mirror, or any runtime source at run time. Debian publishes no signature for
+  its cloud manifest and stays hash-only.
 - `tests/sandfortapptests`: policy and bundle-format regression tests.
 - `tools/packaging`: development app-bundle packaging metadata and script.
 - `HELP.md`: canonical user help source. Packaging renders it into Sandfort's

@@ -103,11 +103,40 @@ enum OpenPGPSignatureVerifier {
         armored: String,
         pinnedFingerprint: String
     ) throws -> PublicKey {
-        let packets = try packets(inArmored: armored)
-        guard let keyPacket = packets.first(where: { $0.tag == 6 }) else {
-            throw VerificationError.malformedPacket
+        try publicKey(packets: try packets(inArmored: armored), pinnedFingerprint: pinnedFingerprint)
+    }
+
+    /// Some distributions publish a binary keyring rather than an armored
+    /// block. The bytes are embedded exactly as published so a reviewer can
+    /// compare them against the vendor's file.
+    static func publicKey(
+        binaryKeyring: Data,
+        pinnedFingerprint: String
+    ) throws -> PublicKey {
+        try publicKey(packets: try parsePackets(binaryKeyring), pinnedFingerprint: pinnedFingerprint)
+    }
+
+    /// Selects the pinned key by fingerprint rather than taking the first key
+    /// present. Vendor key files routinely hold several releases' keys and
+    /// signing subkeys, so "the first one" is not a safe choice.
+    private static func publicKey(
+        packets: [Packet],
+        pinnedFingerprint: String
+    ) throws -> PublicKey {
+        let expected = normalizedFingerprint(pinnedFingerprint)
+        var seen: [String] = []
+        for packet in packets where packet.tag == 6 || packet.tag == 14 {
+            guard let candidate = try? parseKeyPacket(packet.body) else { continue }
+            seen.append(candidate.fingerprint)
+            if constantTimeEquals(candidate.fingerprint, expected) { return candidate }
         }
-        let body = keyPacket.body
+        throw VerificationError.fingerprintMismatch(
+            expected: expected,
+            actual: seen.joined(separator: ",")
+        )
+    }
+
+    private static func parseKeyPacket(_ body: Data) throws -> PublicKey {
         var reader = ByteReader(body)
         let version = Int(try reader.byte())
         guard version == 4 else { throw VerificationError.unsupportedKeyVersion(version) }
@@ -125,10 +154,6 @@ enum OpenPGPSignatureVerifier {
         fingerprintInput.append(body)
         let fingerprint = Data(Insecure.SHA1.hash(data: fingerprintInput)).hexadecimalString
 
-        let expected = normalizedFingerprint(pinnedFingerprint)
-        guard constantTimeEquals(fingerprint, expected) else {
-            throw VerificationError.fingerprintMismatch(expected: expected, actual: fingerprint)
-        }
         return PublicKey(
             fingerprint: fingerprint,
             keyID: String(fingerprint.suffix(16)),
@@ -144,7 +169,42 @@ enum OpenPGPSignatureVerifier {
         over payload: Data,
         using key: PublicKey
     ) throws -> VerifiedSignature {
-        let packets = try packets(inArmored: armored)
+        // Binary only. A text-mode signature verifies canonicalized text, so
+        // accepting one here would verify bytes that were never hashed this way.
+        try verifySignaturePacket(
+            in: try packets(inArmored: armored),
+            payload: payload,
+            key: key,
+            requiredType: 0x00
+        )
+    }
+
+    /// Verifies a cleartext-signed document, as used for distribution checksum
+    /// manifests, and returns the message body that the signature covers.
+    ///
+    /// Callers must read values from the returned message, never from the
+    /// original document. Only the canonicalized text below is signed; anything
+    /// outside it, including armor headers, is unauthenticated.
+    static func verifyClearsignedMessage(
+        armored: String,
+        using key: PublicKey
+    ) throws -> (signature: VerifiedSignature, message: String) {
+        let (message, signatureBlock) = try splitClearsignedDocument(armored)
+        let verified = try verifySignaturePacket(
+            in: try packets(inArmored: signatureBlock),
+            payload: canonicalTextForSigning(message),
+            key: key,
+            requiredType: 0x01
+        )
+        return (verified, message)
+    }
+
+    private static func verifySignaturePacket(
+        in packets: [Packet],
+        payload: Data,
+        key: PublicKey,
+        requiredType: UInt8
+    ) throws -> VerifiedSignature {
         guard let packet = packets.first(where: { $0.tag == 2 }) else {
             throw VerificationError.malformedPacket
         }
@@ -152,10 +212,60 @@ enum OpenPGPSignatureVerifier {
         var reader = ByteReader(body)
         let version = Int(try reader.byte())
         switch version {
-        case 3: return try verifyVersion3(body: body, reader: &reader, payload: payload, key: key)
-        case 4: return try verifyVersion4(body: body, reader: &reader, payload: payload, key: key)
-        default: throw VerificationError.unsupportedSignatureVersion(version)
+        case 3:
+            return try verifyVersion3(
+                body: body, reader: &reader, payload: payload, key: key, requiredType: requiredType
+            )
+        case 4:
+            return try verifyVersion4(
+                body: body, reader: &reader, payload: payload, key: key, requiredType: requiredType
+            )
+        default:
+            throw VerificationError.unsupportedSignatureVersion(version)
         }
+    }
+
+    // MARK: - Cleartext framework
+
+    /// Splits a cleartext-signed document into its message and signature block.
+    private static func splitClearsignedDocument(
+        _ document: String
+    ) throws -> (message: String, signatureBlock: String) {
+        let lines = document.components(separatedBy: "\n")
+        guard let headerIndex = lines.firstIndex(where: {
+            $0.hasPrefix("-----BEGIN PGP SIGNED MESSAGE-----")
+        }) else { throw VerificationError.malformedArmor }
+        guard let signatureIndex = lines.firstIndex(where: {
+            $0.hasPrefix("-----BEGIN PGP SIGNATURE-----")
+        }), signatureIndex > headerIndex else { throw VerificationError.malformedArmor }
+
+        // Armor headers such as "Hash:" run to the first blank line; the message
+        // is everything after that up to the signature block.
+        var messageStart = headerIndex + 1
+        while messageStart < signatureIndex, !lines[messageStart].isEmpty {
+            messageStart += 1
+        }
+        messageStart += 1
+        guard messageStart <= signatureIndex else { throw VerificationError.malformedArmor }
+        let message = lines[messageStart..<signatureIndex].joined(separator: "\n")
+        let signatureBlock = lines[signatureIndex...].joined(separator: "\n")
+        return (message, signatureBlock)
+    }
+
+    /// Canonical text form: dash-escaping removed, trailing whitespace stripped
+    /// from every line, lines joined with CRLF, and no trailing line break. All
+    /// four rules matter; skipping any of them verifies the wrong bytes.
+    private static func canonicalTextForSigning(_ message: String) -> Data {
+        let canonical = message
+            .components(separatedBy: "\n")
+            .map { line -> String in
+                var text = line
+                if text.hasPrefix("- ") { text.removeFirst(2) }
+                while let last = text.last, last == " " || last == "\t" { text.removeLast() }
+                return text
+            }
+            .joined(separator: "\r\n")
+        return Data(canonical.utf8)
     }
 
     // MARK: - Signature versions
@@ -164,13 +274,14 @@ enum OpenPGPSignatureVerifier {
         body: Data,
         reader: inout ByteReader,
         payload: Data,
-        key: PublicKey
+        key: PublicKey,
+        requiredType: UInt8
     ) throws -> VerifiedSignature {
         // A v3 signature's hashed material is exactly five bytes: the signature
         // type and the four-byte creation time. Anything else is malformed.
         guard try reader.byte() == 5 else { throw VerificationError.malformedPacket }
         let signatureType = try reader.byte()
-        try requireBinaryDocument(signatureType)
+        try requireSignatureType(signatureType, equals: requiredType)
         let creationBytes = try reader.bytes(4)
         let issuer = try reader.bytes(8).hexadecimalString
         let publicKeyAlgorithm = Int(try reader.byte())
@@ -208,10 +319,11 @@ enum OpenPGPSignatureVerifier {
         body: Data,
         reader: inout ByteReader,
         payload: Data,
-        key: PublicKey
+        key: PublicKey,
+        requiredType: UInt8
     ) throws -> VerifiedSignature {
         let signatureType = try reader.byte()
-        try requireBinaryDocument(signatureType)
+        try requireSignatureType(signatureType, equals: requiredType)
         let publicKeyAlgorithm = Int(try reader.byte())
         try requireRSA(publicKeyAlgorithm)
         let hashAlgorithm = try requireSupportedHash(try reader.byte())
@@ -302,11 +414,11 @@ enum OpenPGPSignatureVerifier {
 
     // MARK: - Requirements
 
-    private static func requireBinaryDocument(_ type: UInt8) throws {
-        // 0x00 is a signature over binary data. Text-mode signatures (0x01)
-        // require line-ending canonicalization that this verifier does not do,
-        // so accepting them would verify the wrong bytes.
-        guard type == 0x00 else { throw VerificationError.unsupportedSignatureType(Int(type)) }
+    /// 0x00 signs binary data; 0x01 signs canonicalized text. Each entry point
+    /// demands exactly the one it prepared the payload for, so a document can
+    /// never be verified under the other's rules.
+    private static func requireSignatureType(_ type: UInt8, equals required: UInt8) throws {
+        guard type == required else { throw VerificationError.unsupportedSignatureType(Int(type)) }
     }
 
     private static func requireRSA(_ algorithm: Int) throws {
