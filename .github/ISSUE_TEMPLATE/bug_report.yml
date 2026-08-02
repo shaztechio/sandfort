@@ -1,0 +1,68 @@
+name: Bug report
+description: Something in Sandfort behaves incorrectly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security vulnerabilities here. Use
+        [private reporting](https://github.com/shazron/sandbox-vm/security/advisories/new).
+
+        Never paste a guest password, key, or token. If a password matters,
+        rebuild the environment first so the value no longer protects anything.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Sandfort and select ...
+        2. Click ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: sandfort-version
+    attributes:
+      label: Sandfort version
+      description: From Sandfort → About, for example 0.13.0 (74).
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Linux profile
+      options:
+        - Ubuntu 24.04 LTS
+        - Fedora Cloud 44
+        - Debian 13
+        - openSUSE Leap 16
+        - Not specific to one profile
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Profile revision
+      description: Shown with the environment. Guest behavior depends on it.
+  - type: input
+    id: environment
+    attributes:
+      label: macOS, UTM, and Mac model
+      placeholder: macOS 15.5, UTM 4.6.4, MacBook Pro M3
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Setup log
+      description: |
+        For setup or boot problems, /var/log/sandfort-setup.log inside the guest
+        is usually the fastest route to a diagnosis. Redact credentials.
+      render: shell

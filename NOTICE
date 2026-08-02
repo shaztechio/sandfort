@@ -1,0 +1,32 @@
+Sandfort
+Copyright 2026 Sandfort contributors
+
+This product includes software developed by the Sandfort contributors.
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+--------------------------------------------------------------------------------
+Bundled third-party material
+--------------------------------------------------------------------------------
+
+Sandfort has no third-party code dependencies. It does bundle public signing
+keys published by Linux distributions, used to verify that a pinned image
+checksum was signed by the distribution that published it. These are public
+keys, reproduced unmodified, and are not covered by the Apache License above.
+
+  sources/sandfortapp/TrustedSigningKeys.swift
+
+    openSUSE Project Signing Key <opensuse@opensuse.org>
+      fingerprint AD48 5664 E901 B867 051A B15F 35A2 F86E 29B7 00A4
+      https://download.opensuse.org/distribution/leap/16.0/repo/oss/repodata/repomd.xml.key
+
+    UEC Image Automatic Signing Key <cdimage@ubuntu.com>
+      fingerprint D2EB 4462 6FDD C30B 513D 5BB7 1A5D 6C4C 7DB8 7C81
+      Canonical keyserver, retrieved by full fingerprint
+
+    Fedora keyring, from which the Fedora 44 key is selected by fingerprint
+      fingerprint 36F6 12DC F27F 7D1A 48A8 35E4 DBFC F71C 6D9F 90A6
+      https://fedoraproject.org/fedora.gpg
+
+Sandfort downloads official Linux cloud images at run time. Those images are
+licensed by their respective distributions and are not redistributed here.

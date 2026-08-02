@@ -117,3 +117,21 @@ Run tests with `make test`. Read [why these Linux profiles were chosen](docs/lin
 [the architecture](docs/architecture.md), [security model](docs/security-model.md), and
 [sandbox password-strength assessment](docs/password-strength.md) before using
 the VM with hostile code.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Sandfort's isolation rules and curated
+image catalog are the product, so read [AGENTS.md](AGENTS.md) and
+[docs/security-model.md](docs/security-model.md) before changing VM
+configuration, networking, downloads, or guest provisioning.
+
+## Security
+
+Do not open a public issue for a vulnerability. See [SECURITY.md](SECURITY.md)
+for private reporting, what is in scope, and the documented limitations that are
+design decisions rather than bugs.
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE)
+for bundled third-party material.

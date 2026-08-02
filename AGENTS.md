@@ -245,6 +245,10 @@ Treat these as requirements, not optional defaults:
 - Rebuild may accept a user-selected guest password, but validate it before any
   destructive work and safely quote it in cloud-init. All instances inherit the
   baseline credentials; do not imply per-instance passwords.
+- Every source file carries the Apache-2.0 header, enforced by
+  `LicenseHeaderTests`. New files need it too. In `Package.swift` the
+  tools-version directive stays on line 1 and the header follows it; in shell
+  scripts the shebang stays on line 1.
 - Do not add AppleScript, `osascript`, UI scripting, or runtime shell-command
   dependencies. The distributed app must perform downloads, hashing, QCOW2
   changes, ISO creation, UTM configuration, and launch through native Swift APIs
