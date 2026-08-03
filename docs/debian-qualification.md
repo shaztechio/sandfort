@@ -14,6 +14,25 @@ The qualification app has bundle identifier
 UTM names with `Sandfort Debian Qualification`. It must never read, repair,
 reset, rebuild, or delete production Sandfort state or VMs.
 
+## What is most likely to fail here
+
+Debian's history is networking, and revision 6 adds two untested paths:
+
+- **Networking is this profile's weak spot.** Two revisions were spent on it:
+  revision 1 kept first-boot ENI state and revision 2 let Netplan generate a udev
+  rule that marked UTM's `enp0s1` unmanaged, so a clean instance with a fresh MAC
+  had no Internet. Re-check it rather than assuming: after a reset with Internet,
+  `nmcli device status` must show Ethernet connected on the `sandfort`
+  connection, not tied to the baseline's original MAC.
+- **The browser check expects `firefox-esr`.** Debian's GNOME task installs
+  Firefox ESR rather than `firefox`. The shared check accepts either name, but
+  that branch has not run; a miss fails setup and produces no baseline.
+- **VS Code's sandbox helper.** Debian enables AppArmor but does not restrict
+  unprivileged user namespaces the way Ubuntu 24.04 does, so this is less likely
+  to bite here than it did there. Confirm anyway that
+  `ls -l /usr/local/lib/vscode/*/chrome-sandbox` shows `root root` and mode
+  `-rwsr-xr-x`, and that the editor starts.
+
 ## Setup and baseline
 
 1. Open **Sandfort Debian Qualification**, confirm the orange Debian
@@ -82,10 +101,12 @@ without this evidence.
 
 Record the macOS version, Mac model, UTM version, Sandfort version, setup
 duration, networking ownership, and result of every item. A regression failure
-blocks release of Debian revision 4. Revisions 1 to 3 are intentionally
+blocks release of Debian revision 6. Revisions 1 to 5 are intentionally
 incompatible: revision 1 retained first-boot ENI state, revision 2 still allowed
-Netplan to generate a udev rule that marked UTM's `enp0s1` adapter unmanaged, and
-revision 3 still showed a console login prompt before the greeter.
+Netplan to generate a udev rule that marked UTM's `enp0s1` adapter unmanaged,
+revision 3 still showed a console login prompt before the greeter, revision 4
+added no editor and no terminal or browser verification, and revision 5 installed
+a Visual Studio Code that could not launch.
 
 Revision 4 masks `getty@tty1.service`. Confirm no text `sandfort login:` prompt
 appears during boot, that `systemctl is-enabled getty@tty1.service` reports
