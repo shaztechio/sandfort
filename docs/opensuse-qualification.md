@@ -47,7 +47,7 @@ overview.
 5. After automatic poweroff, click **Finish Setup**, then confirm Instance 1
    reaches graphical GDM and accepts the displayed credentials. Confirm no text
    `sandfort login:` prompt appears on the console at any point during the boot;
-   revision 3 masks `getty@tty1.service` so the graphical greeter is the only
+   the profile masks `getty@tty1.service` so the graphical greeter is the only
    login shown. Then press Ctrl+Alt+F2 and confirm a text console is still
    reachable for diagnostics, and Ctrl+Alt+F1 returns to the desktop.
 
@@ -69,6 +69,10 @@ systemctl is-active sshd.service
 systemctl is-enabled getty@tty1.service
 rpm -q MozillaFirefox
 command -v firefox
+rpm -q gnome-terminal
+command -v gnome-terminal
+ls -l /usr/local/lib/vscode/*/chrome-sandbox
+code --version
 git --version
 curl --version
 jq --version
@@ -124,7 +128,8 @@ the active interface and whether wait-online delays a clean graphical boot.
 
 Record the macOS version, Mac model, UTM version, Sandfort version, setup
 duration, network ownership, and result of every item. A regression failure
-blocks release of openSUSE revision 3. Revisions 1 and 2 are intentionally
-incompatible: revision 1 installed no web browser at all, while revision 2 still
-left `getty@tty1.service` showing a console login prompt before the graphical
-greeter.
+blocks release of openSUSE revision 5. Revisions 1 to 4 are intentionally
+incompatible: revision 1 installed no web browser, revision 2 still left
+`getty@tty1.service` showing a console login prompt before the greeter, revision
+3 shipped no terminal emulator and no editor, and revision 4 installed a Visual
+Studio Code that could not launch.
