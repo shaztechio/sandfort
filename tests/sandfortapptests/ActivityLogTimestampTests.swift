@@ -98,6 +98,23 @@ final class ActivityLogTimestampTests: XCTestCase {
         XCTAssertTrue(line.contains("+62:03"), "3723 seconds should read as +62:03")
     }
 
+    /// The opening greeting was the one line without a time on it, because it
+    /// was assigned inline rather than logged.
+    func testEveryLineInAFreshLogIsStamped() {
+        let model = SandfortViewModel()
+        let lines = model.output
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        XCTAssertFalse(lines.isEmpty)
+        for line in lines {
+            XCTAssertNotNil(
+                line.range(of: "^[0-9]{2}:[0-9]{2}:[0-9]{2} ", options: .regularExpression),
+                "unstamped log line: \(line)"
+            )
+        }
+        XCTAssertTrue(model.output.contains(SandfortViewModel.readyMessage))
+    }
+
     func testElapsedIsNeverNegativeIfTheClockMovesBackwards() {
         let line = SandfortViewModel.timestamped(
             "x",

@@ -118,7 +118,12 @@ struct SandboxEnvironmentSummary: Identifiable, Sendable, Equatable {
 
 @MainActor
 final class SandfortViewModel: ObservableObject {
-    @Published var output = "Ready. Create a sandbox once, then use a clean session for every untrusted project."
+    /// Stamped in `init` like every other entry. Assigning it inline would leave
+    /// the one line in the log without a time on it.
+    @Published var output = ""
+
+    static let readyMessage =
+        "Ready. Create a sandbox once, then use a clean session for every untrusted project."
     @Published var isRunning = false
     @Published var showRebuildConfirmation = false
     @Published var showFinishConfirmation = false
@@ -164,6 +169,7 @@ final class SandfortViewModel: ObservableObject {
 
     init(runtime: SandfortRuntimeConfiguration = .current) {
         self.runtime = runtime
+        output = Self.timestamped(Self.readyMessage, at: Date(), since: nil)
         utmIsMissing = !UTMLauncher.isInstalled
         let needsAcknowledgement = runtime.safetyAcknowledgementStore.needsAcknowledgement
         hasAcknowledgedSafety = !needsAcknowledgement
@@ -252,7 +258,9 @@ final class SandfortViewModel: ObservableObject {
             hasAcknowledgedSafety = true
             showSafetyAcknowledgement = false
         } catch {
-            output = "Could not save your acknowledgement: \(error.localizedDescription)"
+            // Appended, not assigned: this used to replace the whole log, losing
+            // the history behind whatever had just gone wrong.
+            append("Could not save your acknowledgement: \(error.localizedDescription)")
         }
     }
 
