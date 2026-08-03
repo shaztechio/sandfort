@@ -154,7 +154,7 @@ enum LinuxGuestCatalog {
 
     static let debian13ARM64 = LinuxGuestProfile(
         id: "debian-13-arm64",
-        revision: 6,
+        revision: 7,
         displayName: "Debian 13 (Trixie)",
         distributionName: "Debian",
         setupDurationDescription: "20-45 minutes",

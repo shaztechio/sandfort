@@ -208,12 +208,30 @@ final class GuestToolingTests: XCTestCase {
         XCTAssertEqual(SandboxToolSelection.recommended.vsCode, true)
     }
 
+    /// Debian's cloud image runs systemd-networkd beside NetworkManager, and its
+    /// wait-online blocked network-online.target for a full 120 seconds on an
+    /// offline instance, delaying the greeter by over two minutes. Ubuntu has
+    /// always masked these; Debian must too.
+    func testProfilesRunningSystemdNetworkdMaskItsWaitOnline() throws {
+        for profile in [LinuxGuestCatalog.ubuntu2404ARM64, LinuxGuestCatalog.debian13ARM64] {
+            let script = try finalizer(profile)
+            XCTAssertTrue(
+                script.contains("systemctl mask systemd-networkd-wait-online.service"),
+                "\(profile.id) leaves systemd-networkd-wait-online blocking boot"
+            )
+            XCTAssertTrue(
+                script.contains("systemctl mask NetworkManager-wait-online.service"),
+                "\(profile.id) leaves NetworkManager-wait-online blocking boot"
+            )
+        }
+    }
+
     /// These four revisions are what force the rebuild that ships the terminal
     /// and the editor. Getting one wrong silently reuses an old baseline.
     func testProfileRevisionsWereBumpedForTheseGuestChanges() {
         XCTAssertEqual(LinuxGuestCatalog.ubuntu2404ARM64.revision, 4)
         XCTAssertEqual(LinuxGuestCatalog.fedora44ARM64.revision, 4)
-        XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.revision, 6)
+        XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.revision, 7)
         XCTAssertEqual(LinuxGuestCatalog.opensuseLeap16ARM64.revision, 5)
     }
 }

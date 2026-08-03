@@ -60,8 +60,9 @@ native Help Book available from **Help → Sandfort Help** in the app.
 Clean sessions use a small in-memory system journal. This avoids persistent
 journal flushing during disposable boots and discards guest logs with the rest
 of the clean session when it shuts down. Baseline setup also disables
-distribution-specific wait-online services so an unavailable network does not
-delay the graphical login.
+the wait-online services that would otherwise delay the graphical login on an
+offline instance. This applies to Ubuntu and Debian, whose cloud images run
+systemd-networkd; Fedora and openSUSE do not install it and are unaffected.
 
 The setup login uses a generated, memorable four-word hyphen-separated phrase
 and is displayed in the app. Every numbered instance has an independent disk,

@@ -121,6 +121,16 @@ enum DebianCloudInit {
         printf 'auto lo\niface lo inet loopback\n' > /etc/network/interfaces
         systemctl disable networking.service || true
         systemctl enable NetworkManager.service
+        # Debian's cloud image runs systemd-networkd alongside the NetworkManager
+        # this profile installs. NetworkManager owns the interface, networkd
+        # manages nothing, and its wait-online still blocks network-online.target
+        # for its full 120-second timeout on an offline instance. That delayed
+        # cloud-init-network and every target after it, so a clean instance sat
+        # on a blank console for over two minutes before the greeter appeared.
+        # Ubuntu has masked both since its own profile was written.
+        status "Removing the unnecessary network wait from clean-session startup."
+        systemctl mask systemd-networkd-wait-online.service
+        systemctl mask NetworkManager-wait-online.service
         grep -Fq 'id=sandfort' /etc/NetworkManager/system-connections/sandfort.nmconnection
         grep -Fq 'type=ethernet' /etc/NetworkManager/system-connections/sandfort.nmconnection
         grep -Fq 'method=auto' /etc/NetworkManager/system-connections/sandfort.nmconnection

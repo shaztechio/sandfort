@@ -283,7 +283,7 @@ final class SandfortAppTests: XCTestCase {
     func testDebian13ProductionProfileHasImmutableVerifiedMetadata() throws {
         let debian = LinuxGuestCatalog.debian13ARM64
         XCTAssertEqual(debian.id, "debian-13-arm64")
-        XCTAssertEqual(debian.revision, 6)
+        XCTAssertEqual(debian.revision, 7)
         XCTAssertEqual(debian.displayName, "Debian 13 (Trixie)")
         XCTAssertEqual(debian.distributionName, "Debian")
         XCTAssertEqual(debian.setupDurationDescription, "20-45 minutes")
@@ -1026,7 +1026,7 @@ final class SandfortAppTests: XCTestCase {
             debian
         )
 
-        for incompatibleRevision in [1, 2, 3, 4, 5] {
+        for incompatibleRevision in [1, 2, 3, 4, 5, 6] {
             var incompatibleState = state
             incompatibleState.guestProfileRevision = incompatibleRevision
             XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(

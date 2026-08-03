@@ -18,6 +18,11 @@ reset, rebuild, or delete production Sandfort state or VMs.
 
 Debian's history is networking, and revision 6 adds two untested paths:
 
+- **Boot time on an offline instance.** Revision 7 masks
+  `systemd-networkd-wait-online.service`, which sat through its full 120-second
+  timeout and delayed the greeter by over two minutes. Confirm the greeter now
+  appears promptly, and if it does not, run `systemd-analyze blame` inside the
+  instance rather than guessing.
 - **Networking is this profile's weak spot.** Two revisions were spent on it:
   revision 1 kept first-boot ENI state and revision 2 let Netplan generate a udev
   rule that marked UTM's `enp0s1` unmanaged, so a clean instance with a fresh MAC
@@ -101,7 +106,7 @@ without this evidence.
 
 Record the macOS version, Mac model, UTM version, Sandfort version, setup
 duration, networking ownership, and result of every item. A regression failure
-blocks release of Debian revision 6. Revisions 1 to 5 are intentionally
+blocks release of Debian revision 7. Revisions 1 to 6 are intentionally
 incompatible: revision 1 retained first-boot ENI state, revision 2 still allowed
 Netplan to generate a udev rule that marked UTM's `enp0s1` adapter unmanaged,
 revision 3 still showed a console login prompt before the greeter, revision 4

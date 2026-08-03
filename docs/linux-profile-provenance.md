@@ -42,7 +42,21 @@ that Visual Studio Code launches. Its checks are recorded in
 `ubuntu-qualification.md`. Fedora revision 4 was verified by the maintainer on
 2026-08-03, including Visual Studio Code launching under SELinux enforcing,
 which the Fedora provisioner verifies during setup. That retires the same
-concern for openSUSE, which has the same SELinux posture. Debian revision 6 and openSUSE revision 5 are still unconfirmed.
+concern for openSUSE, which has the same SELinux posture. Debian and openSUSE are still unconfirmed.
+
+Debian revision 7 removes a two-minute boot delay found while qualifying revision
+6. `systemd-analyze blame` inside an offline clean instance showed
+`systemd-networkd-wait-online.service` taking 2min 0.08s and blocking
+`cloud-init-network`, and through it every later target, so the greeter did not
+appear for over two minutes. Debian's cloud image runs systemd-networkd beside
+the NetworkManager this profile installs: NetworkManager settles in 185ms and
+networkd, managing nothing, waits out its full timeout. Both wait-online units
+are now masked, as Ubuntu has always done. Fedora and openSUSE do not install
+systemd-networkd, so neither is affected and neither is revised.
+
+The delay predates the console-login change but was invisible: masking the VT1
+getty replaced a login prompt with a bare cursor, so a slow boot began to look
+like a hang.
 
 ## openSUSE Leap 16.0 ARM64
 
@@ -152,7 +166,7 @@ The pin, not the retrieval, is what makes it trusted.
 
 Status: qualified and selectable in the production catalog.
 
-- Profile: `debian-13-arm64`, revision 6
+- Profile: `debian-13-arm64`, revision 7
 - Artifact: `debian-13-generic-arm64-20260712-2537.qcow2`
 - Official immutable URL:
   `https://cloud.debian.org/images/cloud/trixie/20260712-2537/debian-13-generic-arm64-20260712-2537.qcow2`
