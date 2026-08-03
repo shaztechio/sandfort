@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Do not report security vulnerabilities here. Use
-        [private reporting](https://github.com/shazron/sandbox-vm/security/advisories/new).
+        [private reporting](https://github.com/shaztechio/sandfort/security/advisories/new).
 
         Never paste a guest password, key, or token. If a password matters,
         rebuild the environment first so the value no longer protects anything.

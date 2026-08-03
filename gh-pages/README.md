@@ -74,7 +74,7 @@ as the source, or its deploy step will fail.
   Pro, Team, or Enterprise. On a free plan, publishing the site means making the
   repository public first.
 - **`README.md` already advertises <https://sandfort.app/>** as the project site.
-  To serve it from that name rather than `shazron.github.io/sandbox-vm`, add a
+  To serve it from that name rather than `shaztechio.github.io/sandfort`, add a
   `CNAME` file containing `sandfort.app` to this folder and point the DNS records
   at GitHub. Do not add `CNAME` before DNS is configured — it takes the
   `github.io` address out of service.

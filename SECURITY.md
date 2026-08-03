@@ -10,7 +10,7 @@ security reports are welcome and taken seriously.
 
 Use GitHub's private vulnerability reporting instead:
 
-1. Go to the [Security tab](https://github.com/shazron/sandbox-vm/security).
+1. Go to the [Security tab](https://github.com/shaztechio/sandfort/security).
 2. Choose **Report a vulnerability**.
 
 That opens a private advisory visible only to you and the maintainers. If
