@@ -45,6 +45,14 @@ struct BaselineToolsSheet: View {
 
             Toggle("Python 3 + pip + venv", isOn: $model.tools.python)
             Toggle("Latest Node.js LTS + npm", isOn: $model.tools.nodeJS)
+            Toggle("Visual Studio Code", isOn: Binding(
+                get: { model.tools.installsVSCode },
+                set: { model.tools.vsCode = $0 }
+            ))
+            Text("Visual Studio Code is downloaded from Microsoft and checksum-verified during setup. It is Microsoft's build with stock settings, so its telemetry is on by default.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Text("Git, curl, and jq are always included.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

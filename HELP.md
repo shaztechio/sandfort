@@ -66,7 +66,9 @@ Resume does not ask again because it preserves the instance's last explicit netw
 
 Open the environment's actions menu (**⋯**, beside the main button) and choose **Development Tools…** before creating or rebuilding the baseline.
 
-Git, curl, and jq are always installed. Python development tools and the latest Node.js LTS with npm can be selected in the app.
+Git, curl, and jq are always installed. Python development tools, the latest Node.js LTS with npm, and Visual Studio Code can be selected in the app. Visual Studio Code is on by default.
+
+Visual Studio Code is downloaded from Microsoft during setup and checked against Microsoft's published SHA-256. It is Microsoft's own build with stock settings, so its telemetry is on by default; turn it off in the editor's settings if you would rather it did not report usage.
 
 Advanced mode accepts a custom setup script. The script:
 

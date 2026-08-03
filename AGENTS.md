@@ -7,7 +7,11 @@ Fedora 44, Debian 13, and openSUSE Leap 16 ARM64 VMs for UTM on Apple silicon. K
 provider-oriented so Intel macOS, Windows, and Linux installers can be added
 without weakening the common provisioning policy.
 
-- `sources/sandfortapp/SandfortApp.swift`: SwiftUI views and user-facing state.
+- `sources/sandfortapp/`: the view layer is split by pane —
+  `SandfortApp.swift` (App scene), `ContentView.swift` (window shell, sheets,
+  dialogs), `SandfortViewModel.swift`, `EnvironmentSidebar.swift`,
+  `EnvironmentDetailView.swift`, `ActivityLogView.swift`,
+  `BaselineToolsSheet.swift`, and `SandfortSettingsView.swift`.
 - `SandfortWorkflow.swift`: app-owned state, verified downloads, baseline/session
   lifecycle, and native UTM launch.
 - `SandboxLibrary.swift`: multi-environment paths, shared cache, and preservation
@@ -16,7 +20,11 @@ without weakening the common provisioning policy.
 - `LinuxGuestCatalog.swift`: curated guest metadata, immutable verified images,
   hardware requirements, and the provisioning strategy boundary.
 - `GuestProvisioningSupport.swift`: distribution-neutral credential validation,
-  custom-script embedding, Node.js verification, MOTD, and completion helpers.
+  custom-script embedding, Node.js and Visual Studio Code installation, the
+  terminal and browser verification commands, MOTD, and completion helpers. Both
+  vendor downloads are checked against the vendor's published SHA-256, and VS
+  Code uses the tarball so no third-party repository or key is added to a
+  guest.
 - `MemorablePasswordWords.swift`: reviewed 2,048-word list behind the generated
   guest password. Its size is an entropy claim documented in
   `docs/password-strength.md` and enforced by tests; do not add, remove, or
@@ -36,12 +44,12 @@ without weakening the common provisioning policy.
 - `FedoraCloudInit.swift`: Fedora 44 DNF5, Workstation, firewalld, SELinux,
   automatic-update, and completion policy.
 - `DebianCloudInit.swift`: Debian 13 APT, GNOME/GDM, AppArmor, UFW,
-  unattended-upgrade, and completion policy. Debian revision 4 is production-supported.
+  unattended-upgrade, and completion policy. Debian revision 5 is production-supported.
 - `OpenSUSECloudInit.swift`: openSUSE Leap 16 Zypper, GNOME/GDM, Firefox,
   NetworkManager, firewalld, SELinux, security-patch timer, and completion
-  policy. Leap's GNOME pattern pulls in no browser, unlike the other three
-  desktop metapackages, so the profile installs one explicitly. Leap revision 3
-  is production-supported.
+  policy. Leap's GNOME pattern pulls in neither a browser nor a terminal, unlike
+  the other three desktop metapackages, so the profile installs both explicitly.
+  Leap revision 4 is production-supported.
 - `NativeDownloader.swift`, `DiskUtilities.swift`, `ISO9660Writer.swift`: native
   download, verification, disk manipulation, and NoCloud ISO generation.
 - `OpenPGPSignatureVerifier.swift`: **security-critical.** Minimal OpenPGP
@@ -117,25 +125,25 @@ removing every text console would leave a broken instance unreachable.
 Baseline setup is unaffected. The setup VM is built with a serial device and no
 display, and its failure path still unmasks `serial-getty@ttyAMA0`.
 
-### Only openSUSE verifies that a browser exists
+### Every profile verifies a terminal and a browser
 
-Ubuntu, Fedora, and Debian verify their desktop *metapackage*
-(`ubuntu-desktop-minimal`, `workstation-product-environment`,
-`task-gnome-desktop`) and trust it to pull in a browser. Only openSUSE checks
-for the browser itself, with `rpm -q MozillaFirefox` and `command -v firefox`,
-because Leap's GNOME pattern ships none.
+openSUSE shipped two versions of the same defect: revision 1 had no browser and
+revision 3 had no terminal, because Leap's `patterns-gnome-gnome` requires only
+`gnome-session-wayland` and declares no recommends. Both look like a complete
+desktop until someone tries to use one.
 
-That leaves a gap in the other three: if an upstream metapackage ever stopped
-recommending a browser, setup would still pass and the baseline would boot to a
-desktop with no way to browse the web, which is exactly the defect openSUSE
-revision 1 shipped with. Nothing indicates that is happening today, and closing
-it means a revision bump and a rebuild for every user, so it is not worth doing
-on its own.
+All four profiles now verify that a terminal and a browser exist, through
+`GuestProvisioningSupport.terminalVerificationCommand` and
+`browserVerificationCommand`. Keep three things true when editing them:
 
-Add a browser check to those three the next time each is revised for another
-reason. Verify the binary, not only the package: on Ubuntu both `firefox` and
-`chromium-browser` are transitional packages for snaps, so a package query can
-succeed while nothing usable is installed.
+- Check the **binary**, not the package. On Ubuntu both `firefox` and
+  `chromium-browser` are transitional packages for snaps, so a package query can
+  succeed while nothing usable is installed.
+- Keep the alternatives. Distributions disagree: Fedora ships Ptyxis, GNOME
+  ships Console, the others ship Terminal.
+- openSUSE installs `gnome-terminal` and `MozillaFirefox` explicitly, because
+  its pattern provides neither. The other three inherit both from their desktop
+  metapackage and only verify them.
 
 ## Planned network observability and filtering
 

@@ -63,6 +63,24 @@ interface to become ready. The workflow also waits until UTM can no longer resol
 each exact VM name before removing the parent directory, so UTM cannot race the
 filesystem cleanup or retain a stale registration.
 
+## Third-party software installed into a guest
+
+Two tools are downloaded from their vendors during baseline setup rather than
+coming from the distribution: the Node.js LTS archive and Visual Studio Code.
+Both are fetched over HTTPS and verified against the vendor's own published
+SHA-256, and a mismatch fails the build so no baseline is created.
+
+Visual Studio Code is installed from Microsoft's tarball, never from their
+`.deb` or `.rpm`. Those packages add Microsoft's repository and signing key to
+the guest in their post-install scripts, which would give every sandbox a
+standing auto-update channel to a third party and a new trusted key. The
+tarball adds neither, and a test asserts no repository or key is introduced.
+
+Visual Studio Code is proprietary Microsoft software, it is optional, and it is
+installed with stock settings, so its telemetry is on by default. An
+Internet-enabled instance running it can therefore report usage to Microsoft.
+Clean instances default to offline, where it cannot.
+
 ## Image signature verification (security-critical code)
 
 `OpenPGPSignatureVerifier.swift` and `TrustedSigningKeys.swift` are

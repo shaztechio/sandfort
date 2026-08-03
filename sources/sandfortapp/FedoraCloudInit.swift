@@ -49,6 +49,11 @@ enum FedoraCloudInit {
             verificationCommands += ["command -v python3", "command -v pip3", "python3 -m venv --help >/dev/null"]
         }
         if tools.nodeJS { verificationCommands += ["command -v node", "command -v npm"] }
+        verificationCommands += [
+            GuestProvisioningSupport.terminalVerificationCommand,
+            GuestProvisioningSupport.browserVerificationCommand
+        ]
+        if tools.installsVSCode { verificationCommands.append("command -v code") }
         let loggingSetup = tools.verboseSetupLogging == true ? """
         exec > >(tee -a /var/log/sandfort-setup.log) 2>&1
         status() { printf '\n[Sandfort] %s\n' "$*"; }
@@ -62,6 +67,10 @@ enum FedoraCloudInit {
         """
         let nodeInstallCommands = GuestProvisioningSupport.nodeLTSInstallCommands(
             enabled: tools.nodeJS,
+            linuxArchiveArchitecture: "arm64"
+        )
+        let vsCodeInstallCommands = GuestProvisioningSupport.vsCodeInstallCommands(
+            enabled: tools.installsVSCode,
             linuxArchiveArchitecture: "arm64"
         )
         let finalizerScript = """
@@ -97,6 +106,7 @@ enum FedoraCloudInit {
           false
         fi
         \(nodeInstallCommands)
+        \(vsCodeInstallCommands)
         status "Verifying every selected tool and the Fedora Workstation desktop."
         dnf5 environment info workstation-product-environment | grep -Eq '^Installed[[:space:]]*:[[:space:]]*(True|yes)$'
         \(verificationCommands.joined(separator: "\n"))

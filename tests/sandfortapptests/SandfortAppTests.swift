@@ -210,7 +210,7 @@ final class SandfortAppTests: XCTestCase {
 
         let profile = LinuxGuestCatalog.defaultProfile
         XCTAssertEqual(profile.displayName, "Ubuntu 24.04 LTS")
-        XCTAssertEqual(profile.revision, 2)
+        XCTAssertEqual(profile.revision, 3)
         XCTAssertEqual(profile.setupDurationDescription, "10-30 minutes")
         XCTAssertEqual(profile.distributionName, "Ubuntu")
         XCTAssertEqual(profile.hardware.architecture, "arm64")
@@ -243,7 +243,7 @@ final class SandfortAppTests: XCTestCase {
     func testFedora44ProductionProfileHasImmutableVerifiedMetadata() throws {
         let fedora = LinuxGuestCatalog.fedora44ARM64
         XCTAssertEqual(fedora.id, "fedora-44-arm64")
-        XCTAssertEqual(fedora.revision, 2)
+        XCTAssertEqual(fedora.revision, 3)
         XCTAssertEqual(fedora.displayName, "Fedora Cloud 44")
         XCTAssertEqual(fedora.distributionName, "Fedora")
         XCTAssertEqual(fedora.setupDurationDescription, "20-45 minutes")
@@ -283,7 +283,7 @@ final class SandfortAppTests: XCTestCase {
     func testDebian13ProductionProfileHasImmutableVerifiedMetadata() throws {
         let debian = LinuxGuestCatalog.debian13ARM64
         XCTAssertEqual(debian.id, "debian-13-arm64")
-        XCTAssertEqual(debian.revision, 4)
+        XCTAssertEqual(debian.revision, 5)
         XCTAssertEqual(debian.displayName, "Debian 13 (Trixie)")
         XCTAssertEqual(debian.distributionName, "Debian")
         XCTAssertEqual(debian.setupDurationDescription, "20-45 minutes")
@@ -314,7 +314,7 @@ final class SandfortAppTests: XCTestCase {
     func testOpenSUSELeap16ProductionProfileHasImmutableVerifiedMetadata() throws {
         let opensuse = LinuxGuestCatalog.opensuseLeap16ARM64
         XCTAssertEqual(opensuse.id, "opensuse-leap-16.0-arm64")
-        XCTAssertEqual(opensuse.revision, 3)
+        XCTAssertEqual(opensuse.revision, 4)
         XCTAssertEqual(opensuse.displayName, "openSUSE Leap 16.0")
         XCTAssertEqual(opensuse.distributionName, "openSUSE")
         XCTAssertEqual(opensuse.setupDurationDescription, "20-45 minutes")
@@ -735,7 +735,7 @@ final class SandfortAppTests: XCTestCase {
             from: PropertyListEncoder().encode(state)
         )
         XCTAssertEqual(decoded.guestProfileID, "ubuntu-24.04-arm64")
-        XCTAssertEqual(decoded.guestProfileRevision, 2)
+        XCTAssertEqual(decoded.guestProfileRevision, 3)
         XCTAssertEqual(decoded.guestImageSHA256, profile.image.sha256)
     }
 
@@ -960,7 +960,7 @@ final class SandfortAppTests: XCTestCase {
             debian
         )
 
-        for incompatibleRevision in [1, 2, 3] {
+        for incompatibleRevision in [1, 2, 3, 4] {
             var incompatibleState = state
             incompatibleState.guestProfileRevision = incompatibleRevision
             XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(
@@ -1030,7 +1030,7 @@ final class SandfortAppTests: XCTestCase {
         // Revisions 1 and 2 were only ever built by qualification builds: 1 had
         // no browser and 2 still showed a console login prompt before GDM.
         // Neither may be silently reused under the promoted contract.
-        for incompatibleRevision in [1, 2] {
+        for incompatibleRevision in [1, 2, 3] {
             var incompatibleState = state
             incompatibleState.guestProfileRevision = incompatibleRevision
             XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(

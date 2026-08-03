@@ -17,11 +17,21 @@ All four revisions were confirmed on real UTM boots on 2026-08-02. The graphical
 greeter is the only login presented, and a text console remains reachable for
 diagnostics.
 
+All four were revised again on 2026-08-03, taking Ubuntu to revision 3, Fedora
+to revision 3, Debian to revision 5, and openSUSE to revision 4. openSUSE gains
+GNOME Terminal, since its GNOME pattern ships no terminal emulator any more than
+it shipped a browser; every profile gains an optional Visual Studio Code, on by
+default, installed from Microsoft's checksum-verified arm64 tarball rather than
+their package repository; and every profile now verifies that a terminal and a
+browser actually exist, which closes the gap recorded in `AGENTS.md`. Pinned
+images and checksums are unchanged. These revisions have not yet been confirmed
+on real UTM boots.
+
 ## openSUSE Leap 16.0 ARM64
 
 Status: qualified and selectable in the production catalog.
 
-- Profile: `opensuse-leap-16.0-arm64`, revision 3
+- Profile: `opensuse-leap-16.0-arm64`, revision 4
 - Artifact: `Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2`
 - Official immutable URL:
   `https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2`
@@ -96,7 +106,7 @@ a serial device and no display, and its failure path still uses
 
 Status: qualified and selectable in the production catalog. Default profile.
 
-- Profile: `ubuntu-24.04-arm64`, revision 2
+- Profile: `ubuntu-24.04-arm64`, revision 3
 - Artifact: `ubuntu-24.04-server-cloudimg-arm64.img`
 - Official immutable URL:
   `https://cloud-images.ubuntu.com/releases/noble/release-20260725/ubuntu-24.04-server-cloudimg-arm64.img`
@@ -125,7 +135,7 @@ The pin, not the retrieval, is what makes it trusted.
 
 Status: qualified and selectable in the production catalog.
 
-- Profile: `debian-13-arm64`, revision 4
+- Profile: `debian-13-arm64`, revision 5
 - Artifact: `debian-13-generic-arm64-20260712-2537.qcow2`
 - Official immutable URL:
   `https://cloud.debian.org/images/cloud/trixie/20260712-2537/debian-13-generic-arm64-20260712-2537.qcow2`
@@ -171,7 +181,7 @@ Debian qualification rebuild.
 
 Status: qualified and selectable in the production catalog.
 
-- Profile: `fedora-44-arm64`, revision 2
+- Profile: `fedora-44-arm64`, revision 3
 - Artifact: `Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2`
 - Official versioned URL:
   `https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2`

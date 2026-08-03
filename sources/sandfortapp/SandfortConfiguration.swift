@@ -29,13 +29,19 @@ struct SandboxToolSelection: Codable, Sendable {
     var nodeJS: Bool
     var customSetupScript: String? = nil
     var verboseSetupLogging: Bool? = nil
+    /// Optional so tool selections persisted before VS Code existed still
+    /// decode. Absent means on, matching the default for new baselines.
+    var vsCode: Bool? = nil
 
-    static let recommended = SandboxToolSelection(python: true, nodeJS: true)
+    var installsVSCode: Bool { vsCode ?? true }
+
+    static let recommended = SandboxToolSelection(python: true, nodeJS: true, vsCode: true)
 
     var description: String {
         var names = ["Git", "curl", "jq"]
         if python { names.append("Python 3") }
         if nodeJS { names.append("latest Node.js LTS") }
+        if installsVSCode { names.append("Visual Studio Code") }
         if customSetupScript?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
             names.append("custom setup script")
         }

@@ -44,6 +44,11 @@ enum UbuntuCloudInit {
         ]
         if tools.python { verificationCommands += ["command -v python3", "command -v pip3"] }
         if tools.nodeJS { verificationCommands += ["command -v node", "command -v npm"] }
+        verificationCommands += [
+            GuestProvisioningSupport.terminalVerificationCommand,
+            GuestProvisioningSupport.browserVerificationCommand
+        ]
+        if tools.installsVSCode { verificationCommands.append("command -v code") }
         let loggingSetup = tools.verboseSetupLogging == true ? """
         exec > >(tee -a /var/log/sandfort-setup.log) 2>&1
         status() { printf '\n[Sandfort] %s\n' "$*"; }
@@ -57,6 +62,10 @@ enum UbuntuCloudInit {
         """
         let nodeInstallCommands = GuestProvisioningSupport.nodeLTSInstallCommands(
             enabled: tools.nodeJS,
+            linuxArchiveArchitecture: "arm64"
+        )
+        let vsCodeInstallCommands = GuestProvisioningSupport.vsCodeInstallCommands(
+            enabled: tools.installsVSCode,
             linuxArchiveArchitecture: "arm64"
         )
         let finalizerScript = """
@@ -90,6 +99,7 @@ enum UbuntuCloudInit {
           false
         fi
         \(nodeInstallCommands)
+        \(vsCodeInstallCommands)
         status "Verifying every selected tool and the graphical desktop."
         \(verificationCommands.joined(separator: "\n"))
         status "Applying sandbox security settings."

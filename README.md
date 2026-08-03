@@ -32,7 +32,9 @@ native Help Book available from **Help → Sandfort Help** in the app.
    and click its **Create Environment** action.
    Before creating or rebuilding, choose whether the baseline should include
    Python 3 development tools and the latest official Node.js LTS/npm. Git, curl,
-   and jq are always included. Node's Linux ARM64 archive is SHA-256 verified.
+   and jq are always included. Visual Studio Code is included by default and can
+   be turned off. Node's and VS Code's Linux ARM64 downloads are SHA-256 verified
+   against the vendor's published checksum.
    Advanced mode also accepts a custom shell script, documented with worked
    examples in [docs/custom-setup-scripts.md](docs/custom-setup-scripts.md). It
    is embedded in cloud-init

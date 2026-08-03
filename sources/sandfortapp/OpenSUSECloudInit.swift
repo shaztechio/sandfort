@@ -34,9 +34,14 @@ enum OpenSUSECloudInit {
         // therefore requested explicitly. Its branding capability has two
         // providers, so pin the openSUSE one rather than leave the unattended
         // solver to choose.
+        //
+        // The same pattern ships no terminal emulator either: `gnome-console` is
+        // recommended only by `patterns-gnome-gnome_basis`, which nothing pulls
+        // in. GNOME Terminal is requested explicitly so the desktop is usable.
         var packages = [
             "ca-certificates", "curl", "firewalld", "gdm", "git-core", "gnome-shell",
-            "jq", "MozillaFirefox", "MozillaFirefox-branding-openSUSE",
+            "gnome-terminal", "jq", "MozillaFirefox",
+            "MozillaFirefox-branding-openSUSE",
             "NetworkManager", "patterns-gnome-gnome", "policycoreutils",
             "qemu-guest-agent", "spice-vdagent"
         ]
@@ -52,12 +57,18 @@ enum OpenSUSECloudInit {
             "rpm -q NetworkManager", "rpm -q qemu-guest-agent",
             "rpm -q spice-vdagent", "rpm -q firewalld",
             "rpm -q MozillaFirefox", "command -v firefox",
+            "rpm -q gnome-terminal",
             "test -x /usr/sbin/gdm"
         ]
         if tools.python {
             verificationCommands += ["command -v python3", "python3.13 -m pip --version"]
         }
         if tools.nodeJS { verificationCommands += ["command -v node", "command -v npm"] }
+        verificationCommands += [
+            GuestProvisioningSupport.terminalVerificationCommand,
+            GuestProvisioningSupport.browserVerificationCommand
+        ]
+        if tools.installsVSCode { verificationCommands.append("command -v code") }
         let loggingSetup = tools.verboseSetupLogging == true ? """
         exec > >(tee -a /var/log/sandfort-setup.log) 2>&1
         status() { printf '\n[Sandfort] %s\n' "$*"; }
@@ -71,6 +82,10 @@ enum OpenSUSECloudInit {
         """
         let nodeInstallCommands = GuestProvisioningSupport.nodeLTSInstallCommands(
             enabled: tools.nodeJS,
+            linuxArchiveArchitecture: "arm64"
+        )
+        let vsCodeInstallCommands = GuestProvisioningSupport.vsCodeInstallCommands(
+            enabled: tools.installsVSCode,
             linuxArchiveArchitecture: "arm64"
         )
         let finalizerScript = """
@@ -106,6 +121,7 @@ enum OpenSUSECloudInit {
           false
         fi
         \(nodeInstallCommands)
+        \(vsCodeInstallCommands)
         status "Verifying every selected tool and the openSUSE GNOME desktop."
         \(verificationCommands.joined(separator: "\n"))
         status "Applying openSUSE sandbox security settings."
