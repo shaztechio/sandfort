@@ -29,6 +29,20 @@ struct EnvironmentDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             header
 
+            if model.utmIsMissing {
+                // Sandfort cannot do anything without UTM, and telling someone
+                // that without telling them where to get it is a dead end.
+                GroupBox("UTM is required") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Sandfort runs its sandboxes in UTM, which is not installed. Install UTM, then use Check My Mac to confirm Sandfort can see it.")
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button("Get UTM") { model.openUTMDownloadPage() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
             if let notice = model.runtime.qualificationNotice {
                 CalloutBox(title: "\(model.guestProfile.distributionName) qualification", text: notice)
             }

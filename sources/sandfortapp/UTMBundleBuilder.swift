@@ -296,13 +296,13 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         ]
     }
 
+    /// Derived from wherever UTM was actually resolved, so this and the install
+    /// check can never disagree. They could before: both repeated the same two
+    /// hardcoded paths, and a UTM installed elsewhere produced a misleading
+    /// "reinstall UTM" error about a perfectly good installation.
     private static func utmFirmwareURL() -> URL? {
-        let applications = [
-            URL(fileURLWithPath: "/Applications/UTM.app", isDirectory: true),
-            URL(fileURLWithPath: NSHomeDirectory() + "/Applications/UTM.app", isDirectory: true)
-        ]
-        return applications
-            .map { $0.appendingPathComponent("Contents/Resources/qemu/edk2-arm-vars.fd") }
-            .first { FileManager.default.fileExists(atPath: $0.path) }
+        guard let firmware = MainActor.assumeIsolated({ UTMLauncher.installation?.firmwareURL }),
+              FileManager.default.fileExists(atPath: firmware.path) else { return nil }
+        return firmware
     }
 }

@@ -148,7 +148,9 @@ enum SandboxError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .utmNotInstalled:
-            return "UTM is not installed in Applications. Install UTM, then try again."
+            // Deliberately does not say "in Applications": that assumption is
+            // what made this message wrong for anyone whose UTM lives elsewhere.
+            return "UTM is not installed. Sandfort needs UTM to run virtual machines. Use Get UTM to download it, then try again."
         case .invalidDownloadResponse:
             return "The Linux image download server returned an unexpected response."
         case let .checksumMismatch(expected, actual):

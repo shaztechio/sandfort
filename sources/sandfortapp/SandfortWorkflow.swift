@@ -180,13 +180,21 @@ actor SandfortWorkflow {
     }
 
     func doctor() async throws -> String {
-        guard await UTMLauncher.isInstalled else { throw SandboxError.utmNotInstalled }
         let state = currentState()
         let architecture = SystemArchitecture.current
         let stateDescription = state.map {
             "Sandbox state: \($0.stage.rawValue), \($0.resolvedInstances.count) clean instance(s)."
         } ?? "No sandbox has been created yet."
-        return "UTM is installed. This Mac is \(architecture). \(stateDescription)"
+        guard let utm = await UTMLauncher.installation else {
+            // Reported rather than thrown: "what is wrong with my Mac" is the
+            // question this answers, so the answer should be actionable.
+            return "UTM is not installed. Sandfort needs it to run virtual machines. "
+                + "Download it from \(UTMLauncher.downloadPage.absoluteString), then run this check again.\n"
+                + "This Mac is \(architecture). \(stateDescription)"
+        }
+        let version = utm.version.map { "UTM \($0)" } ?? "UTM"
+        return "\(version) is installed at \(utm.applicationURL.path).\n"
+            + "This Mac is \(architecture). \(stateDescription)"
     }
 
     func create(
@@ -630,10 +638,49 @@ actor SandfortWorkflow {
 
 @MainActor
 enum UTMLauncher {
-    static var isInstalled: Bool {
-        let locations = ["/Applications/UTM.app", NSHomeDirectory() + "/Applications/UTM.app"]
-        return locations.contains { FileManager.default.fileExists(atPath: $0) }
+    // Immutable and Sendable, so they are readable from the workflow actor as
+    // well as the main actor.
+    nonisolated static let bundleIdentifier = "com.utmapp.UTM"
+    nonisolated static let downloadPage = URL(string: "https://mac.getutm.app/")!
+
+    /// Where UTM actually is, and what version it is.
+    struct Installation: Equatable {
+        let applicationURL: URL
+        let version: String?
+
+        /// Derived from wherever UTM was found rather than assumed, so a UTM
+        /// outside /Applications no longer produces a "reinstall UTM" error
+        /// about an installation that is perfectly fine.
+        var firmwareURL: URL {
+            applicationURL.appendingPathComponent("Contents/Resources/qemu/edk2-arm-vars.fd")
+        }
     }
+
+    /// Resolves UTM by asking Launch Services for its bundle identifier, and
+    /// only then falling back to the conventional paths.
+    ///
+    /// Path-only detection reported UTM as missing whenever it lived anywhere
+    /// other than /Applications or ~/Applications, even though macOS knew
+    /// exactly where it was. The inputs are injectable so the absent case can be
+    /// tested on a machine that has UTM installed.
+    static func resolveInstallation(
+        identifierLookup: (String) -> URL? = { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) },
+        fallbackPaths: [String] = ["/Applications/UTM.app", NSHomeDirectory() + "/Applications/UTM.app"],
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) -> Installation? {
+        let located = identifierLookup(bundleIdentifier)
+            ?? fallbackPaths.first(where: fileExists).map { URL(fileURLWithPath: $0, isDirectory: true) }
+        guard let located, fileExists(located.path) else { return nil }
+        let info = NSDictionary(contentsOf: located.appendingPathComponent("Contents/Info.plist"))
+        return Installation(
+            applicationURL: located,
+            version: info?["CFBundleShortVersionString"] as? String
+        )
+    }
+
+    static var installation: Installation? { resolveInstallation() }
+
+    static var isInstalled: Bool { installation != nil }
 
     static func openAndStart(bundle: URL, name: String) async {
         NSWorkspace.shared.open(bundle)

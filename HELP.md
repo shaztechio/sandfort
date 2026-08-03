@@ -8,7 +8,10 @@ Sandfort reduces risk, but a virtual machine is not a perfect security boundary.
 
 Before creating a sandbox:
 
-- Install [UTM](https://mac.getutm.app/).
+- Install [UTM](https://mac.getutm.app/). Sandfort finds it wherever macOS has
+  registered it, not only in your Applications folder. If it is missing, the
+  main window offers a **Get UTM** button, and **Check My Mac** reports which
+  UTM version Sandfort can see and where.
 - Make sure the Mac has enough free space for the selected Linux download, protected baseline, and each independent instance.
 - Quit or stop any Sandfort VMs before rebuilding or resetting them.
 

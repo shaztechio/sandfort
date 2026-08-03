@@ -150,6 +150,9 @@ final class SandfortViewModel: ObservableObject {
     /// app people demo and screenshot, and revealing it should be a decision.
     @Published var revealGuestPassword = false
     @Published var showBaselineTools = false
+    /// Refreshed on launch, on Check My Mac, and after any operation, so
+    /// installing UTM while Sandfort is open is noticed without a relaunch.
+    @Published private(set) var utmIsMissing = false
     @Published private(set) var hasAcknowledgedSafety = true
 
     private var pendingSandboxAction: PendingSandboxAction?
@@ -159,6 +162,7 @@ final class SandfortViewModel: ObservableObject {
 
     init(runtime: SandfortRuntimeConfiguration = .current) {
         self.runtime = runtime
+        utmIsMissing = !UTMLauncher.isInstalled
         let needsAcknowledgement = runtime.safetyAcknowledgementStore.needsAcknowledgement
         hasAcknowledgedSafety = !needsAcknowledgement
         showSafetyAcknowledgement = needsAcknowledgement
@@ -482,6 +486,12 @@ final class SandfortViewModel: ObservableObject {
         }
     }
 
+    /// Opens UTM's download page. `NSWorkspace` is a native API, so this adds no
+    /// runtime shell dependency.
+    func openUTMDownloadPage() {
+        NSWorkspace.shared.open(UTMLauncher.downloadPage)
+    }
+
     func copyLogToClipboard() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -511,6 +521,7 @@ final class SandfortViewModel: ObservableObject {
                 progressFraction = nil
             }
             SandfortActivityMonitor.shared.end()
+            utmIsMissing = !UTMLauncher.isInstalled
             isRunning = false
         }
     }
