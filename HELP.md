@@ -118,17 +118,18 @@ macOS shows this once, the first time Sandfort needs to talk to UTM. That is
 usually when you create an environment or start a sandbox, not only when you
 rebuild.
 
-Sandfort asks UTM one question before starting a VM: whether that exact VM is in
-the library yet. Opening a virtual machine hands it to UTM, which adds it in the
-background, and UTM ignores a request to start a VM it has not finished adding.
-Waiting for the answer is what makes a sandbox start on its own instead of
-sitting in UTM's list until you press play.
+Sandfort needs it to start a sandbox for you. Opening a virtual machine hands it
+to UTM, which adds it to the library in the background; Sandfort waits until UTM
+confirms the machine is there, then asks UTM to start it. Both of those are
+questions put to UTM, and macOS treats asking as controlling.
 
-You can decline. Sandfort then waits a fixed couple of seconds and starts the VM
-anyway, which is what earlier versions did. It usually works when UTM is already
-open, and often does not when UTM has to launch first — if a VM appears in UTM
-but stays stopped, that is why, and you can start it with UTM's play button. To
-change your answer later, open System Settings → Privacy & Security → Automation.
+You can decline, and everything else still works: Sandfort downloads, verifies,
+builds, and adds the virtual machine exactly as before. It cannot start it. The
+sandbox appears in UTM's list and waits for you to press play, and the activity
+log says so rather than pretending it started.
+
+To change your answer later, open System Settings → Privacy & Security →
+Automation and turn UTM on or off under Sandfort.
 
 ## Troubleshooting setup
 

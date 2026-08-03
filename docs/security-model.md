@@ -63,14 +63,20 @@ interface to become ready. The workflow also waits until UTM can no longer resol
 each exact VM name before removing the parent directory, so UTM cannot race the
 filesystem cleanup or retain a stale registration.
 
-Apple Events are also used, read-only, when starting a VM. Opening a bundle
-hands it to UTM, which imports and registers it asynchronously, and UTM ignores
-a start request that names a VM it has not registered yet. Sandfort therefore
-asks UTM whether the exact name is present, polling for about fifteen seconds
-before it sends the start request. This reads UTM's library and changes nothing.
-Starting a VM never depends on that permission: if Automation is denied, the
-query is abandoned after one refusal and the VM is started anyway. A user who
-declines gets the older, less reliable timing, not a broken app.
+Apple Events are also used to start a VM, in two steps. Opening a bundle hands
+it to UTM, which imports and registers it asynchronously, so Sandfort first
+polls UTM for about fifteen seconds asking whether that exact name is present —
+a read that changes nothing — and then sends UTM's `start` command for it.
+
+Starting therefore depends on Automation permission. UTM's documented
+`utm://start?name=` URL is a no-op on UTM 4.7.5: opening it against a
+registered, stopped VM leaves the VM stopped, verified directly. UTM's scripting
+interface is the only mechanism that actually starts a VM, so there is no
+permission-free fallback to offer. If Automation is denied, Sandfort still
+downloads, verifies, builds, and registers the VM; it reports that it cannot
+start it and the user presses play in UTM. No security property depends on the
+permission — it affects convenience only — but the app must not claim to start
+a VM it cannot.
 
 ## Third-party software installed into a guest
 

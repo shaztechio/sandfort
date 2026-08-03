@@ -732,10 +732,14 @@ enum UTMLauncher {
         return .timedOut(afterAttempts: max(1, attempts))
     }
 
-    /// Opens a bundle in UTM and starts it once UTM has registered it.
+    /// Opens a bundle in UTM, waits for UTM to register it, and starts it.
     ///
-    /// Starting must not depend on Automation permission, which the user is free
-    /// to refuse, so every path here ends by sending the start request.
+    /// Both steps are Apple Events, so both need Automation permission. That is
+    /// not a design choice: UTM's documented `utm://start?name=` URL does
+    /// nothing on UTM 4.7.5 — opening it against a registered, stopped VM leaves
+    /// it stopped — so its scripting interface is the only mechanism that
+    /// actually starts a VM. Without the permission, Sandfort can add a VM to
+    /// UTM but cannot start it, and says so rather than failing silently.
     static func openAndStart(
         bundle: URL,
         name: String,
@@ -751,19 +755,19 @@ enum UTMLauncher {
         case .registered:
             break
         case .automationDenied:
-            // UTM cannot be asked whether it is ready, so fall back to the fixed
-            // delay this used to rely on. Less reliable, but it is the behaviour
-            // the user chose by declining.
-            try? await Task.sleep(for: .seconds(2))
+            log?("Sandfort does not have permission to control UTM, so it cannot start “\(name)”. "
+                + "Press play in UTM to start it, or allow UTM under System Settings → Privacy & "
+                + "Security → Automation.")
+            return
         case .timedOut:
-            log?("UTM did not report “\(name)” as ready. Attempting to start it anyway; "
-                + "start it from UTM if it stays stopped.")
+            log?("UTM did not report “\(name)” as ready in time. Trying to start it anyway.")
         }
-        var components = URLComponents()
-        components.scheme = "utm"
-        components.host = "start"
-        components.queryItems = [URLQueryItem(name: "name", value: name)]
-        if let url = components.url { NSWorkspace.shared.open(url) }
+        do {
+            try UTMRegistryController.startVirtualMachine(named: name)
+        } catch {
+            log?("Sandfort could not start “\(name)” automatically: "
+                + "\(error.localizedDescription) Press play in UTM to start it.")
+        }
     }
 }
 

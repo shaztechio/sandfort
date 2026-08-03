@@ -119,6 +119,37 @@ final class UTMAutoStartTests: XCTestCase {
         XCTAssertEqual(probe.calls, 1)
     }
 
+    /// `utm://start?name=` is documented by UTM but does nothing on 4.7.5:
+    /// opening it against a registered, stopped VM left the VM stopped. The
+    /// scripting interface's `start` command does work. If the URL ever comes
+    /// back it can be reinstated, but nothing should quietly reintroduce it as
+    /// though it were a working fallback.
+    func testStartingDoesNotRelyOnTheURLScheme() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("sources/sandfortapp/SandfortWorkflow.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+        let code = text
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("///") }
+            .joined(separator: "\n")
+        XCTAssertFalse(
+            code.contains("\"utm\""),
+            "the utm:// URL scheme does not start a VM; use UTMRegistryController.startVirtualMachine"
+        )
+    }
+
+    /// Taken from UTM's own scripting dictionary, where `start` is UTMvstar.
+    /// A wrong code is silently ignored by UTM rather than reported, which is
+    /// exactly how the URL scheme failed.
+    func testStartUsesUTMsDocumentedEventCode() {
+        let fourCharacterCode: (String) -> OSType = { $0.utf8.reduce(0) { ($0 << 8) | OSType($1) } }
+        XCTAssertEqual(fourCharacterCode("UTMv"), 0x55544D76)
+        XCTAssertEqual(fourCharacterCode("star"), 0x73746172)
+    }
+
     /// The poll budget is what decides whether a cold UTM import fits. Two
     /// seconds did not; this pins the replacement at roughly fifteen.
     func testPollBudgetCoversAColdUTMImport() {

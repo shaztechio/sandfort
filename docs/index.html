@@ -609,7 +609,7 @@ footer { border-top: 1px solid var(--border); padding: 44px 0 56px; background: 
           <li><strong>Hardened guests.</strong> SSH disabled, unsolicited inbound traffic denied, security updates enabled, SELinux or AppArmor active.</li>
           <li><strong>Local credentials.</strong> The guest password is generated on your Mac and shown in the app. No telemetry, no secret collection, nothing transmitted.</li>
           <li><strong>Native everything.</strong> Download, hashing, QCOW2 work, ISO creation, and launch all happen through Swift APIs — no bundled shell scripts, <code>osascript</code>, or UI automation.</li>
-          <li><strong>It does automate UTM.</strong> Sandfort asks UTM to start, replace, and remove its own virtual machines, using Apple Events sent directly from Swift rather than a scripting layer. macOS asks your permission the first time. Declining costs reliability, not function.</li>
+          <li><strong>It does automate UTM.</strong> Sandfort asks UTM to start, replace, and remove its own virtual machines, using Apple Events sent directly from Swift rather than a scripting layer. macOS asks your permission the first time, and starting a sandbox needs it — decline and Sandfort still builds the VM, but you start it yourself from UTM.</li>
         </ul>
       </div>
 

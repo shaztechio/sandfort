@@ -88,6 +88,32 @@ enum UTMRegistryController {
         error.domain == NSOSStatusErrorDomain && error.code == automationNotPermittedStatus
     }
 
+    /// Asks UTM to start the VM registered under this exact name.
+    ///
+    /// UTM's documented `utm://start?name=` URL is a no-op on UTM 4.7.5:
+    /// verified by opening it against a registered, stopped VM, which stayed
+    /// stopped. UTM's scripting interface exposes a real `start` command
+    /// (`UTMvstar`), which does work, so the app uses that.
+    static func startVirtualMachine(named name: String) throws {
+        let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
+        let event = NSAppleEventDescriptor(
+            eventClass: virtualMachineClass,
+            eventID: fourCharacterCode("star"),
+            targetDescriptor: target,
+            returnID: AEReturnID(kAutoGenerateReturnID),
+            transactionID: AETransactionID(kAnyTransactionID)
+        )
+        event.setParam(objectSpecifier(named: name), forKeyword: AEKeyword(keyDirectObject))
+
+        let reply = try event.sendEvent(options: [.waitForReply], timeout: 30)
+        let errorNumber = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorNumber))?.int32Value ?? 0
+        guard errorNumber == 0 else {
+            let message = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorString))?.stringValue
+                ?? "UTM returned Apple Event error \(errorNumber)."
+            throw UTMRegistryError.startFailed(name: name, reason: message)
+        }
+    }
+
     private static func sendDeleteRequest(named name: String) throws {
         let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
         let event = NSAppleEventDescriptor(
@@ -175,9 +201,12 @@ enum UTMRegistryError: LocalizedError {
     case deletionTimedOut(name: String)
     case launchFailed
     case launchTimedOut
+    case startFailed(name: String, reason: String)
 
     var errorDescription: String? {
         switch self {
+        case let .startFailed(name, reason):
+            return "UTM could not start “\(name)”: \(reason). Start it with UTM's play button."
         case let .deleteFailed(name, reason):
             return "UTM could not remove “\(name)” from its library: \(reason)"
         case let .deletionTimedOut(name):
