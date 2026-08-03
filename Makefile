@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: app qualification-app debian-qualification-app opensuse-qualification-app test clean
+.PHONY: app qualification-app ubuntu-qualification-app debian-qualification-app opensuse-qualification-app test clean
 
 app:
 	./tools/packaging/build-macos-app.sh
 
 qualification-app:
 	SANDFORT_QUALIFICATION_PROFILE_ID=fedora-44-arm64 SANDFORT_QUALIFICATION_DISTRIBUTION=Fedora ./tools/packaging/build-macos-app.sh
+
+ubuntu-qualification-app:
+	SANDFORT_QUALIFICATION_PROFILE_ID=ubuntu-24.04-arm64 SANDFORT_QUALIFICATION_DISTRIBUTION=Ubuntu ./tools/packaging/build-macos-app.sh
 
 debian-qualification-app:
 	SANDFORT_QUALIFICATION_PROFILE_ID=debian-13-arm64 SANDFORT_QUALIFICATION_DISTRIBUTION=Debian ./tools/packaging/build-macos-app.sh

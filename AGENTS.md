@@ -44,12 +44,12 @@ without weakening the common provisioning policy.
 - `FedoraCloudInit.swift`: Fedora 44 DNF5, Workstation, firewalld, SELinux,
   automatic-update, and completion policy.
 - `DebianCloudInit.swift`: Debian 13 APT, GNOME/GDM, AppArmor, UFW,
-  unattended-upgrade, and completion policy. Debian revision 5 is production-supported.
+  unattended-upgrade, and completion policy. Debian revision 6 is production-supported.
 - `OpenSUSECloudInit.swift`: openSUSE Leap 16 Zypper, GNOME/GDM, Firefox,
   NetworkManager, firewalld, SELinux, security-patch timer, and completion
   policy. Leap's GNOME pattern pulls in neither a browser nor a terminal, unlike
   the other three desktop metapackages, so the profile installs both explicitly.
-  Leap revision 4 is production-supported.
+  Leap revision 5 is production-supported.
 - `NativeDownloader.swift`, `DiskUtilities.swift`, `ISO9660Writer.swift`: native
   download, verification, disk manipulation, and NoCloud ISO generation.
 - `OpenPGPSignatureVerifier.swift`: **security-critical.** Minimal OpenPGP
@@ -220,6 +220,8 @@ make app
 codesign --verify --deep --strict "dist/Sandfort.app"
 make qualification-app
 codesign --verify --deep --strict "dist/Sandfort Fedora Qualification.app"
+make ubuntu-qualification-app
+codesign --verify --deep --strict "dist/Sandfort Ubuntu Qualification.app"
 make debian-qualification-app
 codesign --verify --deep --strict "dist/Sandfort Debian Qualification.app"
 make opensuse-qualification-app
@@ -237,6 +239,11 @@ shipping a user-visible change, update both version values in
 app with isolated Application Support state and clearly prefixed UTM names. It
 is a development verification tool, not the production profile selector. Follow
 `docs/fedora-qualification.md`; never use production state for qualification.
+
+`make ubuntu-qualification-app` creates the corresponding isolated Ubuntu
+regression build. Follow `docs/ubuntu-qualification.md`; never use production
+state for qualification. Ubuntu is the default profile, so it is the one most
+likely to be tested against production state by accident.
 
 `make debian-qualification-app` creates the corresponding isolated Debian
 regression build. Follow `docs/debian-qualification.md`; never use production

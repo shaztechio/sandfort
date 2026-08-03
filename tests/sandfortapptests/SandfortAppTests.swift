@@ -910,6 +910,72 @@ final class SandfortAppTests: XCTestCase {
         )
     }
 
+    /// Ubuntu is the default production profile, so its qualification build has
+    /// the most to prove: selecting it must not reach production state, even
+    /// though production would resolve the same profile.
+    func testUbuntuQualificationRuntimeIsIsolatedFromProduction() throws {
+        let ubuntu = LinuxGuestCatalog.ubuntu2404ARM64
+        let qualification = SandfortRuntimeConfiguration.configuration(
+            qualificationProfileID: ubuntu.id
+        )
+        XCTAssertTrue(qualification.isQualification)
+        XCTAssertEqual(qualification.defaultProfile, ubuntu)
+        XCTAssertEqual(qualification.displayName, "Sandfort — Ubuntu Qualification")
+        XCTAssertEqual(
+            qualification.workflowEnvironment.supportDirectoryName,
+            "Sandfort Ubuntu Qualification"
+        )
+        XCTAssertEqual(
+            qualification.workflowEnvironment.vmNamePrefix,
+            "Sandfort Ubuntu Qualification"
+        )
+        XCTAssertNil(qualification.workflowEnvironment.legacySupportDirectoryName)
+        XCTAssertEqual(qualification.workflowEnvironment.supportedProfiles, [ubuntu])
+        XCTAssertEqual(qualification.selectableProfiles, [ubuntu])
+        XCTAssertTrue(qualification.cacheURL.path.hasSuffix(
+            "/Application Support/Sandfort Ubuntu Qualification/Cache"
+        ))
+        XCTAssertNotEqual(
+            qualification.supportRootURL,
+            SandfortRuntimeConfiguration.production.supportRootURL
+        )
+
+        let state = SandboxState(
+            stage: .provisioning,
+            credentials: SandboxCredentials(username: "sandfort", password: "river-lantern-amber-willow"),
+            tools: .recommended,
+            setupBundlePath: "/tmp/Ubuntu Qualification.utm",
+            sandboxBundlePath: nil,
+            guestProfileID: ubuntu.id,
+            guestProfileRevision: ubuntu.revision,
+            guestImageSHA256: ubuntu.image.sha256
+        )
+        XCTAssertEqual(
+            try SandfortWorkflow.resolveGuestProfile(
+                for: state,
+                environment: qualification.workflowEnvironment,
+                requireExactMetadata: true
+            ),
+            ubuntu
+        )
+
+        // Every superseded revision must still require a rebuild.
+        for incompatibleRevision in [1, 2, 3] {
+            var incompatibleState = state
+            incompatibleState.guestProfileRevision = incompatibleRevision
+            XCTAssertThrowsError(try SandfortWorkflow.resolveGuestProfile(
+                for: incompatibleState,
+                environment: qualification.workflowEnvironment,
+                requireExactMetadata: true
+            )) { error in
+                guard case let SandboxError.incompatibleGuestProfile(profileID) = error else {
+                    return XCTFail("Expected Ubuntu revision \(incompatibleRevision) to require rebuild")
+                }
+                XCTAssertEqual(profileID, ubuntu.id)
+            }
+        }
+    }
+
     func testDebianQualificationRuntimeIsIsolatedFromProduction() throws {
         let debian = LinuxGuestCatalog.debian13ARM64
         let qualification = SandfortRuntimeConfiguration.configuration(

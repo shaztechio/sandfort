@@ -39,8 +39,8 @@ inside a tool meant to contain untrusted code.
 
 Ubuntu revision 4 was booted in UTM on 2026-08-03 and Visual Studio Code
 launches. That is the only part of these revisions confirmed on real hardware so
-far: the rest of the Ubuntu matrix, and every revision of Fedora, Debian, and
-openSUSE, remain unconfirmed.
+far. The remaining Ubuntu checks are in `ubuntu-qualification.md`, and every
+revision of Fedora, Debian, and openSUSE is still unconfirmed.
 
 ## openSUSE Leap 16.0 ARM64
 
