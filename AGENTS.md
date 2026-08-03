@@ -83,6 +83,13 @@ without weakening the common provisioning policy.
   metadata; keep that true when editing them.
 - `docs/linux-profile-provenance.md`: immutable guest-image intake records and
   qualification status.
+- `docs/index.html` and `docs/assets/`: the public project site, served by GitHub
+  Pages from `main` and `/docs`. It shares this folder with the documentation, so
+  `docs/.nojekyll` must stay: without it Jekyll renders every `.md` here into a
+  page and treats `{{` and `{%` as Liquid. Never add a `docs/README.md`. The
+  site's claims are drawn from `security-model.md` and `LinuxGuestCatalog.swift`,
+  including its residual-risk panel; update it in the same commit that changes
+  the security model. See `docs/project-site.md`.
 
 ## Planned Linux guest catalog work
 
