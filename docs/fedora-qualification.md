@@ -14,6 +14,22 @@ The qualification app has bundle identifier
 of its UTM names with `Sandfort Fedora Qualification`. It must never read,
 repair, reset, rebuild, or delete production Sandfort state or VMs.
 
+## What is most likely to fail here
+
+Two Fedora-specific risks in revision 4, neither yet exercised:
+
+- **The terminal check has never run on Fedora.** Fedora ships Ptyxis as its
+  terminal rather than GNOME Terminal. The shared check accepts either, but that
+  branch is untested. If it fails, setup fails and no baseline is produced;
+  record what `command -v ptyxis gnome-terminal kgx gnome-console` reports.
+- **VS Code's sandbox helper under SELinux.** Electron needs
+  `/usr/local/lib/vscode/<version>/chrome-sandbox` owned by root and setuid.
+  Fedora runs SELinux in enforcing mode, and the file is installed outside the
+  usual system paths, so a denial is plausible even when the ownership is right.
+  If VS Code will not start, check `sudo ausearch -m avc -ts recent` before
+  anything else, and confirm `ls -l /usr/local/lib/vscode/*/chrome-sandbox`
+  shows `root root` with mode `-rwsr-xr-x`.
+
 ## Setup and baseline
 
 1. Open **Sandfort Fedora Qualification**, confirm the orange qualification
@@ -77,4 +93,5 @@ nonzero status for the expected masked/inactive SSH checks.
 
 Record the macOS version, Mac model, UTM version, Sandfort version, duration,
 and result of every item. A regression failure blocks release of the affected
-Fedora profile revision.
+Fedora profile revision. Revision 4 adds Visual Studio Code and the terminal and
+browser verification; revisions 1 to 3 are intentionally incompatible.
