@@ -19,6 +19,23 @@ struct ContentView: View {
     @StateObject private var model = SandfortViewModel()
 
     var body: some View {
+        NavigationSplitView {
+            EnvironmentSidebar(model: model)
+                .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 280)
+        } detail: {
+            detailPane
+        }
+        .frame(minWidth: 900, minHeight: 620)
+        .sheet(isPresented: $model.showSafetyAcknowledgement) {
+            SafetyAcknowledgementView(
+                mode: .firstRun,
+                onAccept: { model.acknowledgeSafety() },
+                onQuit: { model.declineSafetyAcknowledgement() }
+            )
+        }
+    }
+
+    private var detailPane: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 14) {
                 Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
@@ -57,46 +74,6 @@ struct ContentView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            }
-
-            GroupBox("Linux environments") {
-                HStack(alignment: .top, spacing: 10) {
-                    ForEach(model.environments) { environment in
-                        Button {
-                            model.selectEnvironment(environment.id)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(environment.profile.displayName).font(.headline)
-                                Text(environment.statusDescription)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(minWidth: 155, alignment: .leading)
-                            .padding(6)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(model.selectedEnvironmentID == environment.id ? .accentColor : .secondary)
-                        .disabled(model.isRunning)
-                    }
-                    if model.stage == nil,
-                       !model.environments.contains(where: { $0.id == model.selectedBaselineProfile.id }) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(model.selectedBaselineProfile.displayName).font(.headline)
-                            Text("Not created").font(.caption).foregroundStyle(.secondary)
-                        }
-                        .frame(minWidth: 155, alignment: .leading)
-                        .padding(12)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-                    }
-                    Menu("Add Linux Environment…") {
-                        ForEach(model.availableProfiles) { profile in
-                            Button(profile.displayName) { model.beginAddEnvironment(profile) }
-                        }
-                    }
-                    .disabled(model.availableProfiles.isEmpty || model.isRunning)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             HStack(spacing: 12) {
@@ -277,10 +254,7 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(24)
-        .frame(
-            minWidth: 760,
-            minHeight: model.baselineToolsExpanded ? (model.advancedMode ? 860 : 680) : 600
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .confirmationDialog("Has \(model.guestProfile.displayName) finished setup and been shut down?", isPresented: $model.showFinishConfirmation, titleVisibility: .visible) {
             Button("Protect Baseline and Create Instance 1") { model.finishSetup() }
             Button("Cancel", role: .cancel) {}
@@ -292,13 +266,6 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This permanently deletes this environment's Protected Baseline, every numbered instance, and everything stored in them. Other Linux environments are not changed.\n\nOn the next screen, you will configure the password for the replacement \(model.guestProfile.displayName) baseline. Verified image downloads are retained for reuse.")
-        }
-        .sheet(isPresented: $model.showSafetyAcknowledgement) {
-            SafetyAcknowledgementView(
-                mode: .firstRun,
-                onAccept: { model.acknowledgeSafety() },
-                onQuit: { model.declineSafetyAcknowledgement() }
-            )
         }
         .sheet(isPresented: $model.showRebuildPasswordPrompt) {
             VStack(alignment: .leading, spacing: 16) {
