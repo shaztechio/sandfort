@@ -70,6 +70,36 @@ final class LicenseHeaderTests: XCTestCase {
         XCTAssertTrue(manifest.hasPrefix("// swift-tools-version:"))
     }
 
+    /// A Markdown list item wrapped across lines used to render as a stray
+    /// paragraph that also closed the list, because the renderer emitted an
+    /// `<li>` per line. HELP.md is meant to be readable Markdown, so wrapping a
+    /// bullet must not break the Help Book.
+    func testHelpMarkdownListItemsSurviveLineWrapping() throws {
+        let help = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("HELP.md"),
+            encoding: .utf8
+        )
+        let lines = help.components(separatedBy: "\n")
+        var wrappedItems = 0
+        var insideCodeFence = false
+        for (index, line) in lines.enumerated() {
+            if line.hasPrefix("```") { insideCodeFence.toggle() }
+            guard !insideCodeFence else { continue }
+            let isItem = line.hasPrefix("- ")
+                || line.range(of: "^[0-9]+\\. ", options: .regularExpression) != nil
+            guard isItem, index + 1 < lines.count else { continue }
+            let next = lines[index + 1]
+            if next.hasPrefix("  "), !next.trimmingCharacters(in: .whitespaces).isEmpty {
+                wrappedItems += 1
+            }
+        }
+        // If this ever reaches zero the guarantee is untested, not satisfied.
+        XCTAssertGreaterThan(
+            wrappedItems, 0,
+            "no wrapped list item left in HELP.md, so this no longer proves anything"
+        )
+    }
+
     func testRepositoryShipsTheFullApacheLicense() throws {
         let license = try String(
             contentsOf: repositoryRoot.appendingPathComponent("LICENSE"),

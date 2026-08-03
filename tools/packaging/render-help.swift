@@ -71,6 +71,7 @@ func slug(_ value: String) -> String {
 var body: [String] = []
 var paragraph: [String] = []
 var listKind: String?
+var listItem: [String] = []
 var codeLines: [String] = []
 var inCodeBlock = false
 
@@ -80,7 +81,18 @@ func closeParagraph() {
     paragraph.removeAll()
 }
 
+/// Emits the buffered list item. Items are buffered rather than written per
+/// line so a Markdown item wrapped across lines stays a single `<li>`; writing
+/// each line immediately turned the continuation into a stray paragraph and
+/// closed the list early.
+func closeListItem() {
+    guard !listItem.isEmpty else { return }
+    body.append("<li>\(inlineMarkdown(listItem.joined(separator: " ")))</li>")
+    listItem.removeAll()
+}
+
 func closeList() {
+    closeListItem()
     guard let currentListKind = listKind else { return }
     body.append("</\(currentListKind)>")
     listKind = nil
@@ -116,24 +128,31 @@ for rawLine in markdown.components(separatedBy: .newlines) {
         body.append("<a name=\"\(anchor)\"></a><h\(level) id=\"\(anchor)\">\(inlineMarkdown(title))</h\(level)>")
         continue
     }
+    // A continuation line: indented, and we are part-way through a list item.
+    if !listItem.isEmpty, rawLine.hasPrefix("  ") {
+        listItem.append(line)
+        continue
+    }
     if line.hasPrefix("- ") {
         closeParagraph()
+        closeListItem()
         if listKind != "ul" {
             closeList()
             listKind = "ul"
             body.append("<ul>")
         }
-        body.append("<li>\(inlineMarkdown(String(line.dropFirst(2))))</li>")
+        listItem.append(String(line.dropFirst(2)))
         continue
     }
     if let match = line.range(of: #"^[0-9]+\. "#, options: .regularExpression) {
         closeParagraph()
+        closeListItem()
         if listKind != "ol" {
             closeList()
             listKind = "ol"
             body.append("<ol>")
         }
-        body.append("<li>\(inlineMarkdown(String(line[match.upperBound...])))</li>")
+        listItem.append(String(line[match.upperBound...]))
         continue
     }
     closeList()
