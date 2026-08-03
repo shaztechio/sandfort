@@ -22,13 +22,15 @@ Two Fedora-specific risks in revision 4, neither yet exercised:
   terminal rather than GNOME Terminal. The shared check accepts either, but that
   branch is untested. If it fails, setup fails and no baseline is produced;
   record what `command -v ptyxis gnome-terminal kgx gnome-console` reports.
-- **VS Code's sandbox helper under SELinux.** Electron needs
-  `/usr/local/lib/vscode/<version>/chrome-sandbox` owned by root and setuid.
-  Fedora runs SELinux in enforcing mode, and the file is installed outside the
-  usual system paths, so a denial is plausible even when the ownership is right.
-  If VS Code will not start, check `sudo ausearch -m avc -ts recent` before
-  anything else, and confirm `ls -l /usr/local/lib/vscode/*/chrome-sandbox`
-  shows `root root` with mode `-rwsr-xr-x`.
+- **VS Code's sandbox helper under SELinux — resolved on 2026-08-03.** Electron
+  needs `/usr/local/lib/vscode/<version>/chrome-sandbox` owned by root and
+  setuid, and the file sits outside the usual system paths, so a denial looked
+  plausible. It is not: revision 4 launched. Setup verifies
+  `getenforce = Enforcing` and fails otherwise, so that baseline could only exist
+  with SELinux enforcing. No `restorecon` or policy change is needed.
+  If a future revision regresses, check `sudo ausearch -m avc -ts recent` first
+  and confirm `ls -l /usr/local/lib/vscode/*/chrome-sandbox` shows `root root`
+  with mode `-rwsr-xr-x`.
 
 ## Setup and baseline
 

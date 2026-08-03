@@ -40,7 +40,9 @@ inside a tool meant to contain untrusted code.
 Ubuntu revision 4 was verified in UTM by the maintainer on 2026-08-03, including
 that Visual Studio Code launches. Its checks are recorded in
 `ubuntu-qualification.md`. Fedora revision 4 was verified by the maintainer on
-2026-08-03. Debian revision 6 and openSUSE revision 5 are still unconfirmed.
+2026-08-03, including Visual Studio Code launching under SELinux enforcing,
+which the Fedora provisioner verifies during setup. That retires the same
+concern for openSUSE, which has the same SELinux posture. Debian revision 6 and openSUSE revision 5 are still unconfirmed.
 
 ## openSUSE Leap 16.0 ARM64
 

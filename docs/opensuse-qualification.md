@@ -15,6 +15,22 @@ The qualification app has bundle identifier
 all UTM names with `Sandfort openSUSE Qualification`. It must never read,
 repair, reset, rebuild, or delete production Sandfort state or VMs.
 
+## What is most likely to fail here
+
+openSUSE is the profile that has shipped the most "looks complete, is not"
+defects: no browser in revision 1, no terminal until revision 4, because Leap's
+GNOME pattern provides neither. Revision 5 adds GNOME Terminal and Visual Studio
+Code.
+
+The SELinux question is already answered. Like openSUSE, Fedora runs SELinux
+enforcing and verifies it during setup, and Visual Studio Code launched there on
+2026-08-03 with its setuid sandbox helper under `/usr/local`. No `restorecon` or
+policy change should be needed here either.
+
+What remains untested is the terminal itself: Leap needed `gnome-terminal`
+installed explicitly, so confirm it both installs and launches from the GNOME
+overview.
+
 ## Setup and baseline
 
 1. Open **Sandfort openSUSE Qualification**, confirm the orange openSUSE
