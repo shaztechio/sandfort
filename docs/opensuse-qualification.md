@@ -18,7 +18,7 @@ repair, reset, rebuild, or delete production Sandfort state or VMs.
 ## Setup and baseline
 
 1. Open **Sandfort openSUSE Qualification**, confirm the orange openSUSE
-   qualification notice, and use **Check My Mac**.
+   qualification notice, and use **Check My Mac** (the stethoscope button in the toolbar).
 2. Choose **Create openSUSE Qualification VM**. Confirm the exact Leap 16.0
    Build 18.7 AArch64 cloud QCOW2 downloads with percentage progress and passes
    SHA-256 verification.

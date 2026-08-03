@@ -35,8 +35,16 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItem {
-                Button("Check My Mac") { model.doctor() }
-                    .disabled(model.isRunning)
+                Button {
+                    model.doctor()
+                } label: {
+                    Image(systemName: "stethoscope")
+                }
+                .disabled(model.isRunning)
+                // An icon-only button has no visible name, so the tooltip and
+                // the accessibility label carry it instead.
+                .help("Check My Mac")
+                .accessibilityLabel("Check My Mac")
             }
             ToolbarItem {
                 Button {

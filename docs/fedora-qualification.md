@@ -17,7 +17,7 @@ repair, reset, rebuild, or delete production Sandfort state or VMs.
 ## Setup and baseline
 
 1. Open **Sandfort Fedora Qualification**, confirm the orange qualification
-   notice, and use **Check My Mac**.
+   notice, and use **Check My Mac** (the stethoscope button in the toolbar).
 2. Choose **Create Fedora Qualification VM**. Confirm the exact Fedora Cloud 44
    image downloads with percentage progress and passes SHA-256 verification.
 3. In UTM, confirm the clearly labeled Baseline Setup VM boots through AArch64

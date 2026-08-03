@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import AppKit
 import XCTest
 @testable import SandfortApp
 
@@ -27,6 +28,18 @@ final class AppLifecycleTests: XCTestCase {
     override func tearDown() {
         SandfortActivityMonitor.shared.reset()
         super.tearDown()
+    }
+
+    /// The toolbar's Check My Mac button is icon-only. A symbol name that does
+    /// not resolve renders as an empty button with no visible label, which is
+    /// invisible in a build log and obvious only to whoever opens the app.
+    func testToolbarSymbolsResolveOnThisSystem() {
+        for name in ["stethoscope", "questionmark.circle", "ellipsis.circle", "eye", "eye.slash"] {
+            XCTAssertNotNil(
+                NSImage(systemSymbolName: name, accessibilityDescription: nil),
+                "\(name) does not resolve, so its button would render blank"
+            )
+        }
     }
 
     func testIdleByDefaultSoQuittingDoesNotNag() {

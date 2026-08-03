@@ -17,7 +17,7 @@ reset, rebuild, or delete production Sandfort state or VMs.
 ## Setup and baseline
 
 1. Open **Sandfort Debian Qualification**, confirm the orange Debian
-   qualification notice, and use **Check My Mac**.
+   qualification notice, and use **Check My Mac** (the stethoscope button in the toolbar).
 2. Choose **Create Debian Qualification VM**. Confirm the exact Debian 13
    (Trixie) image downloads with percentage progress and passes SHA-256
    verification.
