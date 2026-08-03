@@ -146,7 +146,15 @@ enum GuestProvisioningSupport {
         # whole purpose is containing untrusted code.
         chown root:root "$codeInstall/chrome-sandbox"
         chmod 4755 "$codeInstall/chrome-sandbox"
-        test -u "$codeInstall/chrome-sandbox"
+        # Check the owner, not only the bit. Microsoft's archive already carries
+        # the setuid bit, so `test -u` alone passes on precisely the broken
+        # layout this is meant to catch: setuid, but owned by whichever local
+        # account happens to share the archive's uid.
+        if [ "$(stat -c '%u' "$codeInstall/chrome-sandbox")" != "0" ] \
+          || [ ! -u "$codeInstall/chrome-sandbox" ]; then
+          status "ERROR: Visual Studio Code's sandbox helper is not setuid root, so the editor would not launch."
+          false
+        fi
         ln -sfn "$codeInstall/bin/code" /usr/local/bin/code
         cat > /usr/local/share/applications/code.desktop <<DESKTOP
         [Desktop Entry]

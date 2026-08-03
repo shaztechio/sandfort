@@ -147,8 +147,12 @@ final class GuestToolingTests: XCTestCase {
         )
         XCTAssertTrue(script.contains("chown root:root \"$codeInstall/chrome-sandbox\""))
         XCTAssertTrue(script.contains("chmod 4755 \"$codeInstall/chrome-sandbox\""))
-        XCTAssertTrue(script.contains("test -u \"$codeInstall/chrome-sandbox\""),
-                      "the setuid bit must be verified, not assumed")
+        // Ownership is the part that was actually wrong. The archive already
+        // carries the setuid bit, so checking the bit alone passes on the broken
+        // layout: setuid, owned by a normal user, refused by Chromium.
+        XCTAssertTrue(script.contains("stat -c '%u'"), "the owner must be verified, not just the bit")
+        XCTAssertTrue(script.contains("!= \"0\""), "the owner must be root")
+        XCTAssertTrue(script.contains("! -u \"$codeInstall/chrome-sandbox\""))
     }
 
     /// The tempting shortcut for the same failure is --no-sandbox, which
