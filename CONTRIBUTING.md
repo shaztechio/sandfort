@@ -30,6 +30,18 @@ make app      # release build into dist/Sandfort.app, ad-hoc signed
 configured for manual runs only (`workflow_dispatch`), so opening a pull request
 does not run the suite for you — run it locally and say so in the pull request.
 
+Editing `HELP.md` has a trap worth knowing. Help Viewer keeps its own copy of
+the rendered Help Book under
+`~/Library/Group Containers/group.com.apple.helpviewer.content/Library/Caches/`,
+and the cache key uses `CFBundleShortVersionString` — **not** the build number.
+Rebuilding with a new `CFBundleVersion` does not invalidate it, so help edits
+appear to have no effect. Either bump the short version or clear that cache:
+
+```sh
+rm -rf ~/Library/Group\ Containers/group.com.apple.helpviewer.content/Library/Caches/app.sandfort.*
+killall helpd
+```
+
 For packaging or UI changes, also run `make app` and verify the result:
 
 ```sh

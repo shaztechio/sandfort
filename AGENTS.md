@@ -69,6 +69,10 @@ without weakening the common provisioning policy.
 - `tools/packaging`: development app-bundle packaging metadata and script.
 - `HELP.md`: canonical user help source. Packaging renders it into Sandfort's
   indexed native macOS Help Book; do not edit generated Help Book HTML directly.
+  Verify a help change by reading the rendered HTML in the built app, not by
+  opening Help Viewer: it caches its own copy keyed on
+  `CFBundleShortVersionString`, so a new build number serves stale content and a
+  fixed bug still looks broken. See CONTRIBUTING.md for the cache path.
 - `docs/architecture.md`, `docs/security-model.md`, and
   `docs/adding-a-platform.md`: design intent and provider requirements.
 - `docs/password-strength.md`: generated guest-password entropy, storage,
