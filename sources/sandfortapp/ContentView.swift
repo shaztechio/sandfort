@@ -26,11 +26,13 @@ struct ContentView: View {
             EnvironmentSidebar(model: model)
                 .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 280)
         } detail: {
-            EnvironmentDetailView(model: model)
-                .padding(20)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            ScrollView {
+                EnvironmentDetailView(model: model)
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .frame(minWidth: 560)
         }
-        .frame(minWidth: 900, minHeight: 620)
         .toolbar {
             ToolbarItem {
                 Button("Check My Mac") { model.doctor() }

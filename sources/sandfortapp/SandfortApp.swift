@@ -28,6 +28,7 @@ struct SandfortApp: App {
         Window(SandfortRuntimeConfiguration.current.displayName, id: "sandfort-main") {
             ContentView()
         }
+            .defaultSize(width: 1000, height: 720)
             // The window sizes itself no longer: a split view has to be
             // resizable for its divider to be useful.
             .windowResizability(.contentMinSize)
