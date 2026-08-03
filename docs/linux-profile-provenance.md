@@ -37,7 +37,10 @@ desktop entry launches the GUI binary rather than the command line wrapper.
 `--no-sandbox` was deliberately not used: it would disable Electron's sandbox
 inside a tool meant to contain untrusted code.
 
-None of these revisions has been confirmed on a real UTM boot yet.
+Ubuntu revision 4 was booted in UTM on 2026-08-03 and Visual Studio Code
+launches. That is the only part of these revisions confirmed on real hardware so
+far: the rest of the Ubuntu matrix, and every revision of Fedora, Debian, and
+openSUSE, remain unconfirmed.
 
 ## openSUSE Leap 16.0 ARM64
 
