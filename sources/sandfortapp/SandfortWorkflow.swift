@@ -185,7 +185,7 @@ actor SandfortWorkflow {
         let stateDescription = state.map {
             "Sandbox state: \($0.stage.rawValue), \($0.resolvedInstances.count) clean instance(s)."
         } ?? "No sandbox has been created yet."
-        guard let utm = await UTMLauncher.installation else {
+        guard let utm = UTMLauncher.installation else {
             // Reported rather than thrown: "what is wrong with my Mac" is the
             // question this answers, so the answer should be actionable.
             return "UTM is not installed. Sandfort needs it to run virtual machines. "
@@ -209,7 +209,7 @@ actor SandfortWorkflow {
         }
         // Validate user input before deleting an existing baseline during Rebuild.
         let requestedCredentials = try password.map { try profile.credentials(password: $0) }
-        guard await UTMLauncher.isInstalled else { throw SandboxError.utmNotInstalled }
+        guard UTMLauncher.isInstalled else { throw SandboxError.utmNotInstalled }
         if rebuild {
             if let existingState = currentState() {
                 let baseline = URL(fileURLWithPath: existingState.setupBundlePath)
@@ -644,7 +644,7 @@ enum UTMLauncher {
     nonisolated static let downloadPage = URL(string: "https://mac.getutm.app/")!
 
     /// Where UTM actually is, and what version it is.
-    struct Installation: Equatable {
+    struct Installation: Equatable, Sendable {
         let applicationURL: URL
         let version: String?
 
@@ -663,7 +663,13 @@ enum UTMLauncher {
     /// other than /Applications or ~/Applications, even though macOS knew
     /// exactly where it was. The inputs are injectable so the absent case can be
     /// tested on a machine that has UTM installed.
-    static func resolveInstallation(
+    ///
+    /// Deliberately `nonisolated`: this only queries Launch Services and the
+    /// filesystem, and the bundle builder needs it from the workflow actor while
+    /// creating a baseline. When it was main-actor isolated that caller reached
+    /// it through `MainActor.assumeIsolated`, which asserts rather than hops and
+    /// trapped every time a baseline was created.
+    nonisolated static func resolveInstallation(
         identifierLookup: (String) -> URL? = { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) },
         fallbackPaths: [String] = ["/Applications/UTM.app", NSHomeDirectory() + "/Applications/UTM.app"],
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
@@ -678,9 +684,9 @@ enum UTMLauncher {
         )
     }
 
-    static var installation: Installation? { resolveInstallation() }
+    nonisolated static var installation: Installation? { resolveInstallation() }
 
-    static var isInstalled: Bool { installation != nil }
+    nonisolated static var isInstalled: Bool { installation != nil }
 
     static func openAndStart(bundle: URL, name: String) async {
         NSWorkspace.shared.open(bundle)

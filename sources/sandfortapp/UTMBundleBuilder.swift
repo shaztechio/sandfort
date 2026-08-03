@@ -300,8 +300,14 @@ struct UTMBundleBuilder: VirtualMachineProvider {
     /// check can never disagree. They could before: both repeated the same two
     /// hardcoded paths, and a UTM installed elsewhere produced a misleading
     /// "reinstall UTM" error about a perfectly good installation.
+    ///
+    /// Called from the workflow actor, never the main actor, so the resolver it
+    /// uses has to be callable from anywhere. Reaching a main-actor-isolated
+    /// resolver from here through `MainActor.assumeIsolated` compiled and passed
+    /// tests, then trapped at runtime on every baseline creation: it asserts the
+    /// current executor rather than hopping to it.
     private static func utmFirmwareURL() -> URL? {
-        guard let firmware = MainActor.assumeIsolated({ UTMLauncher.installation?.firmwareURL }),
+        guard let firmware = UTMLauncher.installation?.firmwareURL,
               FileManager.default.fileExists(atPath: firmware.path) else { return nil }
         return firmware
     }
