@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<!--
+  Copyright 2026 Sandfort contributors
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sandfort — a clean machine for untrusted work</title>
+<meta name="description" content="Sandfort is a native macOS app that creates disposable Ubuntu, Fedora, Debian, and openSUSE VMs in UTM, so untrusted code never runs on your real machine." />
+<link rel="icon" href="assets/Sandfort.png" />
+<meta property="og:title" content="Sandfort — a clean machine for untrusted work" />
+<meta property="og:description" content="Disposable Linux VMs for untrusted code, on Apple silicon. Offline by default, verified images, reset in seconds." />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="assets/Sandfort.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<style>
+:root {
+  color-scheme: light dark;
+
+  --sand-50:  #fdf6e9;
+  --sand-100: #f7e7c8;
+  --sand-200: #f0d09a;
+  --sand-300: #e8b46a;
+  --sand-400: #d98b3c;
+  --sand-500: #b96f2b;
+
+  --sky-300: #6fb3d4;
+  --sky-400: #4a9fc9;
+  --sky-500: #3d8fb8;
+  --sky-700: #235b7d;
+
+  --clay-400: #e05a3f;
+  --clay-500: #c8462d;
+
+  --bg:        #fbf7f0;
+  --bg-alt:    #f4ece0;
+  --surface:   #ffffff;
+  --border:    #e6dac6;
+  --ink:       #241c12;
+  --ink-soft:  #5f5344;
+  --ink-faint: #8b7d6b;
+  --shadow:    0 1px 2px rgba(60,40,15,.06), 0 8px 24px -12px rgba(60,40,15,.18);
+  --shadow-lg: 0 2px 4px rgba(60,40,15,.06), 0 24px 60px -24px rgba(60,40,15,.35);
+
+  --radius: 14px;
+  --measure: 68ch;
+  --page: 1120px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:        #16120d;
+    --bg-alt:    #1e1811;
+    --surface:   #221b14;
+    --border:    #3a2f22;
+    --ink:       #f6eee0;
+    --ink-soft:  #c3b39c;
+    --ink-faint: #93826c;
+    --sand-400:  #e8a54a;
+    --sand-500:  #f0c078;
+    --sky-400:   #6fb3d4;
+    --sky-500:   #8cc6e2;
+    --clay-400:  #f07a5c;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    --shadow-lg: 0 2px 4px rgba(0,0,0,.4), 0 24px 60px -24px rgba(0,0,0,.8);
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+h1, h2, h3 { line-height: 1.18; letter-spacing: -.02em; margin: 0; font-weight: 640; }
+p { margin: 0; }
+a { color: var(--sky-500); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: var(--clay-400); }
+code, kbd {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: .88em;
+  background: color-mix(in srgb, var(--sand-400) 14%, transparent);
+  border-radius: 5px;
+  padding: .12em .38em;
+}
+
+.wrap { max-width: var(--page); margin: 0 auto; padding: 0 28px; }
+.stack > * + * { margin-top: var(--gap, 18px); }
+
+/* ---------- top bar ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border-bottom: 1px solid transparent;
+  transition: border-color .2s;
+}
+.topbar.scrolled { border-bottom-color: var(--border); }
+.topbar .wrap { display: flex; align-items: center; gap: 14px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 660; letter-spacing: -.02em; color: var(--ink); text-decoration: none; }
+.brand img { width: 28px; height: 28px; border-radius: 7px; }
+.topnav { margin-left: auto; display: flex; gap: 22px; align-items: center; }
+.topnav a { color: var(--ink-soft); text-decoration: none; font-size: 15px; font-weight: 520; white-space: nowrap; }
+.topnav a:hover { color: var(--ink); }
+@media (max-width: 760px) { .topnav { gap: 16px; } .topnav .hide-sm { display: none; } }
+@media (max-width: 580px) { .topnav .hide-xs { display: none; } }
+
+/* ---------- hero ---------- */
+.hero { position: relative; padding: 76px 0 64px; overflow: hidden; }
+.hero::before {
+  content: ""; position: absolute; inset: -50% -20% auto -20%; height: 130%;
+  background:
+    radial-gradient(60% 55% at 22% 8%, color-mix(in srgb, var(--sand-300) 46%, transparent), transparent 68%),
+    radial-gradient(52% 48% at 82% 22%, color-mix(in srgb, var(--sky-400) 30%, transparent), transparent 66%);
+  filter: blur(10px); pointer-events: none;
+}
+.hero > .wrap { position: relative; }
+.hero-grid { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,.85fr); gap: 56px; align-items: center; }
+@media (max-width: 940px) { .hero-grid { grid-template-columns: 1fr; gap: 40px; } }
+
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--sand-500); background: color-mix(in srgb, var(--sand-300) 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sand-400) 32%, transparent);
+  border-radius: 999px; padding: 5px 13px;
+}
+@media (prefers-color-scheme: dark) { .eyebrow { color: var(--sand-500); } }
+
+.hero h1 { font-size: clamp(38px, 6.2vw, 62px); font-weight: 700; margin-top: 20px; }
+.hero h1 .accent {
+  background: linear-gradient(100deg, var(--sand-400), var(--clay-400) 70%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.lede { font-size: clamp(17px, 2.1vw, 20px); color: var(--ink-soft); max-width: 54ch; margin-top: 18px; }
+
+.cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 9px;
+  border-radius: 11px; padding: 12px 20px; font-size: 15.5px; font-weight: 600;
+  text-decoration: none; border: 1px solid transparent; transition: transform .12s, box-shadow .12s, background .12s;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn-primary { background: linear-gradient(180deg, var(--sand-400), var(--sand-500)); color: #fff; box-shadow: var(--shadow); }
+.btn-primary:hover { color: #fff; box-shadow: var(--shadow-lg); }
+.btn-ghost { background: var(--surface); color: var(--ink); border-color: var(--border); box-shadow: var(--shadow); }
+.btn-ghost:hover { color: var(--ink); border-color: var(--sand-400); }
+.btn svg { width: 17px; height: 17px; }
+
+.badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+.badge {
+  font-size: 13px; font-weight: 550; color: var(--ink-soft);
+  border: 1px solid var(--border); background: var(--surface);
+  border-radius: 999px; padding: 5px 12px;
+}
+
+.hero-art { display: flex; justify-content: center; }
+.hero-art img {
+  width: min(300px, 74vw); height: auto;
+  border-radius: 28%; box-shadow: var(--shadow-lg);
+  transform: rotate(-2.5deg);
+}
+
+/* ---------- sections ---------- */
+section { padding: 76px 0; }
+.section-alt { background: var(--bg-alt); border-block: 1px solid var(--border); }
+.section-head { max-width: var(--measure); margin-bottom: 44px; }
+.section-head h2 { font-size: clamp(27px, 3.6vw, 36px); }
+.section-head p { color: var(--ink-soft); margin-top: 14px; font-size: 17.5px; }
+.kicker {
+  font-size: 13px; font-weight: 640; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--sky-500); margin-bottom: 12px;
+}
+
+/* ---------- pull quote / problem ---------- */
+.problem {
+  display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 48px; align-items: start;
+}
+@media (max-width: 860px) { .problem { grid-template-columns: 1fr; gap: 32px; } }
+.problem p + p { margin-top: 16px; }
+.problem .note {
+  border-left: 3px solid var(--sand-400);
+  padding: 4px 0 4px 20px; color: var(--ink-soft); font-size: 16.5px;
+}
+
+/* ---------- flow diagram ---------- */
+.flow { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px; box-shadow: var(--shadow); }
+.flow svg { width: 100%; height: auto; display: block; }
+.flow figcaption { color: var(--ink-faint); font-size: 14px; margin-top: 16px; text-align: center; }
+
+/* ---------- steps ---------- */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; counter-reset: step; }
+@media (max-width: 860px) { .steps { grid-template-columns: 1fr; } }
+.step {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 26px 24px 28px; box-shadow: var(--shadow); position: relative;
+}
+.step::before {
+  counter-increment: step; content: counter(step);
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px;
+  background: color-mix(in srgb, var(--sand-300) 30%, transparent);
+  color: var(--sand-500); font-weight: 700; font-size: 16px; margin-bottom: 16px;
+}
+.step h3 { font-size: 18.5px; }
+.step p { color: var(--ink-soft); font-size: 15.5px; margin-top: 9px; }
+
+/* ---------- distro cards ---------- */
+.distros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+@media (max-width: 1000px) { .distros { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px)  { .distros { grid-template-columns: 1fr; } }
+.distro {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 22px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px;
+  border-top: 3px solid var(--dot, var(--sand-400));
+}
+.distro h3 { font-size: 17px; }
+.distro .rel { color: var(--ink-faint); font-size: 13.5px; font-weight: 550; }
+.distro ul { margin: 6px 0 0; padding-left: 18px; color: var(--ink-soft); font-size: 14.5px; }
+.distro li { margin: 3px 0; }
+.specs {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 32px; justify-content: center;
+  color: var(--ink-faint); font-size: 14.5px;
+}
+.specs span { border: 1px dashed var(--border); border-radius: 999px; padding: 4px 14px; }
+
+/* ---------- boundary columns ---------- */
+.cols2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+@media (max-width: 860px) { .cols2 { grid-template-columns: 1fr; } }
+.panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 28px; box-shadow: var(--shadow);
+}
+.panel h3 { font-size: 19px; display: flex; align-items: center; gap: 10px; }
+.panel ul { list-style: none; margin: 20px 0 0; padding: 0; }
+.panel li { position: relative; padding-left: 30px; margin: 13px 0; color: var(--ink-soft); font-size: 15.5px; }
+.panel li strong { color: var(--ink); font-weight: 600; }
+.panel li::before {
+  position: absolute; left: 0; top: -1px; font-size: 16px; font-weight: 700;
+}
+.panel-yes li::before { content: "✓"; color: #2e9e6b; }
+.panel-no  li::before { content: "!"; color: var(--clay-400); left: 7px; }
+.panel-no { border-color: color-mix(in srgb, var(--clay-400) 34%, var(--border)); }
+.pill {
+  font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase;
+  border-radius: 999px; padding: 3px 10px;
+}
+.pill-yes { background: color-mix(in srgb, #2e9e6b 16%, transparent); color: #227952; }
+.pill-no  { background: color-mix(in srgb, var(--clay-400) 16%, transparent); color: var(--clay-500); }
+@media (prefers-color-scheme: dark) {
+  .pill-yes { color: #6dd3a4; }
+  .pill-no  { color: var(--clay-400); }
+}
+
+/* ---------- feature grid ---------- */
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+@media (max-width: 940px) { .features { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px) { .features { grid-template-columns: 1fr; } }
+.feature { padding: 4px 0; }
+.feature .ico {
+  width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--sky-400) 16%, transparent); color: var(--sky-500);
+  margin-bottom: 14px;
+}
+.feature .ico svg { width: 20px; height: 20px; }
+.feature h3 { font-size: 17px; }
+.feature p { color: var(--ink-soft); font-size: 15.5px; margin-top: 8px; }
+
+/* ---------- quickstart ---------- */
+.quick { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.05fr); gap: 44px; align-items: start; }
+@media (max-width: 900px) { .quick { grid-template-columns: 1fr; gap: 30px; } }
+.terminal {
+  background: #17120c; border: 1px solid #34291c; border-radius: var(--radius);
+  overflow: hidden; box-shadow: var(--shadow-lg);
+}
+.terminal .bar { display: flex; gap: 7px; padding: 12px 15px; background: #1f1810; border-bottom: 1px solid #34291c; }
+.terminal .bar i { width: 11px; height: 11px; border-radius: 50%; background: #4a3c2a; }
+.terminal .bar i:nth-child(1) { background: #e05a3f; }
+.terminal .bar i:nth-child(2) { background: #e8b46a; }
+.terminal .bar i:nth-child(3) { background: #6fb3d4; }
+.terminal pre {
+  margin: 0; padding: 20px 22px; overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 14px; line-height: 1.9; color: #ded2be;
+}
+.terminal .c { color: #8b7d6b; }
+.terminal .p { color: #6fb3d4; }
+.terminal .k { color: #e8b46a; }
+ol.numbered { margin: 0; padding-left: 22px; color: var(--ink-soft); }
+ol.numbered li { margin: 12px 0; padding-left: 4px; }
+ol.numbered strong { color: var(--ink); font-weight: 600; }
+.req { margin-top: 26px; font-size: 15px; color: var(--ink-faint); }
+
+/* ---------- docs links ---------- */
+.doclist { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 940px) { .doclist { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px) { .doclist { grid-template-columns: 1fr; } }
+.doc {
+  display: block; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px; text-decoration: none; box-shadow: var(--shadow);
+  transition: transform .12s, border-color .12s;
+}
+.doc:hover { transform: translateY(-2px); border-color: var(--sand-400); }
+.doc b { display: block; color: var(--ink); font-size: 15.5px; font-weight: 620; }
+.doc span { display: block; color: var(--ink-faint); font-size: 14px; margin-top: 4px; }
+
+/* ---------- callout ---------- */
+.callout {
+  background: color-mix(in srgb, var(--clay-400) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--clay-400) 30%, var(--border));
+  border-radius: var(--radius); padding: 26px 28px; max-width: var(--measure);
+}
+.callout h3 { font-size: 18px; color: var(--clay-500); }
+@media (prefers-color-scheme: dark) { .callout h3 { color: var(--clay-400); } }
+.callout p { color: var(--ink-soft); margin-top: 10px; font-size: 16px; }
+
+/* ---------- footer ---------- */
+footer { border-top: 1px solid var(--border); padding: 44px 0 56px; background: var(--bg-alt); }
+.foot { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between; }
+.foot p { color: var(--ink-faint); font-size: 14.5px; }
+.foot nav { display: flex; flex-wrap: wrap; gap: 20px; }
+.foot nav a { color: var(--ink-soft); text-decoration: none; font-size: 14.5px; }
+.foot nav a:hover { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar" id="topbar">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/Sandfort.png" alt="" /> Sandfort</a>
+    <nav class="topnav">
+      <a href="#how" class="hide-sm">How it works</a>
+      <a href="#guests" class="hide-sm">Guests</a>
+      <a href="#boundary" class="hide-xs">Isolation</a>
+      <a href="#start" class="hide-xs">Get started</a>
+      <a href="https://github.com/shazron/sandbox-vm">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow">Open source · Apache-2.0</span>
+        <h1>A clean machine for <span class="accent">untrusted work</span>.</h1>
+        <p class="lede">
+          Sandfort is a native macOS app that builds disposable Linux virtual machines
+          in UTM. Run the take-home challenge, the unvetted dependency, or the sketchy
+          repository inside one — then throw it away and start clean in seconds.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/shazron/sandbox-vm">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            View on GitHub
+          </a>
+          <a class="btn btn-ghost" href="#start">Get started</a>
+        </div>
+        <div class="badges">
+          <span class="badge">macOS 13+</span>
+          <span class="badge">Apple silicon</span>
+          <span class="badge">Runs on UTM</span>
+          <span class="badge">Ubuntu · Fedora · Debian · openSUSE</span>
+        </div>
+      </div>
+      <div class="hero-art">
+        <img src="assets/Sandfort.png" alt="Sandfort app icon: a sandbox holding a sandcastle with a shield" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section-alt">
+  <div class="wrap">
+    <div class="problem">
+      <div>
+        <p class="kicker">Why it exists</p>
+        <h2 style="font-size:clamp(26px,3.4vw,34px)">Some code should never touch your real machine.</h2>
+        <p class="note" style="margin-top:22px">
+          A recruiter sends a coding challenge. A tutorial says to pipe a script into your
+          shell. A dependency you have never heard of wants a post-install hook.
+        </p>
+      </div>
+      <div>
+        <p>
+          Each of those runs with your files, your SSH keys, your browser profile, and your
+          password manager sitting right there. Attackers know it — Elastic Security Labs
+          documented a campaign that
+          <a href="https://www.elastic.co/security-labs/contagious-interview-malware-svg-steganography">delivered malware through fake interview challenges</a>,
+          which is part of what prompted this project.
+        </p>
+        <p>
+          Sandfort's answer is boring on purpose: give that work a whole separate computer,
+          make the separate computer cheap to create, and make throwing it away the normal
+          thing to do rather than a chore.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="kicker">How it works</p>
+      <h2>Build once. Reset forever.</h2>
+      <p>
+        Sandfort provisions one trusted <strong>protected baseline</strong> per distribution,
+        then stamps out numbered disposable instances from it. Resetting an instance restores
+        its disk and firmware state from that baseline — it does not clean up a dirty machine,
+        it replaces it.
+      </p>
+    </div>
+
+    <figure class="flow">
+      <svg viewBox="0 0 900 300" role="img" aria-label="Diagram: a protected baseline produces three independent numbered instances, each of which can be reset back to the baseline state.">
+        <defs>
+          <linearGradient id="gBase" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#e8b46a"/><stop offset="100%" stop-color="#d98b3c"/>
+          </linearGradient>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#8b7d6b"/>
+          </marker>
+        </defs>
+
+        <!-- baseline -->
+        <rect x="24" y="96" width="212" height="108" rx="16" fill="url(#gBase)"/>
+        <g transform="translate(48,124)" fill="#fff">
+          <path d="M11 0 L22 4.4 v6.6 c0 6.6-4.6 12.8-11 14.3 -6.4-1.5-11-7.7-11-14.3 V4.4 Z" opacity=".95"/>
+        </g>
+        <text x="82" y="136" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="15.5" font-weight="700" fill="#fff">Protected</text>
+        <text x="82" y="156" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="15.5" font-weight="700" fill="#fff">Baseline</text>
+        <text x="48" y="178" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="11.5" fill="#fff" opacity=".85">verified image</text>
+        <text x="48" y="193" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="11.5" fill="#fff" opacity=".85">never run directly</text>
+
+        <!-- fan-out arrows -->
+        <path d="M244 150 C 300 150, 300 64, 356 64"   stroke="#8b7d6b" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+        <path d="M244 150 L 356 150"                    stroke="#8b7d6b" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+        <path d="M244 150 C 300 150, 300 236, 356 236" stroke="#8b7d6b" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+        <!-- instances -->
+        <g font-family="-apple-system,BlinkMacSystemFont,sans-serif">
+          <rect x="366" y="30" width="228" height="68" rx="13" fill="none" stroke="#4a9fc9" stroke-width="2"/>
+          <circle cx="392" cy="64" r="6" fill="#4a9fc9"/>
+          <text x="410" y="60" font-size="14.5" font-weight="650" fill="currentColor">Instance 1</text>
+          <text x="410" y="79" font-size="12.5" fill="currentColor" opacity=".62">offline · own disk, UUID, MAC</text>
+
+          <rect x="366" y="116" width="228" height="68" rx="13" fill="none" stroke="#4a9fc9" stroke-width="2"/>
+          <circle cx="392" cy="150" r="6" fill="#4a9fc9"/>
+          <text x="410" y="146" font-size="14.5" font-weight="650" fill="currentColor">Instance 2</text>
+          <text x="410" y="165" font-size="12.5" fill="currentColor" opacity=".62">internet enabled by choice</text>
+
+          <rect x="366" y="202" width="228" height="68" rx="13" fill="none" stroke="#4a9fc9" stroke-width="2"/>
+          <circle cx="392" cy="236" r="6" fill="#4a9fc9"/>
+          <text x="410" y="232" font-size="14.5" font-weight="650" fill="currentColor">Instance 3</text>
+          <text x="410" y="251" font-size="12.5" fill="currentColor" opacity=".62">runs concurrently</text>
+        </g>
+
+        <!-- reset loop -->
+        <path d="M602 64 C 700 64, 700 236, 602 236" stroke="#e05a3f" stroke-width="2" fill="none" stroke-dasharray="6 5"/>
+        <path d="M676 150 L 862 150" stroke="#e05a3f" stroke-width="2" fill="none" stroke-dasharray="6 5"/>
+        <g font-family="-apple-system,BlinkMacSystemFont,sans-serif">
+          <text x="712" y="132" font-size="13.5" font-weight="650" fill="#e05a3f">Reset &amp; Run Clean</text>
+          <text x="712" y="176" font-size="12.5" fill="currentColor" opacity=".62">disk + UEFI restored</text>
+          <text x="712" y="194" font-size="12.5" fill="currentColor" opacity=".62">from the baseline</text>
+        </g>
+      </svg>
+      <figcaption>One baseline per distribution. Instances are independent, numbered, and disposable.</figcaption>
+    </figure>
+
+    <div class="steps" style="margin-top:40px">
+      <div class="step">
+        <h3>Create the baseline</h3>
+        <p>
+          Sandfort downloads the distribution's official ARM64 cloud image, verifies its
+          pinned SHA-256, and provisions it with cloud-init: desktop, firewall, guest tools,
+          security updates, and the development tools you picked.
+        </p>
+      </div>
+      <div class="step">
+        <h3>Work in an instance</h3>
+        <p>
+          Every clean sandbox is a full independent copy with its own disk, UEFI state, VM
+          UUID, and MAC address. Open the untrusted thing there. Instances run side by side,
+          and offline is the default.
+        </p>
+      </div>
+      <div class="step">
+        <h3>Reset or delete</h3>
+        <p>
+          <strong>Reset &amp; Run Clean</strong> restores that instance from the baseline.
+          <strong>Resume</strong> deliberately keeps its state — and its contamination.
+          Deleting moves the bundle to the Trash, and numbers are never reused.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section-alt" id="guests">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="kicker">Curated guests</p>
+      <h2>Four distributions, each actually booted and verified.</h2>
+      <p>
+        The catalog is deliberately small. A profile ships only after its official image,
+        pinned checksum, ARM64 boot behaviour, desktop, firewall, and completion checks are
+        tested end to end on real hardware — not just configured and hoped for.
+      </p>
+    </div>
+
+    <div class="distros">
+      <article class="distro" style="--dot:#e05a3f">
+        <span class="rel">Default profile</span>
+        <h3>Ubuntu 24.04 LTS</h3>
+        <ul>
+          <li>UFW firewall</li>
+          <li>unattended-upgrades</li>
+          <li>GNOME desktop</li>
+          <li>Signature-verified checksum</li>
+        </ul>
+      </article>
+      <article class="distro" style="--dot:#4a9fc9">
+        <span class="rel">Cloud edition</span>
+        <h3>Fedora Cloud 44</h3>
+        <ul>
+          <li>firewalld + SELinux enforcing</li>
+          <li>Security-only DNF5 updates</li>
+          <li>Workstation desktop</li>
+          <li>Signature-verified checksum</li>
+        </ul>
+      </article>
+      <article class="distro" style="--dot:#c8462d">
+        <span class="rel">Trixie</span>
+        <h3>Debian 13</h3>
+        <ul>
+          <li>UFW + AppArmor</li>
+          <li>unattended-upgrades</li>
+          <li>GNOME / GDM</li>
+          <li>Hash-verified checksum</li>
+        </ul>
+      </article>
+      <article class="distro" style="--dot:#3f9c5a">
+        <span class="rel">Leap</span>
+        <h3>openSUSE Leap 16.0</h3>
+        <ul>
+          <li>firewalld + SELinux enforcing</li>
+          <li>Daily security patch timer</li>
+          <li>GNOME + Firefox + terminal</li>
+          <li>Signature-verified checksum</li>
+        </ul>
+      </article>
+    </div>
+
+    <div class="specs">
+      <span>4 GB RAM</span>
+      <span>4 vCPU</span>
+      <span>64 GiB disk</span>
+      <span>Git · curl · jq always installed</span>
+      <span>Python 3 and Node.js LTS optional</span>
+      <span>VS Code on by default</span>
+    </div>
+  </div>
+</section>
+
+<section id="boundary">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="kicker">Isolation</p>
+      <h2>What is actually enforced — and what is not.</h2>
+      <p>
+        A sandbox that overstates itself is worse than no sandbox, because you trust it with
+        things you shouldn't. So here is the honest version of both halves.
+      </p>
+    </div>
+
+    <div class="cols2">
+      <div class="panel panel-yes">
+        <h3><span class="pill pill-yes">Enforced</span> The app guarantees this</h3>
+        <ul>
+          <li><strong>Offline by default.</strong> Clean instances start isolated from both the host and the Internet. Outbound access is an explicit, per-launch choice.</li>
+          <li><strong>No shared surfaces.</strong> No shared folders, no synchronized clipboard, no automatic USB passthrough, no bridged networking, no inbound port forwarding.</li>
+          <li><strong>Verified images only.</strong> Official immutable cloud images with pinned SHA-256 values. A mismatch is never silently accepted.</li>
+          <li><strong>Signed checksums.</strong> Ubuntu, Fedora, and openSUSE checksums are verified against the distribution's OpenPGP signature using bundled, fingerprint-pinned keys.</li>
+          <li><strong>Hardened guests.</strong> SSH disabled, unsolicited inbound traffic denied, security updates enabled, SELinux or AppArmor active.</li>
+          <li><strong>Local credentials.</strong> The guest password is generated on your Mac and shown in the app. No telemetry, no secret collection, nothing transmitted.</li>
+          <li><strong>Native everything.</strong> Download, hashing, QCOW2 work, ISO creation, and launch all happen through Swift APIs — no bundled shell scripts, <code>osascript</code>, or UI automation.</li>
+        </ul>
+      </div>
+
+      <div class="panel panel-no">
+        <h3><span class="pill pill-no">Residual risk</span> A VM is not a perfect boundary</h3>
+        <ul>
+          <li><strong>Escapes are possible.</strong> A vulnerability in the guest OS, QEMU, UTM, or macOS can break the boundary. Keep all of them updated.</li>
+          <li><strong>Internet mode is real Internet.</strong> Connected malware can reach external services, exfiltrate what it finds, and attack other systems.</li>
+          <li><strong>Anything you type is exposed.</strong> Whatever goes into the guest is available to whatever is running in the guest.</li>
+          <li><strong>Resume keeps contamination.</strong> Only <strong>Reset &amp; Run Clean</strong> restores from the baseline; resuming an instance deliberately preserves its state.</li>
+          <li><strong>Offline is not audited.</strong> A host-side monitor cannot observe connections that UTM blocks, so "no observed traffic" is never proof that nothing was attempted.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:32px">
+      <h3>Never put anything you care about in a sandbox</h3>
+      <p>
+        No personal accounts, SSH keys, cloud credentials, password managers, wallets, work
+        files, or secrets. Sandfort reduces the blast radius of running untrusted code. It
+        does not make running untrusted code safe, and it shows you this disclosure before
+        you can create your first environment.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="section-alt">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="kicker">Details that matter</p>
+      <h2>Built like the security tool it claims to be.</h2>
+    </div>
+    <div class="features">
+      <div class="feature">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3>Signature verification in Swift</h3>
+        <p>A minimal, bounds-checked OpenPGP verifier confirms that a pinned checksum is a value the distribution actually signed — with no dependency on the <code>gpg</code> tool and no key ever fetched at runtime.</p>
+      </div>
+      <div class="feature">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4M7 13h7"/></svg></div>
+        <h3>Independent environments</h3>
+        <p>Each distribution keeps its own baseline, credentials, tool configuration, and instance numbering. Verified downloads are shared; mutable disks and firmware never are.</p>
+      </div>
+      <div class="feature">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg></div>
+        <h3>Custom setup scripts</h3>
+        <p>Advanced mode embeds your own shell script into cloud-init. It runs as root inside the guest during trusted baseline creation — never on your Mac.</p>
+      </div>
+      <div class="feature">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h3>A log you can hand to someone</h3>
+        <p>Every line in the activity log carries a wall clock and elapsed time, so a slow step is visible and the log correlates with the guest's own setup output.</p>
+      </div>
+      <div class="feature">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
+        <h3>Memorable, measured passwords</h3>
+        <p>Guest sign-in uses a four-word phrase drawn from a reviewed 2,048-word list. The entropy claim is written down, enforced by tests, and documented alongside its limits.</p>
+      </div>
+      <div class="feature">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9"/><path d="M2 17h20l-1 3H3z"/></svg></div>
+        <h3>Ready for more platforms</h3>
+        <p>Guest provisioning and host virtualization sit behind a deliberate provider boundary, so other hypervisors and hosts can be added without weakening the shared policy.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="kicker">Get started</p>
+      <h2>Build it and run your first sandbox.</h2>
+      <p>Sandfort is source-first today. Clone the repository, build the app, and open it.</p>
+    </div>
+
+    <div class="quick">
+      <div>
+        <div class="terminal">
+          <div class="bar"><i></i><i></i><i></i></div>
+<pre><span class="c"># 1. install UTM from https://mac.getutm.app</span>
+
+<span class="p">$</span> git clone https://github.com/shazron/sandbox-vm.git
+<span class="p">$</span> cd sandbox-vm
+<span class="p">$</span> make <span class="k">test</span>
+<span class="p">$</span> make <span class="k">app</span>
+<span class="p">$</span> open dist/Sandfort.app</pre>
+        </div>
+        <p class="req">
+          Requires macOS 13 or later on Apple silicon, Xcode command line tools, and
+          <a href="https://mac.getutm.app/">UTM</a>. The app finds UTM wherever it is
+          installed and offers to fetch it if it is missing.
+        </p>
+      </div>
+
+      <ol class="numbered">
+        <li><strong>Read the disclosure.</strong> Sandfort shows what it does and does not protect before the first environment can be created.</li>
+        <li><strong>Add a Linux environment.</strong> Pick Ubuntu, Fedora, Debian, or openSUSE, choose your development tools, and start the build.</li>
+        <li><strong>Let setup finish.</strong> First boot runs in a text console because cloud images log to the serial port. It installs the desktop and tools, then powers itself off.</li>
+        <li><strong>Click Finish Setup.</strong> UTM labels the source VM <strong>Protected Baseline</strong> and creates <strong>Instance 1</strong>.</li>
+        <li><strong>Run a clean sandbox.</strong> Choose offline or Internet per launch, do the untrusted work, then reset it away.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="section-alt">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="kicker">Documentation</p>
+      <h2>Read before you trust it.</h2>
+    </div>
+    <div class="doclist">
+      <a class="doc" href="https://github.com/shazron/sandbox-vm/blob/main/docs/security-model.md"><b>Security model</b><span>Enforced boundaries and residual risk</span></a>
+      <a class="doc" href="https://github.com/shazron/sandbox-vm/blob/main/HELP.md"><b>Help guide</b><span>Operating, safety, and troubleshooting</span></a>
+      <a class="doc" href="https://github.com/shazron/sandbox-vm/blob/main/docs/architecture.md"><b>Architecture</b><span>How the pieces fit together</span></a>
+      <a class="doc" href="https://github.com/shazron/sandbox-vm/blob/main/docs/linux-profile-selection.md"><b>Profile selection</b><span>Why these four distributions</span></a>
+      <a class="doc" href="https://github.com/shazron/sandbox-vm/blob/main/docs/password-strength.md"><b>Password strength</b><span>The entropy claim and its limits</span></a>
+      <a class="doc" href="https://github.com/shazron/sandbox-vm/blob/main/docs/custom-setup-scripts.md"><b>Custom setup scripts</b><span>Worked scenarios and constraints</span></a>
+      <a class="doc" href="https://github.com/shazron/sandbox-vm/blob/main/docs/adding-a-platform.md"><b>Adding a platform</b><span>Provider requirements</span></a>
+      <a class="doc" href="https://github.com/shazron/sandbox-vm/blob/main/CONTRIBUTING.md"><b>Contributing</b><span>How to work on Sandfort</span></a>
+      <a class="doc" href="https://github.com/shazron/sandbox-vm/blob/main/SECURITY.md"><b>Security policy</b><span>Reporting a vulnerability privately</span></a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <p>
+      Licensed under Apache-2.0. Sandfort is not affiliated with UTM, Canonical, Red Hat,
+      the Debian Project, or SUSE.
+    </p>
+    <nav>
+      <a href="https://github.com/shazron/sandbox-vm">GitHub</a>
+      <a href="https://github.com/shazron/sandbox-vm/blob/main/SECURITY.md">Security</a>
+      <a href="https://github.com/shazron/sandbox-vm/blob/main/LICENSE">License</a>
+      <a href="https://mac.getutm.app/">UTM</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  const bar = document.getElementById('topbar');
+  const onScroll = () => bar.classList.toggle('scrolled', window.scrollY > 8);
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+</script>
+
+</body>
+</html>
