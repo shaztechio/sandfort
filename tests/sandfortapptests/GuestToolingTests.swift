@@ -135,6 +135,48 @@ final class GuestToolingTests: XCTestCase {
         XCTAssertTrue(script.contains("code.desktop"))
     }
 
+    /// The launch failure this guards against: Electron's sandbox helper ships
+    /// setuid but owned by Microsoft's build user, so the bit does nothing until
+    /// it is owned by root. Chromium then needs unprivileged user namespaces,
+    /// which Ubuntu 24.04 restricts through AppArmor, and VS Code dies during
+    /// launch showing only a spinner.
+    func testVSCodeSandboxHelperIsMadeSetuidRoot() {
+        let script = GuestProvisioningSupport.vsCodeInstallCommands(
+            enabled: true,
+            linuxArchiveArchitecture: "arm64"
+        )
+        XCTAssertTrue(script.contains("chown root:root \"$codeInstall/chrome-sandbox\""))
+        XCTAssertTrue(script.contains("chmod 4755 \"$codeInstall/chrome-sandbox\""))
+        XCTAssertTrue(script.contains("test -u \"$codeInstall/chrome-sandbox\""),
+                      "the setuid bit must be verified, not assumed")
+    }
+
+    /// The tempting shortcut for the same failure is --no-sandbox, which
+    /// disables Electron's sandbox inside a tool whose purpose is containing
+    /// untrusted code. Fix the helper instead.
+    func testVSCodeDoesNotDisableItsOwnSandbox() throws {
+        for profile in LinuxGuestCatalog.profiles {
+            // Comments explain why the flag is not used, so compare commands only.
+            let commands = try finalizer(profile)
+                .split(separator: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
+                .joined(separator: "\n")
+            XCTAssertFalse(commands.contains("--no-sandbox"), "\(profile.id) disables Electron's sandbox")
+            XCTAssertFalse(commands.contains("--disable-gpu-sandbox"))
+        }
+    }
+
+    /// The desktop entry has to launch the GUI binary. `bin/code` is the command
+    /// line wrapper, which is right for a terminal and wrong for a launcher.
+    func testDesktopEntryLaunchesTheGUIBinary() {
+        let script = GuestProvisioningSupport.vsCodeInstallCommands(
+            enabled: true,
+            linuxArchiveArchitecture: "arm64"
+        )
+        XCTAssertTrue(script.contains("Exec=${codeInstall}/code %F"))
+        XCTAssertFalse(script.contains("Exec=/usr/local/bin/code"))
+    }
+
     func testVSCodeCommandsAreEmptyWhenDisabled() {
         XCTAssertTrue(GuestProvisioningSupport.vsCodeInstallCommands(
             enabled: false,
@@ -165,9 +207,9 @@ final class GuestToolingTests: XCTestCase {
     /// These four revisions are what force the rebuild that ships the terminal
     /// and the editor. Getting one wrong silently reuses an old baseline.
     func testProfileRevisionsWereBumpedForTheseGuestChanges() {
-        XCTAssertEqual(LinuxGuestCatalog.ubuntu2404ARM64.revision, 3)
-        XCTAssertEqual(LinuxGuestCatalog.fedora44ARM64.revision, 3)
-        XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.revision, 5)
-        XCTAssertEqual(LinuxGuestCatalog.opensuseLeap16ARM64.revision, 4)
+        XCTAssertEqual(LinuxGuestCatalog.ubuntu2404ARM64.revision, 4)
+        XCTAssertEqual(LinuxGuestCatalog.fedora44ARM64.revision, 4)
+        XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.revision, 6)
+        XCTAssertEqual(LinuxGuestCatalog.opensuseLeap16ARM64.revision, 5)
     }
 }

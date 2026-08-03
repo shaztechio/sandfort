@@ -135,14 +135,24 @@ enum GuestProvisioningSupport {
         codeInstall="/usr/local/lib/vscode/${codeVersion}"
         rm -rf /usr/local/lib/vscode
         install -d "$codeInstall" /usr/local/bin /usr/local/share/applications
-        tar -xzf "$codeTemp/vscode.tar.gz" --strip-components=1 -C "$codeInstall"
+        tar -xzf "$codeTemp/vscode.tar.gz" --strip-components=1 --no-same-owner -C "$codeInstall"
         rm -rf "$codeTemp"
+        # Electron's sandbox helper ships setuid but owned by Microsoft's build
+        # user, so the bit is meaningless until it is owned by root. Without a
+        # working helper Chromium falls back to unprivileged user namespaces,
+        # which Ubuntu 24.04 restricts through AppArmor, and the app dies during
+        # launch with nothing but a spinner. Fix the helper rather than passing
+        # --no-sandbox, which would disable Electron's sandbox in a tool whose
+        # whole purpose is containing untrusted code.
+        chown root:root "$codeInstall/chrome-sandbox"
+        chmod 4755 "$codeInstall/chrome-sandbox"
+        test -u "$codeInstall/chrome-sandbox"
         ln -sfn "$codeInstall/bin/code" /usr/local/bin/code
         cat > /usr/local/share/applications/code.desktop <<DESKTOP
         [Desktop Entry]
         Name=Visual Studio Code
         Comment=Code editing. Redefined.
-        Exec=/usr/local/bin/code %F
+        Exec=${codeInstall}/code %F
         Icon=${codeInstall}/resources/app/resources/linux/code.png
         Type=Application
         Categories=Development;IDE;
@@ -153,6 +163,7 @@ enum GuestProvisioningSupport {
         # Verified by file rather than by running it: VS Code refuses to start
         # normally as root, and this finalizer runs as root.
         test -x /usr/local/bin/code
+        test -x "$codeInstall/code"
         test -f "$codeInstall/resources/app/package.json"
         hash -r
         status "Installed and checksum-verified Visual Studio Code ${codeVersion}."

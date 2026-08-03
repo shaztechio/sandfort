@@ -24,8 +24,20 @@ it shipped a browser; every profile gains an optional Visual Studio Code, on by
 default, installed from Microsoft's checksum-verified arm64 tarball rather than
 their package repository; and every profile now verifies that a terminal and a
 browser actually exist, which closes the gap recorded in `AGENTS.md`. Pinned
-images and checksums are unchanged. These revisions have not yet been confirmed
-on real UTM boots.
+images and checksums are unchanged.
+
+A further revision on 2026-08-03 takes Ubuntu to 4, Fedora to 4, Debian to 6,
+and openSUSE to 5, fixing a VS Code that would not launch. Electron's
+`chrome-sandbox` helper ships setuid but owned by Microsoft's build user, so the
+bit is meaningless once extracted, and Chromium falls back to unprivileged user
+namespaces. Ubuntu 24.04 restricts those through AppArmor, so the editor died
+during launch showing only a spinner; the other profiles were at risk for the
+same reason. The helper is now owned by root and verified setuid, and the
+desktop entry launches the GUI binary rather than the command line wrapper.
+`--no-sandbox` was deliberately not used: it would disable Electron's sandbox
+inside a tool meant to contain untrusted code.
+
+None of these revisions has been confirmed on a real UTM boot yet.
 
 ## openSUSE Leap 16.0 ARM64
 
