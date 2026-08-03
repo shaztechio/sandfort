@@ -443,9 +443,12 @@ final class SandfortViewModel: ObservableObject {
         guard let selection = selectedSelection else { return }
         pendingSandboxAction = nil
         perform {
-            let networkDescription = networkMode == .offline
+            // Logged here rather than appended to the completion message: the
+            // network mode is chosen before the run starts, so this is when it
+            // happened, and it earns its own timestamp.
+            await self.log(networkMode == .offline
                 ? "Network mode: offline. The guest cannot reach the Internet or your Mac."
-                : "Network mode: Internet enabled for this run. Host sharing and incoming port forwarding remain disabled."
+                : "Network mode: Internet enabled for this run. Host sharing and incoming port forwarding remain disabled.")
             switch action {
             case let .reset(number):
                 try await selection.workflow.runClean(
@@ -455,7 +458,7 @@ final class SandfortViewModel: ObservableObject {
                 )
                 await self.update(
                     status: "Sandbox Instance \(number) started",
-                    message: "UTM is opening Instance \(number), freshly restored from the protected baseline.\n\(networkDescription)"
+                    message: "UTM is opening Instance \(number), freshly restored from the protected baseline."
                 )
             case let .create(label):
                 let state = try await selection.workflow.createCleanInstance(
@@ -469,7 +472,7 @@ final class SandfortViewModel: ObservableObject {
                     await self.selectInstance(newest.number)
                     await self.update(
                         status: "Sandbox Instance \(newest.number) created",
-                        message: "UTM is opening the new independent instance.\n\(networkDescription)"
+                        message: "UTM is opening the new independent instance."
                     )
                 }
             }
@@ -660,6 +663,16 @@ final class SandfortViewModel: ObservableObject {
 
     private func update(status: String, message: String) {
         statusLine = status
+        append(message)
+    }
+
+    /// Logs a standalone event, so it gets its own clock reading.
+    ///
+    /// Continuation lines of a multi-line message are deliberately indented and
+    /// left unstamped, because they arrived at the same moment as their first
+    /// line. A genuinely separate fact must not be smuggled in as one of those:
+    /// it reads as an event with no time on it.
+    private func log(_ message: String) {
         append(message)
     }
 

@@ -115,6 +115,35 @@ final class ActivityLogTimestampTests: XCTestCase {
         XCTAssertTrue(model.output.contains(SandfortViewModel.readyMessage))
     }
 
+    /// The network-mode line reached the log with no time on it because it was
+    /// glued to the completion message with a `\n`, which makes it a
+    /// continuation line — deliberately indented and unstamped, since
+    /// continuations share their first line's moment.
+    ///
+    /// Multi-line messages built at runtime are fine; Check My Mac is one. What
+    /// is not fine is a *literal* message with a newline in it, because that is
+    /// always two separate facts pretending to be one event. Log the second one
+    /// with `log(_:)` instead.
+    func testNoLiteralMessageSmugglesASecondEventAsAContinuationLine() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("sources/sandfortapp/SandfortViewModel.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        var offenders: [String] = []
+        for line in text.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("message:"), trimmed.contains("\\n") else { continue }
+            offenders.append(trimmed)
+        }
+        XCTAssertTrue(
+            offenders.isEmpty,
+            "these log messages hide a second event as an unstamped continuation line: \(offenders)"
+        )
+    }
+
     func testElapsedIsNeverNegativeIfTheClockMovesBackwards() {
         let line = SandfortViewModel.timestamped(
             "x",
