@@ -42,8 +42,10 @@ that Visual Studio Code launches. Its checks are recorded in
 `ubuntu-qualification.md`. Fedora revision 4 was verified by the maintainer on
 2026-08-03, including Visual Studio Code launching under SELinux enforcing,
 which the Fedora provisioner verifies during setup. That retires the same
-concern for openSUSE, which has the same SELinux posture. Debian revision 7 was verified by the maintainer on 2026-08-03. openSUSE is
-still unconfirmed.
+concern for openSUSE, which has the same SELinux posture. Debian revision 7 was verified by the
+maintainer on 2026-08-03, and openSUSE revision 5 on the same day, including
+that GNOME Terminal and Visual Studio Code both launch. All four production
+profiles are therefore verified at their current revisions.
 
 Debian revision 7 removes a two-minute boot delay found while qualifying revision
 6. `systemd-analyze blame` inside an offline clean instance showed
