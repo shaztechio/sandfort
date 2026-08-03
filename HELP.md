@@ -33,18 +33,19 @@ Do not manually shut down the setup VM. Do not click **Finish Setup** while Linu
 
 Each Linux environment has its own **Protected Baseline**, credentials, development-tool configuration, and numbered instances. Never start a baseline directly in UTM and never use it for suspicious work.
 
-Use **Add Linux Environment** to create Ubuntu, Fedora, Debian, and openSUSE environments side by side. Select an environment card to manage its instances. Instances from different environments can run at the same time because their disks, firmware state, VM identifiers, and network addresses are independent.
+Use **Add Linux Environment** at the bottom of the sidebar to create Ubuntu, Fedora, Debian, and openSUSE environments side by side. Select an environment in the sidebar to manage its instances. Instances from different environments can run at the same time because their disks, firmware state, VM identifiers, and network addresses are independent.
 
 The selected environment's baseline contains its Linux distribution, desktop, security settings, updates, and development tools. Changes made inside an instance do not update the baseline. **Rebuild** replaces only the selected environment. **Delete Environment** removes only the selected environment after confirmation. Both leave other environments and verified image downloads unchanged.
 
 ## Run a sandbox instance
 
-Select an instance, then open **Run Instance**.
+Every instance is listed as its own row, and each row's buttons act on that
+instance. There is no separate selection step.
 
-- **Resume Instance** continues the instance exactly where you left it. Its files, changes, contamination, and last selected network mode remain.
+- **Resume** continues the instance exactly where you left it. Its files, changes, contamination, and last selected network mode remain.
 - **Reset & Run Clean** deletes that instance's changes and restores it from the Protected Baseline.
-- **Rename Instance** adds or changes its descriptive label without changing its number, disk, or identity.
-- **Delete Instance** unregisters the stopped instance from UTM, waits for UTM to confirm its removal, and moves its bundle to macOS Trash. It does not change the baseline or other instances.
+- **Rename Instance**, in the row's **⋯** menu, adds or changes its descriptive label without changing its number, disk, or identity.
+- **Delete Instance**, also in the row's **⋯** menu, unregisters the stopped instance from UTM, waits for UTM to confirm its removal, and moves its bundle to macOS Trash. It does not change the baseline or other instances.
 
 Use **New Clean Sandbox** to create another independent numbered instance. Instances have separate disks, UEFI state, VM identifiers, and network addresses, so more than one can run at the same time.
 
@@ -63,7 +64,7 @@ Resume does not ask again because it preserves the instance's last explicit netw
 
 ## Configure development tools
 
-Expand **Development tools for the next baseline** before creating or rebuilding the baseline.
+Open the environment's actions menu (**⋯**, beside the main button) and choose **Development Tools…** before creating or rebuilding the baseline.
 
 Git, curl, and jq are always installed. Python development tools and the latest Node.js LTS with npm can be selected in the app.
 
@@ -85,7 +86,9 @@ Changing a tool option or script does not modify an existing baseline. Choose **
 
 ## Linux sign-in
 
-Sandfort displays the guest username and password in the app. New baselines use the username `sandfort` and a memorable four-word, hyphen-separated password.
+Each sandbox instance is a row with its own **Resume** and **Reset & Run Clean** buttons, and a **⋯** menu holding **Rename Instance** and **Delete Instance**. **Rebuild** and **Delete Environment** are in the environment's **⋯** menu beside the main button, away from everyday actions.
+
+Sandfort displays the guest username and password in the app. The password is hidden until you click the eye button, so it is not exposed in screenshots or screen sharing; a copy button puts it on the clipboard without revealing it. New baselines use the username `sandfort` and a memorable four-word, hyphen-separated password.
 
 Every instance created from one baseline shares that baseline's credentials. The password is generated locally and is not transmitted or logged.
 

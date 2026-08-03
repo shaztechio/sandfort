@@ -15,6 +15,9 @@
 import AppKit
 import SwiftUI
 
+/// The main window: environments on the left, the selected environment on the
+/// right. This view is now only the shell, its sheets, and its dialogs; the
+/// panes themselves live in EnvironmentSidebar and EnvironmentDetailView.
 struct ContentView: View {
     @StateObject private var model = SandfortViewModel()
 
@@ -23,9 +26,26 @@ struct ContentView: View {
             EnvironmentSidebar(model: model)
                 .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 280)
         } detail: {
-            detailPane
+            EnvironmentDetailView(model: model)
+                .padding(20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(minWidth: 900, minHeight: 620)
+        .toolbar {
+            ToolbarItem {
+                Button("Check My Mac") { model.doctor() }
+                    .disabled(model.isRunning)
+            }
+            ToolbarItem {
+                Button {
+                    NSApplication.shared.showHelp(nil)
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                }
+                .help("Open Sandfort Help")
+                .accessibilityLabel("Open Sandfort Help")
+            }
+        }
         .sheet(isPresented: $model.showSafetyAcknowledgement) {
             SafetyAcknowledgementView(
                 mode: .firstRun,
@@ -33,228 +53,9 @@ struct ContentView: View {
                 onQuit: { model.declineSafetyAcknowledgement() }
             )
         }
-    }
-
-    private var detailPane: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top, spacing: 14) {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 52, height: 52)
-                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading) {
-                    Text(model.runtime.displayName).font(.largeTitle.bold())
-                    Text(model.runtime.subtitle)
-                        .foregroundStyle(.secondary)
-                    Text("Version \(appVersion)")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer()
-                Button {
-                    NSApplication.shared.showHelp(nil)
-                } label: {
-                    Image(systemName: "questionmark.circle")
-                        .font(.title2)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .focusable(false)
-                .help("Open Sandfort Help")
-                .accessibilityLabel("Open Sandfort Help")
-            }
-
-            if let notice = model.runtime.qualificationNotice {
-                GroupBox("\(model.guestProfile.distributionName) qualification") {
-                    Text(notice)
-                        .foregroundStyle(.orange)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-
-            HStack(spacing: 12) {
-                if model.stage == nil {
-                    Button(model.runtime.isQualification ? "Create \(model.guestProfile.distributionName) Qualification VM" : "Create \(model.selectedBaselineProfile.distributionName) Environment") {
-                        model.create()
-                    }
-                        .buttonStyle(.borderedProminent)
-                } else if model.stage == .provisioning {
-                    Button("Finish Setup…") { model.showFinishConfirmation = true }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(model.baselineCompatibilityIssue != nil)
-                    Button("Open Setup VM") { model.openSetup() }
-                        .disabled(model.baselineCompatibilityIssue != nil)
-                } else {
-                    if model.instances.isEmpty {
-                        Button("New Clean Sandbox…") { model.beginNewCleanSandbox() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(model.baselineCompatibilityIssue != nil)
-                    } else {
-                        Menu("Run Instance \(model.selectedInstanceNumber)") {
-                            Button("Resume Instance") { model.resumeSelectedInstance() }
-                            Button("Rename Instance…") { model.beginRenameSelectedInstance() }
-                            Divider()
-                            Button("Reset & Run Clean…") { model.requestResetAndRunClean() }
-                                .disabled(model.baselineCompatibilityIssue != nil)
-                            Divider()
-                            Button("Delete Instance…", role: .destructive) {
-                                model.showDeleteConfirmation = true
-                            }
-                        }
-                        .menuStyle(.borderlessButton)
-                        .fixedSize()
-                        Button("New Clean Sandbox…") { model.beginNewCleanSandbox() }
-                            .disabled(model.baselineCompatibilityIssue != nil)
-                    }
-                }
-                Button("Check My Mac") { model.doctor() }
-                if model.stage != nil {
-                    Button("Rebuild \(model.guestProfile.distributionName)…") {
-                        model.showRebuildConfirmation = true
-                    }
-                    Button("Delete Environment…", role: .destructive) {
-                        model.showDeleteEnvironmentConfirmation = true
-                    }
-                }
-                Spacer()
-            }
-            .disabled(model.isRunning)
-
-            if let issue = model.baselineCompatibilityIssue {
-                GroupBox("Baseline compatibility") {
-                    Text(issue)
-                        .foregroundStyle(.orange)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-
-            if model.stage == .ready {
-                GroupBox("Sandbox instances") {
-                    if model.instances.isEmpty {
-                        Text("No clean instances exist. Create one from the protected baseline when you are ready.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        HStack(spacing: 14) {
-                            Picker("Selected instance", selection: $model.selectedInstanceNumber) {
-                                ForEach(model.instances) { instance in
-                                    Text(instance.displayTitle).tag(instance.number)
-                                }
-                            }
-                            .frame(maxWidth: 310)
-                            Text("Resume preserves its work. Reset & Run Clean restores only that instance from the protected baseline.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
-
-            GroupBox {
-                DisclosureGroup(
-                    "Development tools for the next baseline",
-                    isExpanded: $model.baselineToolsExpanded
-                ) {
-                    VStack(alignment: .leading, spacing: 7) {
-                        HStack(spacing: 20) {
-                            Toggle("Python 3 + pip + venv", isOn: $model.tools.python)
-                            Toggle("Latest Node.js LTS + npm", isOn: $model.tools.nodeJS)
-                        }
-                        Text("Git, curl, and jq are always included. Changing these options requires Rebuild.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Toggle(isOn: Binding(
-                            get: { model.tools.verboseSetupLogging ?? false },
-                            set: { model.tools.verboseSetupLogging = $0 }
-                        )) {
-                            Text("Show detailed setup output")
-                        }
-                        Text("Displays detailed package-manager output in UTM. Leave off for concise progress messages.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Toggle("Advanced: run a custom setup script", isOn: $model.advancedMode)
-                        Text("Applies only when creating the baseline. After changing this script, choose Rebuild to run it and create a new baseline; it does not modify the current baseline or existing instances.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if model.advancedMode {
-                            TextEditor(text: Binding(
-                                get: { model.tools.customSetupScript ?? Self.defaultSetupScript },
-                                set: { model.tools.customSetupScript = $0 }
-                            ))
-                            .font(.system(.body, design: .monospaced))
-                            .frame(minHeight: 150)
-                            .overlay(RoundedRectangle(cornerRadius: 5).stroke(.quaternary))
-                            Text("Runs as root inside \(model.selectedBaselineProfile.displayName) while creating the trusted baseline. Review every command; never paste an untrusted challenge script here.")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
-                    }
-                    .padding(.top, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .disabled(model.isRunning || model.stage == .provisioning)
-
-            if let credentials = model.credentials {
-                GroupBox("\(model.guestProfile.distributionName) sign-in") {
-                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
-                        GridRow { Text("Username").foregroundStyle(.secondary); Text(credentials.username).textSelection(.enabled) }
-                        GridRow { Text("Password").foregroundStyle(.secondary); Text(credentials.password).textSelection(.enabled) }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(model.statusLine).font(.headline)
-                    Spacer()
-                    if let fraction = model.progressFraction {
-                        Text("\(Int((fraction * 100).rounded()))%").monospacedDigit().foregroundStyle(.secondary)
-                    }
-                    Button {
-                        model.copyLogToClipboard()
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .focusable(false)
-                    .help("Copy activity log")
-                    .accessibilityLabel("Copy activity log to clipboard")
-                }
-                if let fraction = model.progressFraction {
-                    ProgressView(value: fraction, total: 1)
-                } else if model.isRunning {
-                    ProgressView().controlSize(.small)
-                }
-            }
-
-            ScrollView {
-                Text(model.output)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-            }
-            .background(Color(nsColor: .textBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            Text("Resume preserves a potentially contaminated session. Reset & Run Clean discards that instance's changes. Never start the Protected Baseline in UTM, and do not put personal accounts or secrets in a guest.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+        .sheet(isPresented: $model.showBaselineTools) {
+            BaselineToolsSheet(model: model) { model.showBaselineTools = false }
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .confirmationDialog("Has \(model.guestProfile.displayName) finished setup and been shut down?", isPresented: $model.showFinishConfirmation, titleVisibility: .visible) {
             Button("Protect Baseline and Create Instance 1") { model.finishSetup() }
             Button("Cancel", role: .cancel) {}
@@ -349,15 +150,4 @@ struct ContentView: View {
             Text("This permanently removes this environment's Protected Baseline and every numbered instance from UTM and Sandfort. Other Linux environments and verified image downloads are not changed.")
         }
     }
-
-    private var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"
-    }
-
-    private static let defaultSetupScript = """
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    # Install additional trusted tools with this guest's package manager.
-    """
 }

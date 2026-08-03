@@ -131,6 +131,10 @@ final class SandfortViewModel: ObservableObject {
     @Published private(set) var guestProfile: LinuxGuestProfile
     @Published private(set) var baselineCompatibilityIssue: String?
     @Published var showSafetyAcknowledgement = false
+    /// The guest password stays hidden until asked for. It is on screen in an
+    /// app people demo and screenshot, and revealing it should be a decision.
+    @Published var revealGuestPassword = false
+    @Published var showBaselineTools = false
     @Published private(set) var hasAcknowledgedSafety = true
 
     private var pendingSandboxAction: PendingSandboxAction?
@@ -274,6 +278,33 @@ final class SandfortViewModel: ObservableObject {
             await self.apply(state, profile: selection.profile)
             await self.refreshEnvironmentSummaries()
         }
+    }
+
+    // MARK: - Per-instance actions
+    //
+    // Instance rows act on the instance they belong to. The underlying workflow
+    // still operates on `selectedInstanceNumber`, so each of these sets the
+    // selection first. Doing it here rather than in the view is what keeps a
+    // stale selection from acting on the wrong sandbox.
+
+    func resume(instance number: Int) {
+        selectedInstanceNumber = number
+        resumeSelectedInstance()
+    }
+
+    func resetAndRunClean(instance number: Int) {
+        selectedInstanceNumber = number
+        requestResetAndRunClean()
+    }
+
+    func beginRename(instance number: Int) {
+        selectedInstanceNumber = number
+        beginRenameSelectedInstance()
+    }
+
+    func requestDelete(instance number: Int) {
+        selectedInstanceNumber = number
+        showDeleteConfirmation = true
     }
 
     func requestResetAndRunClean() {
