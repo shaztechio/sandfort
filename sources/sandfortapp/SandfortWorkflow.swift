@@ -271,7 +271,7 @@ actor SandfortWorkflow {
         event(.log("Watch for [Sandfort] status messages in UTM. Setup commonly takes \(profile.setupDurationDescription) and may pause while packages are configured."))
         event(.log("Leave setup running until it verifies every selected tool and powers itself off automatically. Then click Finish Setup."))
         event(.phase("Opening \(profile.distributionName) setup in UTM…"))
-        await UTMLauncher.openAndStart(bundle: setupURL, name: setupName)
+        await UTMLauncher.openAndStart(bundle: setupURL, name: setupName, log: { event(.log($0)) })
         return state
     }
 
@@ -333,7 +333,7 @@ actor SandfortWorkflow {
         event(.log("The protected baseline is now clearly labeled in UTM. Do not start or modify it directly."))
         event(.log("Sandbox Instance 1 has its own disk and UEFI state restored from that baseline."))
         event(.phase("Opening Sandbox Instance 1 in UTM…"))
-        await UTMLauncher.openAndStart(bundle: cleanURL, name: cleanName)
+        await UTMLauncher.openAndStart(bundle: cleanURL, name: cleanName, log: { event(.log($0)) })
         return state
     }
 
@@ -369,7 +369,7 @@ actor SandfortWorkflow {
         try save(state)
         event(.log("Sandbox Instance \(number) is independent from the other instances and can run at the same time."))
         event(.phase("Opening Sandbox Instance \(number) in UTM…"))
-        await UTMLauncher.openAndStart(bundle: destination, name: name)
+        await UTMLauncher.openAndStart(bundle: destination, name: name, log: { event(.log($0)) })
         return state
     }
 
@@ -461,7 +461,8 @@ actor SandfortWorkflow {
         event(.phase("Opening Sandbox Instance \(instanceNumber) in UTM…"))
         await UTMLauncher.openAndStart(
             bundle: bundle,
-            name: instance.vmName
+            name: instance.vmName,
+            log: { event(.log($0)) }
         )
     }
 
@@ -688,9 +689,76 @@ enum UTMLauncher {
 
     nonisolated static var isInstalled: Bool { installation != nil }
 
-    static func openAndStart(bundle: URL, name: String) async {
+    /// Why waiting for UTM to register a bundle stopped.
+    enum RegistrationWait: Equatable {
+        case registered(afterAttempts: Int)
+        /// The user declined Automation permission, so UTM cannot be asked.
+        case automationDenied
+        case timedOut(afterAttempts: Int)
+    }
+
+    /// ~15 seconds, matching the poll `UTMRegistryController` already uses to
+    /// wait for the opposite condition when removing a VM.
+    nonisolated static let registrationPollAttempts = 60
+    nonisolated static let registrationPollInterval = Duration.milliseconds(250)
+
+    /// Waits until UTM's library contains `name`.
+    ///
+    /// Opening a bundle hands it to UTM, which then imports and registers it.
+    /// `utm://start?name=` is silently dropped if it names a VM UTM has not
+    /// registered yet, so starting has to wait for that to finish rather than
+    /// guess at how long it takes.
+    ///
+    /// Injectable so the loop is testable without UTM installed, matching
+    /// `resolveInstallation` above.
+    nonisolated static func waitForRegistration(
+        of name: String,
+        attempts: Int = registrationPollAttempts,
+        isRegistered: @Sendable (String) throws -> Bool,
+        sleep: @Sendable (Duration) async -> Void
+    ) async -> RegistrationWait {
+        for attempt in 1...max(1, attempts) {
+            do {
+                if try isRegistered(name) { return .registered(afterAttempts: attempt) }
+            } catch let error as NSError where UTMRegistryController.isAutomationDenied(error) {
+                return .automationDenied
+            } catch {
+                // Any other Apple Event failure is treated as "not yet": UTM is
+                // often mid-launch here, and a transient error must not stop the
+                // VM from being started.
+            }
+            await sleep(registrationPollInterval)
+        }
+        return .timedOut(afterAttempts: max(1, attempts))
+    }
+
+    /// Opens a bundle in UTM and starts it once UTM has registered it.
+    ///
+    /// Starting must not depend on Automation permission, which the user is free
+    /// to refuse, so every path here ends by sending the start request.
+    static func openAndStart(
+        bundle: URL,
+        name: String,
+        log: (@Sendable (String) -> Void)? = nil
+    ) async {
         NSWorkspace.shared.open(bundle)
-        try? await Task.sleep(for: .seconds(2))
+        let outcome = await waitForRegistration(
+            of: name,
+            isRegistered: { try UTMRegistryController.isVirtualMachineRegistered(named: $0) },
+            sleep: { try? await Task.sleep(for: $0) }
+        )
+        switch outcome {
+        case .registered:
+            break
+        case .automationDenied:
+            // UTM cannot be asked whether it is ready, so fall back to the fixed
+            // delay this used to rely on. Less reliable, but it is the behaviour
+            // the user chose by declining.
+            try? await Task.sleep(for: .seconds(2))
+        case .timedOut:
+            log?("UTM did not report “\(name)” as ready. Attempting to start it anyway; "
+                + "start it from UTM if it stays stopped.")
+        }
         var components = URLComponents()
         components.scheme = "utm"
         components.host = "start"

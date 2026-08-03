@@ -63,6 +63,15 @@ interface to become ready. The workflow also waits until UTM can no longer resol
 each exact VM name before removing the parent directory, so UTM cannot race the
 filesystem cleanup or retain a stale registration.
 
+Apple Events are also used, read-only, when starting a VM. Opening a bundle
+hands it to UTM, which imports and registers it asynchronously, and UTM ignores
+a start request that names a VM it has not registered yet. Sandfort therefore
+asks UTM whether the exact name is present, polling for about fifteen seconds
+before it sends the start request. This reads UTM's library and changes nothing.
+Starting a VM never depends on that permission: if Automation is denied, the
+query is abandoned after one refusal and the VM is started anyway. A user who
+declines gets the older, less reliable timing, not a broken app.
+
 ## Third-party software installed into a guest
 
 Two tools are downloaded from their vendors during baseline setup rather than

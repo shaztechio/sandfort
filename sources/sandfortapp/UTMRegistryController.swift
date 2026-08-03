@@ -18,9 +18,13 @@ import Foundation
 /// Removes app-owned VM registrations from UTM without invoking AppleScript,
 /// osascript, UI scripting, or a command-line helper.
 enum UTMRegistryController {
-    private static let bundleIdentifier = "com.utmapp.UTM"
+    private static let bundleIdentifier = UTMLauncher.bundleIdentifier
     private static let virtualMachineClass = fourCharacterCode("UTMv")
     private static let applicationNotRunningStatus = -600
+    /// `errAEEventNotPermitted`. macOS returns this when the user has refused
+    /// Sandfort permission to control UTM, which is a refusal rather than a
+    /// failure: callers fall back instead of reporting an error.
+    private static let automationNotPermittedStatus = -1743
 
     static func deleteVirtualMachine(named name: String) async throws {
         try await launchUTMIfNeeded()
@@ -41,6 +45,10 @@ enum UTMRegistryController {
         throw UTMRegistryError.deletionTimedOut(name: name)
     }
 
+    /// Resolves UTM through `UTMLauncher` rather than repeating a path list.
+    /// This used to hardcode /Applications and ~/Applications, so a UTM
+    /// installed anywhere else could not be cold-started here even though the
+    /// rest of the app had already found it.
     @MainActor
     private static func launchUTMIfNeeded() throws {
         if NSWorkspace.shared.runningApplications.contains(where: {
@@ -48,16 +56,10 @@ enum UTMRegistryController {
         }) {
             return
         }
-        let locations = [
-            URL(fileURLWithPath: "/Applications/UTM.app", isDirectory: true),
-            URL(fileURLWithPath: NSHomeDirectory() + "/Applications/UTM.app", isDirectory: true)
-        ]
-        guard let applicationURL = locations.first(where: {
-            FileManager.default.fileExists(atPath: $0.path)
-        }) else {
+        guard let installation = UTMLauncher.installation else {
             throw SandboxError.utmNotInstalled
         }
-        guard NSWorkspace.shared.open(applicationURL) else {
+        guard NSWorkspace.shared.open(installation.applicationURL) else {
             throw UTMRegistryError.launchFailed
         }
     }
@@ -76,6 +78,14 @@ enum UTMRegistryController {
 
     static func isApplicationNotRunning(_ error: NSError) -> Bool {
         error.domain == NSOSStatusErrorDomain && error.code == applicationNotRunningStatus
+    }
+
+    /// The user has refused Sandfort permission to control UTM. Callers must
+    /// treat this as "cannot ask UTM anything" and carry on without it, never
+    /// as a failed operation: no app feature may depend on a permission the
+    /// user is free to decline.
+    static func isAutomationDenied(_ error: NSError) -> Bool {
+        error.domain == NSOSStatusErrorDomain && error.code == automationNotPermittedStatus
     }
 
     private static func sendDeleteRequest(named name: String) throws {
@@ -104,7 +114,10 @@ enum UTMRegistryController {
         }
     }
 
-    private static func isVirtualMachineRegistered(named name: String) throws -> Bool {
+    /// Whether UTM's library currently holds a VM with this exact name. Used
+    /// both to confirm a deletion completed and, before starting a VM, to wait
+    /// until UTM has finished importing a freshly written bundle.
+    static func isVirtualMachineRegistered(named name: String) throws -> Bool {
         let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
         let event = NSAppleEventDescriptor(
             eventClass: AEEventClass(kAECoreSuite),

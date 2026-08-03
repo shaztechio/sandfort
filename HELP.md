@@ -112,6 +112,24 @@ Before rebuilding:
 
 Sandfort opens UTM automatically if it is closed and waits for its automation interface to become ready. If macOS asks whether Sandfort may control UTM, allow it. Sandfort uses native Apple Events to remove only the recorded Sandfort VMs. It does not use AppleScript or UI automation.
 
+### Why macOS asks whether Sandfort may control UTM
+
+macOS shows this once, the first time Sandfort needs to talk to UTM. That is
+usually when you create an environment or start a sandbox, not only when you
+rebuild.
+
+Sandfort asks UTM one question before starting a VM: whether that exact VM is in
+the library yet. Opening a virtual machine hands it to UTM, which adds it in the
+background, and UTM ignores a request to start a VM it has not finished adding.
+Waiting for the answer is what makes a sandbox start on its own instead of
+sitting in UTM's list until you press play.
+
+You can decline. Sandfort then waits a fixed couple of seconds and starts the VM
+anyway, which is what earlier versions did. It usually works when UTM is already
+open, and often does not when UTM has to launch first — if a VM appears in UTM
+but stays stopped, that is why, and you can start it with UTM's play button. To
+change your answer later, open System Settings → Privacy & Security → Automation.
+
 ## Troubleshooting setup
 
 ### The setup VM shows an Ubuntu login prompt

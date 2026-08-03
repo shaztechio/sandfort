@@ -12,11 +12,11 @@
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>Sandfort</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.15.2</string>
-  <key>CFBundleVersion</key><string>95</string>
+  <key>CFBundleShortVersionString</key><string>0.15.3</string>
+  <key>CFBundleVersion</key><string>96</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHumanReadableCopyright</key><string>Sandfort contributors</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>Sandfort asks UTM to replace a clean instance or remove the old protected baseline and instances after you confirm the action.</string>
+  <string>Sandfort asks UTM to start a virtual machine once it has been added to your library, and to replace a clean instance or remove the old protected baseline and instances after you confirm the action.</string>
 </dict>
 </plist>

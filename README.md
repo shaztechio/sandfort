@@ -94,6 +94,12 @@ opens UTM automatically if it is closed, then waits for UTM to confirm each
 library removal before continuing. This prevents UTM from retaining a stale entry
 while its deletion is still in progress.
 
+macOS may ask for that same permission earlier, when you first create an
+environment or start a sandbox. Sandfort uses it there only to ask whether UTM
+has finished adding a virtual machine, because UTM ignores a request to start a
+VM it has not registered yet. Starting never depends on it: if permission is
+denied, Sandfort waits a fixed delay and starts the VM anyway.
+
 Use **Delete Environment** to remove only the selected distribution's baseline
 and instances. Other environments and cached verified downloads remain.
 
