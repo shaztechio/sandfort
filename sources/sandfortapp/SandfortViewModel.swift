@@ -156,6 +156,8 @@ final class SandfortViewModel: ObservableObject {
     @Published private(set) var hasAcknowledgedSafety = true
 
     private var pendingSandboxAction: PendingSandboxAction?
+    /// Start of the operation in progress, for the elapsed column.
+    private var operationStartedAt: Date?
 
     let runtime: SandfortRuntimeConfiguration
     private let workflows: [String: SandfortWorkflow]
@@ -508,6 +510,7 @@ final class SandfortViewModel: ObservableObject {
     private func perform(_ operation: @escaping @Sendable () async throws -> Void) {
         guard !isRunning else { return }
         isRunning = true
+        operationStartedAt = Date()
         progressFraction = nil
         // Let the app delegate warn instead of discarding this silently if the
         // user closes the window or presses Command-Q mid-download.
@@ -517,12 +520,13 @@ final class SandfortViewModel: ObservableObject {
                 try await operation()
             } catch {
                 statusLine = "Stopped safely"
-                output += "\n\(error.localizedDescription)\n"
+                append(error.localizedDescription)
                 progressFraction = nil
             }
             SandfortActivityMonitor.shared.end()
             utmIsMissing = !UTMLauncher.isInstalled
             isRunning = false
+            operationStartedAt = nil
         }
     }
 
@@ -657,6 +661,40 @@ final class SandfortViewModel: ObservableObject {
 
     private func append(_ message: String) {
         if !output.hasSuffix("\n") { output += "\n" }
-        output += message + "\n"
+        output += Self.timestamped(message, at: Date(), since: operationStartedAt) + "\n"
+    }
+
+    /// Fixed 24-hour clock regardless of locale. A 12-hour locale would append
+    /// AM/PM and break the column alignment the log depends on.
+    private static let logClock: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter
+    }()
+
+    /// Prefixes a log message with the wall-clock time and, during an operation,
+    /// the time elapsed since it started.
+    ///
+    /// The clock is what correlates this log with `/var/log/sandfort-setup.log`
+    /// inside the guest; the elapsed column is what makes a slow step visible,
+    /// which is how a two-minute boot wait hid in plain sight.
+    ///
+    /// Only the first line is stamped. Messages can be several lines, and
+    /// stamping each would claim they arrived at different moments; the rest are
+    /// indented to keep the time column honest.
+    static func timestamped(_ message: String, at now: Date, since start: Date?) -> String {
+        let clock = logClock.string(from: now)
+        let elapsed = start.map { start -> String in
+            let seconds = max(0, Int(now.timeIntervalSince(start).rounded()))
+            return String(format: "+%d:%02d", seconds / 60, seconds % 60)
+        } ?? ""
+        let column = String(repeating: " ", count: max(0, 6 - elapsed.count)) + elapsed
+        let prefix = "\(clock) \(column)  "
+        let indent = String(repeating: " ", count: prefix.count)
+        let lines = message.components(separatedBy: "\n")
+        return lines.enumerated()
+            .map { index, line in index == 0 ? prefix + line : indent + line }
+            .joined(separator: "\n")
     }
 }

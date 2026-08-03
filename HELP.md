@@ -136,7 +136,9 @@ Turn off **Show detailed setup output** before the next Rebuild for concise Sand
 
 ### Copy the Sandfort activity log
 
-Use the copy icon beside the status heading to copy the complete activity log to the macOS clipboard. You can paste it into a text file or support message when diagnosing a problem. Sandfort does not intentionally write the guest password to this log, but review copied text before sharing it.
+Each entry is stamped with the time of day and, during an operation, how long that operation had been running. The clock lets you line the log up against `/var/log/sandfort-setup.log` inside the guest; the elapsed column makes a slow step obvious.
+
+Use the copy icon beside the status heading to copy the complete activity log, timestamps included, to the macOS clipboard. You can paste it into a text file or support message when diagnosing a problem. Sandfort does not intentionally write the guest password to this log, but review copied text before sharing it.
 
 ## Troubleshooting clean instances
 
