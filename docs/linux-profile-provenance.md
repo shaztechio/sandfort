@@ -46,7 +46,7 @@ openSUSE, remain unconfirmed.
 
 Status: qualified and selectable in the production catalog.
 
-- Profile: `opensuse-leap-16.0-arm64`, revision 4
+- Profile: `opensuse-leap-16.0-arm64`, revision 5
 - Artifact: `Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2`
 - Official immutable URL:
   `https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2`
@@ -121,7 +121,7 @@ a serial device and no display, and its failure path still uses
 
 Status: qualified and selectable in the production catalog. Default profile.
 
-- Profile: `ubuntu-24.04-arm64`, revision 3
+- Profile: `ubuntu-24.04-arm64`, revision 4
 - Artifact: `ubuntu-24.04-server-cloudimg-arm64.img`
 - Official immutable URL:
   `https://cloud-images.ubuntu.com/releases/noble/release-20260725/ubuntu-24.04-server-cloudimg-arm64.img`
@@ -150,7 +150,7 @@ The pin, not the retrieval, is what makes it trusted.
 
 Status: qualified and selectable in the production catalog.
 
-- Profile: `debian-13-arm64`, revision 5
+- Profile: `debian-13-arm64`, revision 6
 - Artifact: `debian-13-generic-arm64-20260712-2537.qcow2`
 - Official immutable URL:
   `https://cloud.debian.org/images/cloud/trixie/20260712-2537/debian-13-generic-arm64-20260712-2537.qcow2`
@@ -196,7 +196,7 @@ Debian qualification rebuild.
 
 Status: qualified and selectable in the production catalog.
 
-- Profile: `fedora-44-arm64`, revision 3
+- Profile: `fedora-44-arm64`, revision 4
 - Artifact: `Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2`
 - Official versioned URL:
   `https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2`
