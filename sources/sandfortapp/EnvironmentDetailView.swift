@@ -42,6 +42,9 @@ struct EnvironmentDetailView: View {
             if model.credentials != nil {
                 credentialsSection
             }
+            if model.stage == nil {
+                emptyState
+            }
 
             Spacer(minLength: 0)
             ActivityLogView(model: model)
@@ -128,6 +131,34 @@ struct EnvironmentDetailView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(model.baselineCompatibilityIssue != nil)
         }
+    }
+
+    // MARK: - Empty state
+
+    /// The blankest screen in the app: an environment that does not exist yet.
+    /// The icon gives it a focal point and the only colour in the window, and
+    /// the text says what the button is about to do, which matters when that
+    /// button starts a download and an unattended install measured in tens of
+    /// minutes.
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 72, height: 72)
+                .accessibilityHidden(true)
+            Text("Sandfort downloads the official \(model.selectedBaselineProfile.displayName) image, verifies its checksum, and builds a protected baseline you can create disposable sandboxes from.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 420)
+            Text("Setup runs unattended and takes \(model.selectedBaselineProfile.setupDurationDescription).")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 
     // MARK: - Instances

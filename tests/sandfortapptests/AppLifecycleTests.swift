@@ -42,6 +42,21 @@ final class AppLifecycleTests: XCTestCase {
         }
     }
 
+    /// The version is shown in the sidebar because SECURITY.md and the bug
+    /// report template both ask for it. It must degrade to something readable
+    /// rather than crash or print "nil" when there is no bundle, as under tests.
+    func testAppVersionDescriptionIsAlwaysReadable() {
+        let description = SandfortRuntimeConfiguration.production.appVersionDescription
+        XCTAssertFalse(description.isEmpty)
+        XCTAssertFalse(description.lowercased().contains("nil"))
+        XCTAssertFalse(description.contains("Optional"))
+        if let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            XCTAssertTrue(description.contains(short))
+        } else {
+            XCTAssertEqual(description, "development build")
+        }
+    }
+
     func testIdleByDefaultSoQuittingDoesNotNag() {
         XCTAssertFalse(SandfortActivityMonitor.shared.isBusy)
     }

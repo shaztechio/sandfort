@@ -51,17 +51,34 @@ struct EnvironmentSidebar: View {
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom) {
-            if !model.availableProfiles.isEmpty {
-                Menu("Add Linux Environment…") {
-                    ForEach(model.availableProfiles) { profile in
-                        Button(profile.displayName) { model.beginAddEnvironment(profile) }
+            VStack(alignment: .leading, spacing: 8) {
+                if !model.availableProfiles.isEmpty {
+                    Menu("Add Linux Environment…") {
+                        ForEach(model.availableProfiles) { profile in
+                            Button(profile.displayName) { model.beginAddEnvironment(profile) }
+                        }
                     }
+                    .menuStyle(.borderlessButton)
+                    .disabled(model.isRunning)
                 }
-                .menuStyle(.borderlessButton)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .disabled(model.isRunning)
+                Divider()
+                // The icon is the only colour in an otherwise grey window, and
+                // the version is what bug reports ask for.
+                HStack(spacing: 6) {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 16, height: 16)
+                        .accessibilityHidden(true)
+                    Text(model.runtime.appVersionDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

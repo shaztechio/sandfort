@@ -25,6 +25,21 @@ struct SandfortRuntimeConfiguration: Sendable {
     var defaultProfile: LinuxGuestProfile { workflowEnvironment.defaultProfile }
     var isQualification: Bool { qualificationNotice != nil }
 
+    /// Shown in the sidebar footer. SECURITY.md and the bug-report template both
+    /// ask reporters for this, so it is worth being readable without opening the
+    /// About panel. Falls back to a placeholder under tests, where there is no
+    /// app bundle to read.
+    var appVersionDescription: String {
+        let info = Bundle.main.infoDictionary
+        guard let short = info?["CFBundleShortVersionString"] as? String else {
+            return "development build"
+        }
+        guard let build = info?["CFBundleVersion"] as? String, build != short else {
+            return "Version \(short)"
+        }
+        return "Version \(short) (\(build))"
+    }
+
     /// Root of this app identity's own state. Qualification builds resolve to
     /// their isolated directory, so they never read production answers.
     var supportRootURL: URL {
