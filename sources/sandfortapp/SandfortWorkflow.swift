@@ -479,6 +479,43 @@ actor SandfortWorkflow {
         await UTMLauncher.openAndStart(bundle: bundle, name: instance.vmName)
     }
 
+    /// Asks the guest to shut down, waits for UTM to confirm, then closes the
+    /// window UTM leaves behind showing a stopped machine.
+    ///
+    /// The window is closed only after UTM reports the VM stopped. Closing it
+    /// while the guest is still writing would be closing a window over a live
+    /// disk, and the point of stopping first is that the disk is quiescent.
+    func stopInstance(
+        instanceNumber: Int,
+        event: @escaping @Sendable (WorkflowEvent) -> Void
+    ) async throws {
+        guard let state = currentState() else { throw SandboxError.sandboxNotCreated }
+        guard let instance = state.resolvedInstances.first(where: { $0.number == instanceNumber }) else {
+            throw SandboxError.sandboxInstanceNotFound
+        }
+        let bundle = URL(fileURLWithPath: instance.bundlePath)
+        event(.phase("Shutting down Instance \(instanceNumber)…"))
+        event(.log("Asking the guest to power down. A desktop guest may show a confirmation dialog."))
+        try UTMRegistryController.stopVirtualMachine(named: instance.vmName)
+
+        // Wait on the disk lock rather than asking UTM. QEMU holds an exclusive
+        // lock on the qcow2 for as long as the VM is live, so this is the same
+        // signal `ensureBundleNotRunning` already trusts — no Apple Event, no
+        // permission, and true whether or not UTM is scriptable.
+        var stopped = false
+        for _ in 0..<120 {                       // 30 seconds
+            if (try? provider.ensureBundleNotRunning(at: bundle)) != nil {
+                stopped = true
+                break
+            }
+            try await Task.sleep(for: .milliseconds(250))
+        }
+        guard stopped else { throw UTMRegistryError.stopIgnored(name: instance.vmName) }
+
+        event(.log("Instance \(instanceNumber) stopped. Its UTM window stays open; UTM does not "
+            + "close it, and no automation client can."))
+    }
+
     func openSetup() async throws {
         guard let state = currentState() else { throw SandboxError.sandboxNotCreated }
         guard state.stage == .provisioning else { throw SandboxError.setupNotComplete }

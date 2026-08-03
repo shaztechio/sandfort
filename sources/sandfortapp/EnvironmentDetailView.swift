@@ -263,6 +263,8 @@ struct InstanceRow: View {
                 .disabled(model.baselineCompatibilityIssue != nil)
                 .help("Discard this instance's changes and restore it from the protected baseline")
             Menu {
+                Button("Shut Down Instance") { model.stop(instance: instance.number) }
+                    .help("Ask the guest to power down, then close its UTM window")
                 Button("Rename Instance…") { model.beginRename(instance: instance.number) }
                 Divider()
                 Button("Delete Instance…", role: .destructive) {

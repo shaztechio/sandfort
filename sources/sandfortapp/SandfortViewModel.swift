@@ -353,6 +353,26 @@ final class SandfortViewModel: ObservableObject {
         }
     }
 
+    func stop(instance number: Int) {
+        selectedInstanceNumber = number
+        stopSelectedInstance()
+    }
+
+    func stopSelectedInstance() {
+        let number = selectedInstanceNumber
+        guard let selection = selectedSelection else { return }
+        perform {
+            try await selection.workflow.stopInstance(
+                instanceNumber: number,
+                event: self.eventHandler
+            )
+            await self.update(
+                status: "Sandbox Instance \(number) stopped",
+                message: "Instance \(number) shut down and its UTM window closed. Its disk is unchanged; Resume reopens it as it was."
+            )
+        }
+    }
+
     func beginNewCleanSandbox() {
         newInstanceName = ""
         showNewInstanceNamePrompt = true

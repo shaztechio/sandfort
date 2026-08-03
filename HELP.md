@@ -91,7 +91,13 @@ Changing a tool option or script does not modify an existing baseline. Choose **
 
 ## Linux sign-in
 
-Each sandbox instance is a row with its own **Resume** and **Reset & Run Clean** buttons, and a **⋯** menu holding **Rename Instance** and **Delete Instance**. **Rebuild** and **Delete Environment** are in the environment's **⋯** menu beside the main button, away from everyday actions.
+Each sandbox instance is a row with its own **Resume** and **Reset & Run Clean** buttons, and a **⋯** menu holding **Shut Down Instance**, **Rename Instance**, and **Delete Instance**. **Rebuild** and **Delete Environment** are in the environment's **⋯** menu beside the main button, away from everyday actions.
+
+**Shut Down Instance** asks the guest to power itself down, the same as choosing shut down inside the desktop. It waits until the instance has really stopped before reporting success. The instance's disk is untouched, so **Resume** reopens it exactly as it was.
+
+A desktop guest can refuse. If something is unsaved, or a dialog is waiting for an answer, the guest will not power down and Sandfort says so rather than forcing it — a forced stop is a pulled power cable, and it can corrupt the filesystem. Answer the dialog in the VM, or stop it from UTM.
+
+UTM leaves its window open showing the stopped machine. Close that window yourself; UTM does not close it, and no app can close it from outside.
 
 Sandfort displays the guest username and password in the app. The password is hidden until you click the eye button, so it is not exposed in screenshots or screen sharing; a copy button puts it on the clipboard without revealing it. New baselines use the username `sandfort` and a memorable four-word, hyphen-separated password.
 

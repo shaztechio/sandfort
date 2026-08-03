@@ -114,6 +114,38 @@ enum UTMRegistryController {
         }
     }
 
+    /// Asks the guest to power itself down, then waits for UTM to report the VM
+    /// stopped.
+    ///
+    /// Deliberately the polite `request` method, never `force` or `kill`. This
+    /// runs against the baseline setup VM as well as disposable instances, and
+    /// pulling the power on a guest mid-provision is a good way to produce a
+    /// corrupt baseline that looks fine until it is used. A guest that ignores
+    /// the request is reported, not escalated.
+    static func stopVirtualMachine(named name: String) throws {
+        let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
+        let event = NSAppleEventDescriptor(
+            eventClass: virtualMachineClass,
+            eventID: fourCharacterCode("stop"),
+            targetDescriptor: target,
+            returnID: AEReturnID(kAutoGenerateReturnID),
+            transactionID: AETransactionID(kAnyTransactionID)
+        )
+        event.setParam(objectSpecifier(named: name), forKeyword: AEKeyword(keyDirectObject))
+        event.setParam(
+            NSAppleEventDescriptor(enumCode: fourCharacterCode("ReQu")),
+            forKeyword: fourCharacterCode("StBy")
+        )
+
+        let reply = try event.sendEvent(options: [.waitForReply], timeout: 30)
+        let errorNumber = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorNumber))?.int32Value ?? 0
+        guard errorNumber == 0 else {
+            let message = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorString))?.stringValue
+                ?? "UTM returned Apple Event error \(errorNumber)."
+            throw UTMRegistryError.stopFailed(name: name, reason: message)
+        }
+    }
+
     private static func sendDeleteRequest(named name: String) throws {
         let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
         let event = NSAppleEventDescriptor(
@@ -202,11 +234,18 @@ enum UTMRegistryError: LocalizedError {
     case launchFailed
     case launchTimedOut
     case startFailed(name: String, reason: String)
+    case stopFailed(name: String, reason: String)
+    case stopIgnored(name: String)
 
     var errorDescription: String? {
         switch self {
         case let .startFailed(name, reason):
             return "UTM could not start “\(name)”: \(reason). Start it with UTM's play button."
+        case let .stopFailed(name, reason):
+            return "UTM could not stop “\(name)”: \(reason)"
+        case let .stopIgnored(name):
+            return "The guest in “\(name)” did not shut down when asked. It may be showing a "
+                + "confirmation dialog. Finish shutting it down in the VM, or stop it from UTM."
         case let .deleteFailed(name, reason):
             return "UTM could not remove “\(name)” from its library: \(reason)"
         case let .deletionTimedOut(name):

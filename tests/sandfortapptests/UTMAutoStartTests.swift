@@ -145,9 +145,46 @@ final class UTMAutoStartTests: XCTestCase {
     /// A wrong code is silently ignored by UTM rather than reported, which is
     /// exactly how the URL scheme failed.
     func testStartUsesUTMsDocumentedEventCode() {
-        let fourCharacterCode: (String) -> OSType = { $0.utf8.reduce(0) { ($0 << 8) | OSType($1) } }
-        XCTAssertEqual(fourCharacterCode("UTMv"), 0x55544D76)
-        XCTAssertEqual(fourCharacterCode("star"), 0x73746172)
+        XCTAssertEqual(Self.code("UTMv"), 0x55544D76)
+        XCTAssertEqual(Self.code("star"), 0x73746172)
+    }
+
+    /// The other codes read out of UTM's dictionary. Getting one wrong
+    /// produces no error, just a VM that never stops.
+    ///
+    /// Notably absent: the VM `status` property. Building a property specifier
+    /// for it returned errAENoSuchObject against real UTM, so the stop wait
+    /// uses the qcow2 lock instead — the signal the app already trusted.
+    ///
+    /// Closing a VM's window is not attempted at all. UTM cannot resolve a
+    /// window by name even from AppleScript, and closing one by index returns
+    /// success while leaving the window open — verified against real UTM.
+    func testStopAndStatusUseUTMsDocumentedCodes() {
+        XCTAssertEqual(Self.code("stop"), 0x73746F70)
+        XCTAssertEqual(Self.code("StBy"), 0x53744279)   // stop-method parameter
+        XCTAssertEqual(Self.code("ReQu"), 0x52655175)   // polite power-down request
+    }
+
+    /// Stopping must never escalate. The same code path runs against a baseline
+    /// setup VM mid-provision, and killing that backend produces a corrupt
+    /// baseline that looks fine until someone tries to use it.
+    func testStoppingAsksPolitelyAndNeverForcesOrKills() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("sources/sandfortapp/UTMRegistryController.swift")
+        let code = try String(contentsOf: source, encoding: .utf8)
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("///") }
+            .joined(separator: "\n")
+        XCTAssertTrue(code.contains("\"ReQu\""), "stop should send the polite request method")
+        XCTAssertFalse(code.contains("\"FoRc\""), "never force-stop a guest")
+        XCTAssertFalse(code.contains("\"KiLl\""), "never kill a VM backend")
+    }
+
+    private static func code(_ string: String) -> OSType {
+        string.utf8.reduce(0) { ($0 << 8) | OSType($1) }
     }
 
     /// The poll budget is what decides whether a cold UTM import fits. Two
