@@ -202,6 +202,17 @@ that looks captured and is not:
   session afterwards reports defaults rather than what was stored, so the check
   passes or fails at random.
 
+**Deferred: the background is 1x only.** `dmg-background.tiff` holds a single
+660x400 representation, so macOS scales it up on a Retina display and it looks
+soft. The fix needs no code, only a second export:
+
+```sh
+tiffutil -cathidpicheck background.png background@2x.png -out dmg-background.tiff
+```
+
+Same filename, same geometry, both resolutions in one file. Worth doing before
+the image is put in front of anyone who did not build it.
+
 **The app and the image are notarized separately**, which means two submissions
 and roughly twice the wait. That is deliberate. Notarizing only the image would
 leave the app itself without a ticket, so dragging it to Applications and
