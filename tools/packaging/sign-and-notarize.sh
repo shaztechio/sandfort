@@ -56,6 +56,12 @@ if [ -z "$identity" ]; then
 fi
 printf 'Signing as: %s\n' "$identity"
 
+# A "SandfortApp.cstemp" left behind by an interrupted or --deep signing run
+# gets sealed into CodeResources by the next signature, and the bundle then fails
+# verification naming a file that no longer exists. Clear them before signing
+# rather than debugging it afterwards.
+find "$app" -name '*.cstemp' -delete
+
 # Nested code signs first. --deep is deliberately not used: it is deprecated and
 # applies the app's entitlements to nested bundles, which is not what any of
 # them should carry.

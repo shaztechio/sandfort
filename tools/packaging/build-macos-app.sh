@@ -84,7 +84,17 @@ hiutil -I lsm -C -ag -s en -l en -f "$help_lproj/Sandfort.helpindex" "$help_lpro
 test -s "$help_lproj/Sandfort.html"
 test -s "$help_lproj/Sandfort.helpindex"
 if command -v codesign >/dev/null 2>&1; then
-  codesign --force --deep --sign - "$app"
+  # Nested code first, then the app. --deep is not used: besides being
+  # deprecated, it signs the nested Help Book and the main bundle in one pass and
+  # can seal its own temporary "SandfortApp.cstemp" into CodeResources. The
+  # bundle then fails verification with "a sealed resource is missing or
+  # invalid", naming a file that never should have been sealed.
+  find "$app" -name '*.cstemp' -delete
+  if [ -d "$app/Contents/Resources/Sandfort.help" ]; then
+    codesign --force --sign - "$app/Contents/Resources/Sandfort.help"
+  fi
+  codesign --force --sign - "$app"
+  codesign --verify --strict "$app"
 fi
 
 printf 'Built %s\n' "$app"
