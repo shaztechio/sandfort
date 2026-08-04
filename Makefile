@@ -12,13 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: app signed-app qualification-app ubuntu-qualification-app debian-qualification-app opensuse-qualification-app test clean
+.PHONY: app signed-app release qualification-app ubuntu-qualification-app debian-qualification-app opensuse-qualification-app test clean
 
 app:
 	./tools/packaging/build-macos-app.sh
 
 signed-app:
 	./tools/packaging/sign-and-notarize.sh
+
+# make release            patch bump
+# make release VERSION=1.3.0
+release:
+	./tools/packaging/release.sh $(VERSION)
 
 qualification-app:
 	SANDFORT_QUALIFICATION_PROFILE_ID=fedora-44-arm64 SANDFORT_QUALIFICATION_DISTRIBUTION=Fedora ./tools/packaging/build-macos-app.sh
