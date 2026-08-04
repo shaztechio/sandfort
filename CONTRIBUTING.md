@@ -26,10 +26,9 @@ make test     # policy and format regression tests
 make app      # release build into dist/Sandfort.app, ad-hoc signed
 ```
 
-`make test` must pass for every change. Note that no workflow runs on pull
-requests — `test.yml` is manual, and `release.yml` runs on version tags — so
-opening a pull request does not run the suite for you. Run it locally and say so
-in the pull request.
+`make test` must pass for every change. It also runs in CI on every pull
+request and every push to `main`, on the same runner the release build uses. Run
+it locally anyway; a red pull request is a slower way to learn the same thing.
 
 Editing `HELP.md` has a trap worth knowing. Help Viewer keeps its own copy of
 the rendered Help Book under
