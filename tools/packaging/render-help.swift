@@ -74,6 +74,10 @@ var listKind: String?
 var listItem: [String] = []
 var codeLines: [String] = []
 var inCodeBlock = false
+/// HTML comments pass through verbatim rather than being escaped into visible
+/// text. HELP.md carries its licence header this way: present in the rendered
+/// Help Book, invisible to the reader.
+var inHTMLComment = false
 
 func closeParagraph() {
     guard !paragraph.isEmpty else { return }
@@ -100,6 +104,18 @@ func closeList() {
 
 for rawLine in markdown.components(separatedBy: .newlines) {
     let line = rawLine.trimmingCharacters(in: .whitespaces)
+    if inHTMLComment {
+        body.append(rawLine)
+        if line.contains("-->") { inHTMLComment = false }
+        continue
+    }
+    if line.hasPrefix("<!--") {
+        closeParagraph()
+        closeList()
+        body.append(rawLine)
+        if !line.contains("-->") { inHTMLComment = true }
+        continue
+    }
     if line.hasPrefix("```") {
         closeParagraph()
         closeList()

@@ -100,6 +100,34 @@ final class LicenseHeaderTests: XCTestCase {
         )
     }
 
+    /// HELP.md carries the licence as an HTML comment: the attribution travels
+    /// with the file, and the Help Book reader never sees it.
+    func testHelpCarriesTheLicenceAsAnInvisibleHeader() throws {
+        let help = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("HELP.md"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(help.hasPrefix("<!--"), "the header must come first, before any content")
+        let header = help.components(separatedBy: "-->")[0]
+        XCTAssertTrue(header.contains("Copyright 2026 Shazron Abdullah and Sandfort contributors"))
+        XCTAssertTrue(header.contains("Licensed under the Apache License, Version 2.0"))
+    }
+
+    /// The renderer escapes everything by default, which would turn that header
+    /// into a visible wall of licence text at the top of the Help Book. It has
+    /// to pass HTML comments through untouched instead.
+    func testHelpRendererPassesHTMLCommentsThroughUnescaped() throws {
+        let renderer = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("tools/packaging/render-help.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(
+            renderer.contains("inHTMLComment"),
+            "HTML comments must bypass escapeHTML or the licence header becomes visible"
+        )
+        XCTAssertTrue(renderer.contains("hasPrefix(\"<!--\")"))
+    }
+
     func testRepositoryShipsTheFullApacheLicense() throws {
         let license = try String(
             contentsOf: repositoryRoot.appendingPathComponent("LICENSE"),
