@@ -58,6 +58,10 @@ boundaries, and the residual-risk panel. That panel is not filler: a sandbox
 that oversells itself gets trusted with work it cannot protect. When the
 security model changes, update the page in the same commit.
 
+The hero's primary action and the Get started section both link to
+`releases/latest`, which always resolves to the newest published release. Nothing
+on the page names a version, so a release needs no site edit.
+
 Facts on the page that drift easily:
 
 - the four supported profiles and their release names,

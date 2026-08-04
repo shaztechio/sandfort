@@ -318,6 +318,24 @@ section { padding: 76px 0; }
 .terminal .c { color: #8b7d6b; }
 .terminal .p { color: #6fb3d4; }
 .terminal .k { color: #e8b46a; }
+.download {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--sand-400);
+  border-radius: var(--radius); padding: 16px 18px; margin-bottom: 18px;
+  text-decoration: none; box-shadow: var(--shadow);
+  transition: transform .12s, border-color .12s;
+}
+.download:hover { transform: translateY(-1px); border-color: var(--sand-400); }
+.download-icon {
+  flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--sand-300) 30%, transparent); color: var(--sand-500);
+}
+.download-icon svg { width: 20px; height: 20px; }
+.download b { display: block; color: var(--ink); font-size: 15.5px; font-weight: 620; }
+.download span span { display: block; color: var(--ink-faint); font-size: 14px; margin-top: 3px; }
+.or { color: var(--ink-faint); font-size: 14.5px; margin: 0 0 10px; }
+
 ol.numbered { margin: 0; padding-left: 22px; color: var(--ink-soft); }
 ol.numbered li { margin: 12px 0; padding-left: 4px; }
 ol.numbered strong { color: var(--ink); font-weight: 600; }
@@ -389,11 +407,14 @@ footer { border-top: 1px solid var(--border); padding: 44px 0 56px; background: 
           repository inside one — then throw it away and start clean in seconds.
         </p>
         <div class="cta-row">
-          <a class="btn btn-primary" href="https://github.com/shaztechio/sandfort">
+          <a class="btn btn-primary" href="https://github.com/shaztechio/sandfort/releases/latest">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v8m0 0 3.2-3.2M8 10 4.8 6.8M2.5 12.5v1h11v-1"/></svg>
+            Download for macOS
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/shaztechio/sandfort">
             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
             View on GitHub
           </a>
-          <a class="btn btn-ghost" href="#start">Get started</a>
         </div>
         <div class="badges">
           <span class="badge">macOS 13+</span>
@@ -720,26 +741,39 @@ footer { border-top: 1px solid var(--border); padding: 44px 0 56px; background: 
   <div class="wrap">
     <div class="section-head">
       <p class="kicker">Get started</p>
-      <h2>Build it and run your first sandbox.</h2>
-      <p>Sandfort is source-first today. Clone the repository, build the app, and open it.</p>
+      <h2>Download it and run your first sandbox.</h2>
+      <p>
+        Every release is signed with a Developer ID certificate and notarized by
+        Apple. Open the disk image, drag Sandfort to Applications, and you are
+        ready to create an environment.
+      </p>
     </div>
 
     <div class="quick">
       <div>
+        <a class="download" href="https://github.com/shaztechio/sandfort/releases/latest">
+          <span class="download-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8m0 0 3.2-3.2M8 10 4.8 6.8M2.5 12.5v1h11v-1"/></svg>
+          </span>
+          <span>
+            <b>Download the latest release</b>
+            <span>Signed, notarized disk image, with its SHA-256 beside it</span>
+          </span>
+        </a>
+        <p class="or">Or build it yourself:</p>
         <div class="terminal">
           <div class="bar"><i></i><i></i><i></i></div>
-<pre><span class="c"># 1. install UTM from https://mac.getutm.app</span>
-
-<span class="p">$</span> git clone https://github.com/shaztechio/sandfort.git
+<pre><span class="p">$</span> git clone https://github.com/shaztechio/sandfort.git
 <span class="p">$</span> cd sandfort
 <span class="p">$</span> make <span class="k">test</span>
 <span class="p">$</span> make <span class="k">app</span>
 <span class="p">$</span> open dist/Sandfort.app</pre>
         </div>
         <p class="req">
-          Requires macOS 13 or later on Apple silicon, Xcode command line tools, and
-          <a href="https://mac.getutm.app/">UTM</a>. The app finds UTM wherever it is
-          installed and offers to fetch it if it is missing.
+          Requires macOS 13 or later on Apple silicon and
+          <a href="https://mac.getutm.app/">UTM</a>; building from source also needs the
+          Xcode command line tools. Sandfort finds UTM wherever it is installed, and
+          offers to fetch it if it is missing.
         </p>
       </div>
 

@@ -27,35 +27,27 @@ create](assets/Sandfort-screenshot.png)
 
 ## Quick start
 
-1. Download and install [UTM](https://mac.getutm.app/).
-2. Run `make app`.
-3. Open `dist/Sandfort.app`, choose an Ubuntu, Fedora, Debian, or openSUSE
-   environment,
-   and click its **Create Environment** action.
-   Before creating or rebuilding, choose whether the baseline should include
-   Python 3 development tools and the latest official Node.js LTS/npm. Git, curl,
-   and jq are always included. Visual Studio Code is included by default and can
-   be turned off. Node's and VS Code's Linux ARM64 downloads are SHA-256 verified
-   against the vendor's published checksum.
-   Advanced mode also accepts a custom shell script, documented with worked
-   examples in [docs/custom-setup-scripts.md](docs/custom-setup-scripts.md). It
-   is embedded in cloud-init
-   and runs as root inside the selected Linux guest during baseline creation,
-   never on the macOS host.
-4. The app downloads the profile's official ARM64 cloud image, shows byte-based
-   percentage progress, verifies its pinned SHA-256, and
-   opens the generated VM in UTM.
-5. First boot uses UTM's text terminal because the cloud images send setup
-   output to their serial console. Let it install the desktop, Git, curl, guest
-   tools, firewall, and security updates. Leave it running until all selected
-   tools are verified, setup journals and package caches are compacted, and the
-   VM powers itself off automatically.
-6. Click **Finish Setup**. UTM will clearly label that environment's source VM as
-   **Protected Baseline** and the first disposable VM as **Instance 1**.
-7. Select an instance and use the **Run Instance** menu, or click
-   **New Clean Sandbox** to create another numbered instance from the baseline.
-   Give it an optional descriptive name for identification. Clean instances use
-   the graphical desktop display and may run concurrently.
+1. Install [UTM](https://mac.getutm.app/).
+2. Download the latest `.dmg` from
+   [Releases](https://github.com/shaztechio/sandfort/releases/latest), open it,
+   and drag Sandfort to Applications. Builds are signed with a Developer ID
+   certificate and notarized by Apple.
+
+   To build from source instead: `make app`, then open `dist/Sandfort.app`.
+3. Choose an Ubuntu, Fedora, Debian, or openSUSE environment and click its
+   **Create Environment** action. Git, curl, and jq are always installed;
+   Python 3, Node.js LTS, and Visual Studio Code are optional, and advanced mode
+   accepts a [custom setup script](docs/custom-setup-scripts.md) that runs as
+   root inside the guest, never on the host.
+4. Sandfort downloads the profile's official ARM64 cloud image, verifies its
+   pinned SHA-256, and opens the VM in UTM.
+5. First boot runs in a text console, because the cloud images log setup to the
+   serial port. Leave it alone until it finishes installing the desktop and
+   tools and powers itself off.
+6. Click **Finish Setup**. UTM then shows that environment's **Protected
+   Baseline** and its first disposable **Instance 1**.
+7. Use **New Clean Sandbox** for another numbered instance from the baseline.
+   Instances run concurrently and use the graphical desktop.
 
 ## Using clean sandboxes
 
