@@ -85,6 +85,9 @@ without weakening the common provisioning policy.
   qualification status.
 - `docs/releasing.md`: cutting a release, the Developer ID and notarization
   setup, and the entitlement a notarized build needs to drive UTM.
+- `docs/WINDOWS.md`: plan only, nothing built. The concrete Windows instance of
+  `adding-a-platform.md`, including why it recommends QEMU over the Hyper-V that
+  document assumes, and the open questions to settle before phase 1.
 - `docs/index.html` and `docs/assets/`: the public project site, served by GitHub
   Pages from `main` and `/docs`. It shares this folder with the documentation, so
   `docs/.nojekyll` must stay: without it Jekyll renders every `.md` here into a

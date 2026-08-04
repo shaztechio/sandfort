@@ -10,5 +10,9 @@
    the provider contract.
 7. Add a host-specific CI job and a real hypervisor smoke-test matrix.
 
-Likely next targets are Intel macOS with UTM, Windows with Hyper-V, and Linux with
-QEMU/KVM. Do not reuse ARM64 disk images or checksums on x86_64.
+Likely next targets are Intel macOS with UTM, Windows, and Linux with QEMU/KVM.
+Do not reuse ARM64 disk images or checksums on x86_64.
+
+`WINDOWS.md` works this checklist through for Windows in detail. It recommends
+QEMU rather than Hyper-V, because Hyper-V cannot express "Internet but no host
+access" without host firewall rules the user could undo.
