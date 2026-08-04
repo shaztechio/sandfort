@@ -22,8 +22,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+# write is needed to create the Release. It is the only elevated permission here,
+# and it is why this workflow must never be reachable from a fork's pull request.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -94,18 +96,73 @@ jobs:
             | grep -q 'com.apple.security.automation.apple-events' \
             || { echo "Apple Events entitlement missing; Sandfort could not start a VM."; exit 1; }
 
+      # The version comes from the app that was just built, not from the tag, so
+      # the filename can never disagree with what is inside the bundle.
+      - name: Read the built version
+        id: version
+        run: |
+          set -euo pipefail
+          plist="dist/Sandfort.app/Contents/Info.plist"
+          short="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$plist")"
+          build="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$plist")"
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "name=Sandfort-$short-$build" >> "$GITHUB_OUTPUT"
+          printf 'Built Sandfort %s (%s)\n' "$short" "$build"
+
+      # A tag that disagrees with the built version would publish a release whose
+      # name does not match its contents. Fail instead, before anything is
+      # published; the fix is a version bump, not a re-run.
+      - name: Check the tag matches the built version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          built="${{ steps.version.outputs.short }}"
+          if [ "$tag" != "$built" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match CFBundleShortVersionString $built."
+            echo "Update tools/packaging/Info.plist, or tag v$built."
+            exit 1
+          fi
+          echo "Tag and built version agree: $built"
+
       - name: Package for download
         run: |
           set -euo pipefail
-          ditto -c -k --keepParent dist/Sandfort.app dist/Sandfort.zip
-          shasum -a 256 dist/Sandfort.zip | tee dist/Sandfort.zip.sha256
+          zip="dist/${{ steps.version.outputs.name }}.zip"
+          ditto -c -k --keepParent dist/Sandfort.app "$zip"
+          shasum -a 256 "$zip" | sed 's|dist/||' | tee "$zip.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Sandfort-signed
+          name: ${{ steps.version.outputs.name }}
           path: |
-            dist/Sandfort.zip
-            dist/Sandfort.zip.sha256
+            dist/${{ steps.version.outputs.name }}.zip
+            dist/${{ steps.version.outputs.name }}.zip.sha256
+
+      # Tags only. A manual run still builds, signs, and uploads an artifact, so
+      # the pipeline can be exercised without publishing anything.
+      - name: Create the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          zip="dist/${{ steps.version.outputs.name }}.zip"
+          notes="$(mktemp)"
+          {
+            printf 'Sandfort %s (build %s)\n\n' \
+              "${{ steps.version.outputs.short }}" "${{ steps.version.outputs.build }}"
+            printf 'Signed with a Developer ID certificate, notarized by Apple, and stapled.\n\n'
+            printf 'Requires macOS 13 or later on Apple silicon, and [UTM](https://mac.getutm.app/).\n\n'
+            printf 'SHA-256:\n\n```\n'
+            cat "$zip.sha256"
+            printf '```\n'
+          } > "$notes"
+          gh release create "$GITHUB_REF_NAME" "$zip" "$zip.sha256" \
+            --title "Sandfort ${{ steps.version.outputs.short }}" \
+            --notes-file "$notes" \
+            --verify-tag
 
       # Runs even if a step above failed, so a failure never leaves a signing
       # certificate on the runner.
