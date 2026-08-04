@@ -71,6 +71,10 @@ The duplicate is deliberate: only files under `docs/` are published, so a
 `../assets/` reference would resolve during local preview and 404 on the live
 site. Update both if the icon changes.
 
-The page has no screenshot. The one in the repository root predates the current
-window layout, so adding it would ship a picture of an interface that no longer
-exists.
+`assets/Sandfort-screenshot.png` is a copy of the one in the repository root,
+duplicated for the same reason as the icon: only files under `docs/` are
+published. It shows 0.16.1 with four environments in three different states,
+which is the thing a single-environment shot cannot convey. Retake it when the
+window layout changes, and update both copies — a screenshot of an interface
+that no longer exists is worse than none, which is why the page went without one
+for a while.

@@ -201,6 +201,21 @@ section { padding: 76px 0; }
   padding: 4px 0 4px 20px; color: var(--ink-soft); font-size: 16.5px;
 }
 
+/* ---------- screenshot ---------- */
+.shot {
+  margin: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  /* The app is light-themed. On a dark page an unframed screenshot glares, so
+     it sits on its own light mat rather than straight on the background. */
+  background: #fff;
+  line-height: 0;
+}
+.shot img { width: 100%; height: auto; display: block; }
+.shot-caption { color: var(--ink-faint); font-size: 14px; margin-top: 14px; text-align: center; }
+
 /* ---------- flow diagram ---------- */
 .flow { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px; box-shadow: var(--shadow); }
 .flow svg { width: 100%; height: auto; display: block; }
@@ -391,6 +406,30 @@ footer { border-top: 1px solid var(--border); padding: 44px 0 56px; background: 
         <img src="assets/Sandfort.png" alt="Sandfort app icon: a sandbox holding a sandcastle with a shield" />
       </div>
     </div>
+  </div>
+</section>
+
+<section id="app">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="kicker">The app</p>
+      <h2>Every distribution, side by side.</h2>
+      <p>
+        Each environment keeps its own protected baseline, credentials, tools, and
+        numbered instances. They are built and rebuilt independently, and their
+        sandboxes run at the same time.
+      </p>
+    </div>
+    <figure class="shot">
+      <img
+        src="assets/Sandfort-screenshot.png"
+        width="1800" height="1344" loading="lazy" decoding="async"
+        alt="Sandfort's window. A sidebar lists four Linux environments: Ubuntu 24.04 LTS with baseline setup in progress, Fedora Cloud 44 and Debian 13 each with a protected baseline and one instance, and openSUSE Leap 16.0 selected and not yet created. The main pane offers to create the openSUSE environment and notes that setup runs unattended and takes 20 to 45 minutes."
+      />
+    </figure>
+    <p class="shot-caption">
+      Four environments in three states: one mid-setup, two ready, one not created yet.
+    </p>
   </div>
 </section>
 
