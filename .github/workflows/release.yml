@@ -133,7 +133,17 @@ jobs:
           ditto -c -k --keepParent dist/Sandfort.app "$zip"
           shasum -a 256 "$zip" | sed 's|dist/||' | tee "$zip.sha256"
 
+      # Tag builds publish a Release, whose asset is the zip itself: downloading
+      # it expands straight to Sandfort.app. Uploading the same zip as an
+      # artifact as well would be the redundant copy that arrives double-zipped,
+      # because upload-artifact zips whatever it is given.
+      #
+      # Manual runs have no Release, so the artifact is the only way to get the
+      # build out. It stays zipped on purpose: artifacts do not preserve the
+      # executable bit, and a raw .app would download as a bundle whose binary
+      # cannot run.
       - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         with:
           name: ${{ steps.version.outputs.name }}
           path: |

@@ -123,6 +123,21 @@ rather than reporting an error. The entitlement lives in
 `tools/packaging/Sandfort.entitlements`, and both the local script and the
 workflow refuse to continue if it is missing from the signed app.
 
+## Where to download from
+
+A tagged build publishes a **GitHub Release**, and its asset is the archive
+itself. Downloading `Sandfort-x.y.z-NN.zip` from the Release expands directly to
+`Sandfort.app`, with the executable bit and the signature intact.
+
+Do not use the Actions **artifact** for a release. Artifacts are zipped by GitHub
+on the way out, so an artifact containing an archive arrives as a zip inside a
+zip. Tag builds therefore skip the artifact entirely; only manual runs produce
+one, because they have no Release to publish to.
+
+The archive inside that artifact is not redundant packaging. Artifacts do not
+preserve the executable bit, so uploading `Sandfort.app` as a directory would
+hand back a bundle whose binary cannot run.
+
 ## After a release
 
 The workflow verifies the notarized bundle before publishing — `codesign
