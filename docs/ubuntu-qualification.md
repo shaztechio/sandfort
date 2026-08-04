@@ -8,7 +8,7 @@ production baseline:
 
 ```sh
 make ubuntu-qualification-app
-codesign --verify --deep --strict "dist/Sandfort Ubuntu Qualification.app"
+codesign --verify --strict "dist/Sandfort Ubuntu Qualification.app"
 ```
 
 The qualification app has bundle identifier

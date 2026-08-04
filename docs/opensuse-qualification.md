@@ -6,7 +6,7 @@ production baseline:
 
 ```sh
 make opensuse-qualification-app
-codesign --verify --deep --strict "dist/Sandfort openSUSE Qualification.app"
+codesign --verify --strict "dist/Sandfort openSUSE Qualification.app"
 ```
 
 The qualification app has bundle identifier

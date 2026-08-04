@@ -26,9 +26,10 @@ make test     # policy and format regression tests
 make app      # release build into dist/Sandfort.app, ad-hoc signed
 ```
 
-`make test` must pass for every change. Note that GitHub Actions is currently
-configured for manual runs only (`workflow_dispatch`), so opening a pull request
-does not run the suite for you — run it locally and say so in the pull request.
+`make test` must pass for every change. Note that no workflow runs on pull
+requests — `test.yml` is manual, and `release.yml` runs on version tags — so
+opening a pull request does not run the suite for you. Run it locally and say so
+in the pull request.
 
 Editing `HELP.md` has a trap worth knowing. Help Viewer keeps its own copy of
 the rendered Help Book under
@@ -45,8 +46,24 @@ killall helpd
 For packaging or UI changes, also run `make app` and verify the result:
 
 ```sh
-codesign --verify --deep --strict "dist/Sandfort.app"
+codesign --verify --strict "dist/Sandfort.app"
 ```
+
+`--deep` is deliberately absent. It is deprecated, and when signing it applies
+the app's entitlements to the nested Help Book bundle; it has also been seen
+sealing its own temporary file into the bundle, which then fails verification
+with "a sealed resource is missing or invalid".
+
+## Releasing
+
+Cutting a release is `make release`, which bumps the version, tags it, and
+pushes; the tag starts a signed, notarized build in GitHub Actions. The version
+lives in `tools/packaging/Info.plist`, and the tag is derived from it rather than
+the other way round.
+
+Read [docs/releasing.md](docs/releasing.md) before the first one: it covers the
+Developer ID certificate, the six repository secrets, and the Apple Events
+entitlement that a notarized build silently needs in order to start a VM at all.
 
 ## What a good change looks like
 

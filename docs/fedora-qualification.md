@@ -5,7 +5,7 @@ when repeating its release matrix without changing a production baseline:
 
 ```sh
 make qualification-app
-codesign --verify --deep --strict "dist/Sandfort Fedora Qualification.app"
+codesign --verify --strict "dist/Sandfort Fedora Qualification.app"
 ```
 
 The qualification app has bundle identifier

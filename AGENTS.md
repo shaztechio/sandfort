@@ -83,6 +83,8 @@ without weakening the common provisioning policy.
   metadata; keep that true when editing them.
 - `docs/linux-profile-provenance.md`: immutable guest-image intake records and
   qualification status.
+- `docs/releasing.md`: cutting a release, the Developer ID and notarization
+  setup, and the entitlement a notarized build needs to drive UTM.
 - `docs/index.html` and `docs/assets/`: the public project site, served by GitHub
   Pages from `main` and `/docs`. It shares this folder with the documentation, so
   `docs/.nojekyll` must stay: without it Jekyll renders every `.md` here into a
@@ -304,23 +306,34 @@ Run commands from the repository root:
 ```sh
 make test
 make app
-codesign --verify --deep --strict "dist/Sandfort.app"
+codesign --verify --strict "dist/Sandfort.app"
 make qualification-app
-codesign --verify --deep --strict "dist/Sandfort Fedora Qualification.app"
+codesign --verify --strict "dist/Sandfort Fedora Qualification.app"
 make ubuntu-qualification-app
-codesign --verify --deep --strict "dist/Sandfort Ubuntu Qualification.app"
+codesign --verify --strict "dist/Sandfort Ubuntu Qualification.app"
 make debian-qualification-app
-codesign --verify --deep --strict "dist/Sandfort Debian Qualification.app"
+codesign --verify --strict "dist/Sandfort Debian Qualification.app"
 make opensuse-qualification-app
-codesign --verify --deep --strict "dist/Sandfort openSUSE Qualification.app"
+codesign --verify --strict "dist/Sandfort openSUSE Qualification.app"
 ```
 
 `make test` supplies repository-local Swift module-cache paths and runs
 `swift test --disable-sandbox`. `make app` performs a release build, replaces
-`dist/Sandfort.app`, and ad-hoc signs it when `codesign` is available. The app
-still needs Developer ID signing and notarization for distribution. When
-shipping a user-visible change, update both version values in
-`tools/packaging/Info.plist` deliberately and rebuild the app.
+`dist/Sandfort.app`, and ad-hoc signs it when `codesign` is available.
+
+`make release` cuts a release: it bumps the version in
+`tools/packaging/Info.plist`, commits, tags, and pushes, and the tag starts a
+signed and notarized build in GitHub Actions. `make signed-app` does the same
+signing locally. Do not hand-edit the version to ship something; the tag is
+derived from the plist and the workflow fails when they disagree. Editing the
+version by hand is still right for an ordinary user-visible change that is not
+itself a release.
+
+Read `docs/releasing.md` before changing anything about signing. The short
+version: notarization requires the hardened runtime, the hardened runtime blocks
+Apple Events without `com.apple.security.automation.apple-events`, and Sandfort
+drives UTM entirely through Apple Events. A build missing that entitlement
+installs, launches, and never starts a VM, without reporting an error.
 
 `make qualification-app` creates a separately identified Fedora-only regression
 app with isolated Application Support state and clearly prefixed UTM names. It

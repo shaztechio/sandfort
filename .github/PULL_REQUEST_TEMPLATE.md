@@ -7,7 +7,7 @@
 <!-- State what you actually ran. Do not describe a live UTM boot unless you booted one. -->
 
 - [ ] `make test` passes
-- [ ] `make app` and `codesign --verify --deep --strict "dist/Sandfort.app"` (packaging or UI changes)
+- [ ] `make app` and `codesign --verify --strict "dist/Sandfort.app"` (packaging or UI changes)
 - [ ] Real UTM boot tested (required for guest provisioning changes) — describe what you exercised:
 
 ## Impact on existing users

@@ -5,7 +5,7 @@ app when repeating its release matrix without changing a production baseline:
 
 ```sh
 make debian-qualification-app
-codesign --verify --deep --strict "dist/Sandfort Debian Qualification.app"
+codesign --verify --strict "dist/Sandfort Debian Qualification.app"
 ```
 
 The qualification app has bundle identifier
