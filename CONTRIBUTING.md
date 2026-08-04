@@ -26,8 +26,10 @@ make test     # policy and format regression tests
 make app      # release build into dist/Sandfort.app, ad-hoc signed
 ```
 
-`make test` must pass for every change. It also runs in CI on every pull
-request and every push to `main`, on the same runner the release build uses. Run
+`make test` must pass for every change. It also runs in CI as **Tests /
+macos-arm64** on every pull request and every push to `main`, on the same runner
+the release build uses. That name is what a required status check would refer
+to, so it is worth leaving alone. Run
 it locally anyway; a red pull request is a slower way to learn the same thing.
 
 Editing `HELP.md` has a trap worth knowing. Help Viewer keeps its own copy of

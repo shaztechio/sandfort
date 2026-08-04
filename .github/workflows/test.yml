@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: test
+name: Tests
 
 # Safe on pull requests, unlike the release workflow: this needs no secrets, so a
 # branch from a fork cannot use it to reach the signing certificate. Running here
@@ -33,7 +33,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  macos-arm64-native:
+  macos-arm64:
     # The same runner the release build uses, so a green suite here means the
     # toolchain that will actually ship it.
     runs-on: macos-15
