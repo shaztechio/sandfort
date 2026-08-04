@@ -37,6 +37,17 @@ volume_name="Sandfort"
 [ -d "$app" ] || { printf 'error: %s does not exist. Run `make app` first.\n' "$app" >&2; exit 1; }
 [ -f "$layout" ] || { printf 'error: %s is missing.\n' "$layout" >&2; exit 1; }
 
+# `make app` ad-hoc signs, so running this straight afterwards would wrap an app
+# that cannot be distributed inside a properly signed image: the container passes
+# Gatekeeper and the app inside is rejected. Say so rather than produce it
+# quietly. The release path signs the app first, so this only warns for a local
+# build.
+if codesign -dvvv "$app" 2>&1 | grep -q 'Signature=adhoc'; then
+  printf 'warning: %s is ad-hoc signed, not Developer ID signed.\n' "$app" >&2
+  printf 'The image will build, but the app inside it will fail Gatekeeper.\n' >&2
+  printf 'Run `make signed-app` for a distributable image.\n\n' >&2
+fi
+
 short="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")"
 build="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$app/Contents/Info.plist")"
 output="${1:-dist/Sandfort-$short-$build.dmg}"
