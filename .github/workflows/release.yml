@@ -1,0 +1,114 @@
+# Copyright 2026 Shazron Abdullah and Sandfort contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Signed release
+
+# Never on pull_request. This repository is public, and a workflow that runs on
+# a fork's pull request would hand the signing certificate to code the author
+# does not control. Tags and manual runs only.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Apple silicon runner: Sandfort is an arm64 app and this is an arm64 build.
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: swift --version && xcodebuild -version
+
+      - name: Run tests
+        run: make test
+
+      - name: Build the app
+        run: make app
+
+      # The certificate lives in a throwaway keychain, not the login keychain,
+      # so nothing outlives the job. set-key-partition-list is what stops
+      # codesign blocking on a UI prompt that no one can answer on a runner.
+      - name: Import the Developer ID certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          # Random per run: this password protects nothing beyond the job.
+          keychain_password="$(uuidgen)"
+          certificate="$RUNNER_TEMP/certificate.p12"
+
+          echo "$CERTIFICATE_P12" | base64 --decode > "$certificate"
+
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -k "$keychain" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychain -d user -s "$keychain" login.keychain-db
+
+          rm -f "$certificate"
+
+          echo "Identities available to this job:"
+          security find-identity -v -p codesigning "$keychain" | sed 's/^/  /'
+
+      - name: Sign, notarize, and staple
+        env:
+          SANDFORT_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+          SANDFORT_APPLE_ID: ${{ secrets.APPLE_ID }}
+          SANDFORT_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SANDFORT_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: make signed-app
+
+      # Proves what is about to be published, rather than trusting that the
+      # previous step's exit code covered everything.
+      - name: Verify the notarized app
+        run: |
+          set -euo pipefail
+          codesign --verify --strict --verbose=2 dist/Sandfort.app
+          spctl --assess --type execute --verbose=4 dist/Sandfort.app
+          xcrun stapler validate dist/Sandfort.app
+          codesign -d --entitlements - dist/Sandfort.app 2>/dev/null \
+            | grep -q 'com.apple.security.automation.apple-events' \
+            || { echo "Apple Events entitlement missing; Sandfort could not start a VM."; exit 1; }
+
+      - name: Package for download
+        run: |
+          set -euo pipefail
+          ditto -c -k --keepParent dist/Sandfort.app dist/Sandfort.zip
+          shasum -a 256 dist/Sandfort.zip | tee dist/Sandfort.zip.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sandfort-signed
+          path: |
+            dist/Sandfort.zip
+            dist/Sandfort.zip.sha256
+
+      # Runs even if a step above failed, so a failure never leaves a signing
+      # certificate on the runner.
+      - name: Remove the signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true

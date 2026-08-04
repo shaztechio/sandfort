@@ -15,8 +15,15 @@
 #
 # Developer ID signs, notarizes, and staples dist/Sandfort.app.
 #
-#   SANDFORT_SIGN_IDENTITY   full name of the Developer ID Application identity
+#   SANDFORT_SIGN_IDENTITY   full name of the Developer ID Application identity.
+#                            Optional when exactly one is installed.
+#
+# Notarization credentials, either:
 #   SANDFORT_NOTARY_PROFILE  notarytool keychain profile (default: sandfort)
+# or, for CI, where no keychain profile exists:
+#   SANDFORT_APPLE_ID        Apple ID email
+#   SANDFORT_TEAM_ID         Developer Team ID
+#   SANDFORT_APP_PASSWORD    app-specific password
 #
 # Run `make app` first. This script never builds, so what gets notarized is
 # exactly what was tested.
@@ -90,7 +97,20 @@ printf 'Submitting for notarization…\n'
 archive="dist/Sandfort-notarize.zip"
 rm -f "$archive"
 ditto -c -k --keepParent "$app" "$archive"
-xcrun notarytool submit "$archive" --keychain-profile "$profile" --wait
+
+# A CI runner has no keychain profile, so credentials can be passed directly.
+# They are only ever read from the environment: putting an app-specific password
+# on the command line would expose it in the process list.
+if [ -n "${SANDFORT_APPLE_ID:-}" ] && [ -n "${SANDFORT_TEAM_ID:-}" ] \
+   && [ -n "${SANDFORT_APP_PASSWORD:-}" ]; then
+  xcrun notarytool submit "$archive" \
+    --apple-id "$SANDFORT_APPLE_ID" \
+    --team-id "$SANDFORT_TEAM_ID" \
+    --password "$SANDFORT_APP_PASSWORD" \
+    --wait
+else
+  xcrun notarytool submit "$archive" --keychain-profile "$profile" --wait
+fi
 rm -f "$archive"
 
 xcrun stapler staple "$app"
