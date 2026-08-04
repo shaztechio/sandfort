@@ -33,12 +33,20 @@ app="dist/Sandfort.app"
 layout="tools/packaging/dmg-layout.DS_Store"
 volume="Sandfort"
 
-# Window is 600x420. Icon centres sit on the same baseline, a third and
-# two-thirds across, leaving the middle clear for a background arrow.
-window_bounds="{200, 150, 800, 570}"
+# Geometry follows the background image, not the other way round: the artwork is
+# a fixed size and the window has to match it or the edges crop.
+background="tools/packaging/dmg-background.tiff"
+background_width=660
+background_height=400
 icon_size=128
-app_position="{150, 195}"
-applications_position="{450, 195}"
+# Icon centres a quarter and three-quarters across, on a shared baseline, with
+# the middle left clear for the arrow.
+app_position="{165, 185}"
+applications_position="{495, 185}"
+
+window_left=200
+window_top=150
+window_bounds="{$window_left, $window_top, $((window_left + background_width)), $((window_top + background_height))}"
 
 [ -d "$app" ] || { printf 'error: %s does not exist. Run `make app` first.\n' "$app" >&2; exit 1; }
 
@@ -52,6 +60,10 @@ trap cleanup EXIT
 
 ditto "$app" "$staging/Sandfort.app"
 ln -s /Applications "$staging/Applications"
+if [ -f "$background" ]; then
+  mkdir -p "$staging/.background"
+  cp "$background" "$staging/.background/background.tiff"
+fi
 
 hdiutil detach "/Volumes/$volume" -quiet 2>/dev/null || true
 hdiutil create -volname "$volume" -srcfolder "$staging" -format UDRW -ov -quiet "$image"
@@ -76,6 +88,8 @@ tell application "Finder"
     set arrangement of the icon view options of container window to not arranged
     set icon size of the icon view options of container window to $icon_size
     set text size of the icon view options of container window to 13
+    set background picture of the icon view options of container window ¬
+      to file ".background:background.tiff"
     delay 1
     set position of item "Sandfort.app" of container window to $app_position
     set position of item "Applications" of container window to $applications_position

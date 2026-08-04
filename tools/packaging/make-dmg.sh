@@ -62,6 +62,13 @@ ditto "$app" "$staging/Sandfort.app"
 ln -s /Applications "$staging/Applications"
 cp "$layout" "$staging/.DS_Store"
 
+# The .DS_Store references .background/background.tiff by path, so the artwork has
+# to travel with it or the window falls back to a plain background.
+if [ -f "tools/packaging/dmg-background.tiff" ]; then
+  mkdir -p "$staging/.background"
+  cp "tools/packaging/dmg-background.tiff" "$staging/.background/background.tiff"
+fi
+
 rm -f "$output"
 # UDZO is the widely compatible compressed format. UDBZ and ULFO compress a
 # little better but are not worth a format question on someone else's Mac.
