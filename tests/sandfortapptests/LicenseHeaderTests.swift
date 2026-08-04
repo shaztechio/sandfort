@@ -1,4 +1,4 @@
-// Copyright 2026 Sandfort contributors
+// Copyright 2026 Shazron Abdullah and Sandfort contributors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ final class LicenseHeaderTests: XCTestCase {
                 "\(path) is missing the Apache-2.0 header"
             )
             XCTAssertTrue(
-                text.contains("Copyright 2026 Sandfort contributors"),
+                text.contains("Copyright 2026 Shazron Abdullah and Sandfort contributors"),
                 "\(path) is missing the copyright line"
             )
         }
