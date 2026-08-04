@@ -21,7 +21,9 @@ native Help Book available from **Help → Sandfort Help** in the app.
 
 ## Screenshot
 
-![Sandfort app showing a ready sandbox instance](assets/Sandfort-screenshot.png)
+![Sandfort's window: four Linux environments in the sidebar, two with protected
+baselines, one mid-setup, and openSUSE Leap 16 selected and ready to
+create](assets/Sandfort-screenshot.png)
 
 ## Quick start
 
