@@ -21,11 +21,28 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Cut a release? "none" builds and signs without publishing.'
+        type: choice
+        default: none
+        options: [none, patch, minor, major]
+      version:
+        description: 'Exact version x.y.z. Overrides the bump choice.'
+        type: string
+        default: ''
 
-# write is needed to create the Release. It is the only elevated permission here,
-# and it is why this workflow must never be reachable from a fork's pull request.
+# write is needed to create the Release, and to push the version bump when a
+# release is cut from the browser. It is the only elevated permission here, and
+# it is why this workflow must never be reachable from a fork's pull request.
 permissions:
   contents: write
+
+# One release at a time. Two overlapping runs would race over the version in
+# Info.plist and could publish two releases from the same number.
+concurrency:
+  group: signed-release
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -35,9 +52,69 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The bump step pushes a commit and a tag, which needs the token the
+          # checkout leaves behind.
+          persist-credentials: true
 
       - name: Show toolchain
         run: swift --version && xcodebuild -version
+
+      # Cutting a release from the browser. Everything `make release` does on a
+      # laptop, before anything is built, so the app that gets signed already
+      # carries the new version.
+      #
+      # Pushing the tag here does not start a second run of this workflow:
+      # GitHub does not raise workflow events for pushes made with GITHUB_TOKEN.
+      - name: Bump the version and tag
+        id: bump
+        if: github.event_name == 'workflow_dispatch' && (inputs.bump != 'none' || inputs.version != '')
+        run: |
+          set -euo pipefail
+          plist="tools/packaging/Info.plist"
+          current="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$plist")"
+          build="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$plist")"
+
+          requested="${{ inputs.version }}"
+          if [ -n "$requested" ]; then
+            version="${requested#v}"
+          else
+            major="${current%%.*}"; rest="${current#*.}"
+            minor="${rest%%.*}"; patch="${rest#*.}"
+            case "${{ inputs.bump }}" in
+              patch) version="$major.$minor.$((patch + 1))" ;;
+              minor) version="$major.$((minor + 1)).0" ;;
+              major) version="$((major + 1)).0.0" ;;
+              *) echo "unknown bump ${{ inputs.bump }}"; exit 1 ;;
+            esac
+          fi
+
+          case "$version" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "$version is not a valid x.y.z version"; exit 1 ;;
+          esac
+
+          tag="v$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists."
+            exit 1
+          fi
+
+          # The build number rises across every version: macOS treats a lower
+          # one as a downgrade even when the visible version went up.
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $((build + 1))" "$plist"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$plist"
+          git commit -m "Release $tag"
+          git tag -a "$tag" -m "Sandfort $version"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
+          git push origin "$tag"
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Cut $tag from $current ($build)"
 
       - name: Run tests
         run: make test
@@ -96,6 +173,27 @@ jobs:
             | grep -q 'com.apple.security.automation.apple-events' \
             || { echo "Apple Events entitlement missing; Sandfort could not start a VM."; exit 1; }
 
+      # A run publishes when it was started by a tag push, or when the bump step
+      # just created one. Deciding it once keeps the later steps from drifting
+      # apart on separate conditions.
+      - name: Decide whether this run publishes
+        id: mode
+        run: |
+          set -euo pipefail
+          if [ -n "${{ steps.bump.outputs.tag }}" ]; then
+            tag="${{ steps.bump.outputs.tag }}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag=""
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ -n "$tag" ]; then
+            echo "Publishing $tag"
+          else
+            echo "Build and sign only; nothing will be published."
+          fi
+
       # The version comes from the app that was just built, not from the tag, so
       # the filename can never disagree with what is inside the bundle.
       - name: Read the built version
@@ -114,7 +212,7 @@ jobs:
       # name does not match its contents. Fail instead, before anything is
       # published; the fix is a version bump, not a re-run.
       - name: Check the tag matches the built version
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.ref_type == 'tag'
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#v}"
@@ -143,7 +241,7 @@ jobs:
       # executable bit, and a raw .app would download as a bundle whose binary
       # cannot run.
       - uses: actions/upload-artifact@v4
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: steps.mode.outputs.tag == ''
         with:
           name: ${{ steps.version.outputs.name }}
           path: |
@@ -153,7 +251,7 @@ jobs:
       # Tags only. A manual run still builds, signs, and uploads an artifact, so
       # the pipeline can be exercised without publishing anything.
       - name: Create the GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.mode.outputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -169,7 +267,7 @@ jobs:
             cat "$zip.sha256"
             printf '```\n'
           } > "$notes"
-          gh release create "$GITHUB_REF_NAME" "$zip" "$zip.sha256" \
+          gh release create "${{ steps.mode.outputs.tag }}" "$zip" "$zip.sha256" \
             --title "Sandfort ${{ steps.version.outputs.short }}" \
             --notes-file "$notes" \
             --verify-tag

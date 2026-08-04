@@ -22,6 +22,38 @@ Preview without changing anything:
 ./tools/packaging/release.sh --dry-run
 ```
 
+## Releasing from a browser
+
+`make release` needs a laptop. To cut a release from the GitHub web UI — after
+merging pull requests from a phone, say — use the workflow itself:
+
+**Actions → Signed release → Run workflow**, then set **bump** to `patch`,
+`minor`, or `major`, and **Run workflow**.
+
+The run does exactly what `make release` does, in this order: bump
+`Info.plist`, commit it, tag it, push both, then test, build, sign, notarize,
+and publish the Release. The bump happens before the build, so the app that gets
+signed already carries the new version. Leave **version** empty unless you want
+an exact number, which overrides the bump.
+
+Leaving **bump** at `none` builds, signs, and notarizes without publishing
+anything, and uploads the result as an artifact. That is the way to prove the
+signing secrets work before cutting anything public.
+
+Two things this depends on, worth checking once:
+
+- **`main` must not be protected**, or the bump commit cannot be pushed. Add an
+  exception for `github-actions[bot]` if you protect it later.
+- **Actions needs write access to the repository.** The workflow asks for
+  `contents: write` explicitly, but if the bump push or the Release creation
+  fails with a 403, set Settings → Actions → General → Workflow permissions to
+  **Read and write permissions**.
+
+Do not create the Release through **Releases → Draft a new release**. That page
+creates the Release itself, and the workflow then fails trying to create one for
+a tag that already has it. It also cannot bump the version, so the tag would not
+match what is inside the app.
+
 ## The version lives in Info.plist, not in the tag
 
 `tools/packaging/Info.plist` is the single source of truth. The tag is derived
