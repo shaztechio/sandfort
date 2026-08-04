@@ -479,6 +479,75 @@ actor SandfortWorkflow {
         await UTMLauncher.openAndStart(bundle: bundle, name: instance.vmName)
     }
 
+    /// Which VMs in scope are running, by display name.
+    ///
+    /// `instanceNumber` scopes the answer to one instance; nil covers the whole
+    /// environment — the baseline and every instance — which is what Rebuild and
+    /// Delete Environment touch. Running is the qcow2 lock, the same signal
+    /// `ensureBundleNotRunning` uses to refuse.
+    func runningVirtualMachines(instanceNumber: Int?) -> [String] {
+        guard let state = currentState() else { return [] }
+        var running: [String] = []
+        func check(_ path: String, _ label: String) {
+            let bundle = URL(fileURLWithPath: path)
+            guard fileManager.fileExists(atPath: bundle.path) else { return }
+            if (try? provider.ensureBundleNotRunning(at: bundle)) == nil { running.append(label) }
+        }
+        if let instanceNumber {
+            if let instance = state.resolvedInstances.first(where: { $0.number == instanceNumber }) {
+                check(instance.bundlePath, instance.displayTitle)
+            }
+            return running
+        }
+        check(state.setupBundlePath, "Protected Baseline")
+        for instance in state.resolvedInstances {
+            check(instance.bundlePath, instance.displayTitle)
+        }
+        return running
+    }
+
+    /// Shuts down everything in scope and waits for each to stop, so the caller
+    /// can proceed with an operation that needs a quiet disk.
+    func shutDownRunningVirtualMachines(
+        instanceNumber: Int?,
+        event: @escaping @Sendable (WorkflowEvent) -> Void
+    ) async throws {
+        guard let state = currentState() else { throw SandboxError.sandboxNotCreated }
+        var targets: [(name: String, path: String, label: String)] = []
+        if let instanceNumber {
+            if let instance = state.resolvedInstances.first(where: { $0.number == instanceNumber }) {
+                targets.append((instance.vmName, instance.bundlePath, instance.displayTitle))
+            }
+        } else {
+            if let setupVMName = state.setupVMName {
+                targets.append((setupVMName, state.setupBundlePath, "Protected Baseline"))
+            }
+            for instance in state.resolvedInstances {
+                targets.append((instance.vmName, instance.bundlePath, instance.displayTitle))
+            }
+        }
+        for target in targets {
+            let bundle = URL(fileURLWithPath: target.path)
+            guard fileManager.fileExists(atPath: bundle.path),
+                  (try? provider.ensureBundleNotRunning(at: bundle)) == nil else { continue }
+            event(.phase("Shutting down \(target.label)…"))
+            try UTMRegistryController.stopVirtualMachine(named: target.name)
+            try await waitUntilStopped(bundle: bundle, vmName: target.name)
+            event(.log("\(target.label) stopped."))
+        }
+    }
+
+    /// Waits on the qcow2 lock rather than asking UTM. QEMU holds it for as long
+    /// as the VM is live, so this needs no Apple Event and is true whether or
+    /// not UTM is scriptable.
+    private func waitUntilStopped(bundle: URL, vmName: String) async throws {
+        for _ in 0..<120 {                       // 30 seconds
+            if (try? provider.ensureBundleNotRunning(at: bundle)) != nil { return }
+            try await Task.sleep(for: .milliseconds(250))
+        }
+        throw UTMRegistryError.stopIgnored(name: vmName)
+    }
+
     /// Asks the guest to shut down, waits for UTM to confirm, then closes the
     /// window UTM leaves behind showing a stopped machine.
     ///
@@ -497,20 +566,7 @@ actor SandfortWorkflow {
         event(.phase("Shutting down Instance \(instanceNumber)…"))
         event(.log("Asking the guest to power down. A desktop guest may show a confirmation dialog."))
         try UTMRegistryController.stopVirtualMachine(named: instance.vmName)
-
-        // Wait on the disk lock rather than asking UTM. QEMU holds an exclusive
-        // lock on the qcow2 for as long as the VM is live, so this is the same
-        // signal `ensureBundleNotRunning` already trusts — no Apple Event, no
-        // permission, and true whether or not UTM is scriptable.
-        var stopped = false
-        for _ in 0..<120 {                       // 30 seconds
-            if (try? provider.ensureBundleNotRunning(at: bundle)) != nil {
-                stopped = true
-                break
-            }
-            try await Task.sleep(for: .milliseconds(250))
-        }
-        guard stopped else { throw UTMRegistryError.stopIgnored(name: instance.vmName) }
+        try await waitUntilStopped(bundle: bundle, vmName: instance.vmName)
 
         event(.log("Instance \(instanceNumber) stopped. Its UTM window stays open; UTM does not "
             + "close it, and no automation client can."))

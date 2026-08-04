@@ -147,6 +147,22 @@ struct ContentView: View {
         } message: {
             Text("Renaming changes only the name shown in this app and UTM. It does not change the instance's disk or identity.")
         }
+        .confirmationDialog(
+            model.blockingVirtualMachines.count == 1
+                ? "\(model.blockingVirtualMachines[0]) is still running"
+                : "\(model.blockingVirtualMachines.count) virtual machines are still running",
+            isPresented: $model.showShutDownPrompt,
+            titleVisibility: .visible
+        ) {
+            Button("Shut Down and Continue") { model.shutDownBlockingVirtualMachinesAndContinue() }
+            Button("Cancel", role: .cancel) { model.cancelShutDownPrompt() }
+        } message: {
+            Text(
+                "This action needs their disks to be idle. Sandfort will ask each guest to power "
+                + "itself down and wait for it to stop.\n\n\(model.blockingVirtualMachineList)\n\n"
+                + "A guest with unsaved work may refuse. Nothing is forced."
+            )
+        }
         .confirmationDialog("Delete \(model.selectedInstanceTitle)?", isPresented: $model.showDeleteConfirmation, titleVisibility: .visible) {
             Button("Delete Instance", role: .destructive) { model.deleteSelectedInstance() }
             Button("Cancel", role: .cancel) {}

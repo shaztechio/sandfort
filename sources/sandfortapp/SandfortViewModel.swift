@@ -287,7 +287,16 @@ final class SandfortViewModel: ObservableObject {
         }
     }
 
+    /// Checked before the password sheet rather than after it. Rebuild reaches
+    /// the baseline and every instance, and asking for a password only to refuse
+    /// on the next screen wastes the one decision the user has already made.
     func beginRebuildPasswordPrompt() {
+        afterShuttingDownIfNeeded(instanceNumber: nil) { [weak self] in
+            self?.presentRebuildPasswordPrompt()
+        }
+    }
+
+    private func presentRebuildPasswordPrompt() {
         selectedBaselineProfile = guestProfile
         rebuildPassword = credentials?.password ?? guestProfile.credentials().password
         Task {
@@ -337,8 +346,12 @@ final class SandfortViewModel: ObservableObject {
     }
 
     func requestResetAndRunClean() {
-        pendingSandboxAction = .reset(instanceNumber: selectedInstanceNumber)
-        showNetworkConfirmation = true
+        let number = selectedInstanceNumber
+        afterShuttingDownIfNeeded(instanceNumber: number) { [weak self] in
+            guard let self else { return }
+            self.pendingSandboxAction = .reset(instanceNumber: number)
+            self.showNetworkConfirmation = true
+        }
     }
 
     func resumeSelectedInstance() {
@@ -351,6 +364,68 @@ final class SandfortViewModel: ObservableObject {
                 message: "UTM is reopening Instance \(number) without restoring the baseline. Its previous files, processes, and network configuration remain in place."
             )
         }
+    }
+
+    // MARK: - Running virtual machines block destructive work
+    //
+    // Reset, Delete Instance, Rebuild, and Delete Environment all refuse while a
+    // VM holds its disk. Each one used to fail with "Shut down the virtual
+    // machine in UTM", sending the user to another app to do something Sandfort
+    // can do itself.
+    //
+    // The shutdown is offered, never automatic. Rebuild and Delete Environment
+    // reach every instance in the environment, including ones the user is not
+    // looking at, and powering those down as a side effect of a different action
+    // is exactly the kind of surprise this app avoids elsewhere.
+
+    /// Names of the running VMs the pending operation would touch.
+    @Published private(set) var blockingVirtualMachines: [String] = []
+    @Published var showShutDownPrompt = false
+    private var pendingBlockedScope: Int??
+    private var pendingBlockedAction: (@MainActor () -> Void)?
+
+    var blockingVirtualMachineList: String {
+        blockingVirtualMachines.joined(separator: "\n")
+    }
+
+    /// Runs `action`, first offering to shut down anything in scope that is
+    /// still running. `instanceNumber` nil means the whole environment.
+    private func afterShuttingDownIfNeeded(
+        instanceNumber: Int?,
+        action: @escaping @MainActor () -> Void
+    ) {
+        guard let selection = selectedSelection else { return }
+        Task { @MainActor in
+            let running = await selection.workflow.runningVirtualMachines(instanceNumber: instanceNumber)
+            guard !running.isEmpty else {
+                action()
+                return
+            }
+            self.blockingVirtualMachines = running
+            self.pendingBlockedScope = .some(instanceNumber)
+            self.pendingBlockedAction = action
+            self.showShutDownPrompt = true
+        }
+    }
+
+    func shutDownBlockingVirtualMachinesAndContinue() {
+        guard let scope = pendingBlockedScope, let action = pendingBlockedAction else { return }
+        guard let selection = selectedSelection else { return }
+        pendingBlockedScope = nil
+        pendingBlockedAction = nil
+        perform {
+            try await selection.workflow.shutDownRunningVirtualMachines(
+                instanceNumber: scope,
+                event: self.eventHandler
+            )
+            await MainActor.run { action() }
+        }
+    }
+
+    func cancelShutDownPrompt() {
+        pendingBlockedScope = nil
+        pendingBlockedAction = nil
+        blockingVirtualMachines = []
     }
 
     func stop(instance number: Int) {
@@ -419,6 +494,12 @@ final class SandfortViewModel: ObservableObject {
     }
 
     func deleteSelectedInstance() {
+        afterShuttingDownIfNeeded(instanceNumber: selectedInstanceNumber) { [weak self] in
+            self?.performDeleteSelectedInstance()
+        }
+    }
+
+    private func performDeleteSelectedInstance() {
         let number = selectedInstanceNumber
         let title = selectedInstanceTitle
         guard let selection = selectedSelection else { return }
@@ -434,6 +515,12 @@ final class SandfortViewModel: ObservableObject {
     }
 
     func deleteSelectedEnvironment() {
+        afterShuttingDownIfNeeded(instanceNumber: nil) { [weak self] in
+            self?.performDeleteSelectedEnvironment()
+        }
+    }
+
+    private func performDeleteSelectedEnvironment() {
         guard let selection = selectedSelection else { return }
         let title = selection.profile.displayName
         perform {

@@ -48,7 +48,22 @@ instance. There is no separate selection step.
 - **Resume** continues the instance exactly where you left it. Its files, changes, contamination, and last selected network mode remain.
 - **Reset & Run Clean** deletes that instance's changes and restores it from the Protected Baseline.
 - **Rename Instance**, in the row's **⋯** menu, adds or changes its descriptive label without changing its number, disk, or identity.
+- **Shut Down Instance**, in the row's **⋯** menu, asks the guest to power itself down.
 - **Delete Instance**, also in the row's **⋯** menu, unregisters the stopped instance from UTM, waits for UTM to confirm its removal, and moves its bundle to macOS Trash. It does not change the baseline or other instances.
+
+**Shut Down Instance** asks the guest to power itself down, the same as choosing shut down inside the desktop. It waits until the instance has really stopped before reporting success. The instance's disk is untouched, so **Resume** reopens it exactly as it was.
+
+A desktop guest can refuse. If something is unsaved, or a dialog is waiting for an answer, the guest will not power down and Sandfort says so rather than forcing it — a forced stop is a pulled power cable, and it can corrupt the filesystem. Answer the dialog in the VM, or stop it from UTM.
+
+UTM leaves its window open showing the stopped machine. Close that window yourself; UTM does not close it, and no app can close it from outside.
+
+### Something is still running
+
+**Reset & Run Clean**, **Delete Instance**, **Rebuild**, and **Delete Environment** all need the virtual machine's disk to be idle, so none of them can run while the guest is on. Sandfort now says which machines are in the way and offers **Shut Down and Continue** instead of sending you to UTM.
+
+Reset and Delete Instance only ever name the one instance. Rebuild and Delete Environment reach the Protected Baseline and every instance in that environment, so the list can be longer than you expect — read it before continuing.
+
+Nothing is shut down unless you choose it, and nothing is forced. A guest with unsaved work can refuse, and Sandfort reports that rather than pulling its power.
 
 Use **New Clean Sandbox** to create another independent numbered instance. Instances have separate disks, UEFI state, VM identifiers, and network addresses, so more than one can run at the same time.
 
@@ -93,11 +108,6 @@ Changing a tool option or script does not modify an existing baseline. Choose **
 
 Each sandbox instance is a row with its own **Resume** and **Reset & Run Clean** buttons, and a **⋯** menu holding **Shut Down Instance**, **Rename Instance**, and **Delete Instance**. **Rebuild** and **Delete Environment** are in the environment's **⋯** menu beside the main button, away from everyday actions.
 
-**Shut Down Instance** asks the guest to power itself down, the same as choosing shut down inside the desktop. It waits until the instance has really stopped before reporting success. The instance's disk is untouched, so **Resume** reopens it exactly as it was.
-
-A desktop guest can refuse. If something is unsaved, or a dialog is waiting for an answer, the guest will not power down and Sandfort says so rather than forcing it — a forced stop is a pulled power cable, and it can corrupt the filesystem. Answer the dialog in the VM, or stop it from UTM.
-
-UTM leaves its window open showing the stopped machine. Close that window yourself; UTM does not close it, and no app can close it from outside.
 
 Sandfort displays the guest username and password in the app. The password is hidden until you click the eye button, so it is not exposed in screenshots or screen sharing; a copy button puts it on the clipboard without revealing it. New baselines use the username `sandfort` and a memorable four-word, hyphen-separated password.
 
