@@ -95,6 +95,15 @@ the exact profile persisted by that environment. Distinct UTM names, directories
 VM UUIDs, MAC addresses, disks, and UEFI state allow instances from different
 distributions to run concurrently.
 
+Two provisioning choices exist only to make disposable boots quick. Clean
+instances run a small in-memory system journal rather than a persistent one:
+nothing needs to survive the session, and a disposable boot should not spend
+time flushing logs it is about to discard. Baseline setup also masks the
+wait-online services, which would otherwise hold the graphical login waiting for
+a network an offline instance never gets. That masking applies to Ubuntu and
+Debian, whose cloud images run `systemd-networkd`; Fedora and openSUSE do not
+install it and need no equivalent.
+
 `VirtualMachineProvider` is the provider contract. The workflow depends on that
 protocol rather than directly on UTM. A future one-click installer should be a new
 Swift package/app target with its own host provider while reusing or porting the

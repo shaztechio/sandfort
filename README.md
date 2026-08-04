@@ -59,66 +59,21 @@ create](assets/Sandfort-screenshot.png)
 
 ## Using clean sandboxes
 
-Clean sessions use a small in-memory system journal. This avoids persistent
-journal flushing during disposable boots and discards guest logs with the rest
-of the clean session when it shuts down. Baseline setup also disables
-the wait-online services that would otherwise delay the graphical login on an
-offline instance. This applies to Ubuntu and Debian, whose cloud images run
-systemd-networkd; Fedora and openSUSE do not install it and are unaffected.
+Each Linux environment keeps one **Protected Baseline** and any number of
+disposable numbered instances built from it. **Resume Instance** reopens an
+instance with its files, processes, and contamination intact; **Reset & Run
+Clean** restores that instance's disk and firmware state from the baseline.
+Every instance has its own disk, UEFI state, VM UUID, and MAC address, so
+instances run side by side, including ones from different distributions. Start
+instances through Sandfort, and never run a Protected Baseline directly in UTM.
 
-The setup login uses a generated, memorable four-word hyphen-separated phrase
-and is displayed in the app. Every numbered instance has an independent disk,
-UEFI state, VM UUID, and MAC address. **Resume Instance** preserves its current
-work and contamination. **Reset & Run Clean** restores only that instance from
-the protected baseline. Always start instances through the app and never run the
-Protected Baseline directly in UTM.
-
-Reset removes the stopped instance's old UTM registration and recreates its
-bundle before launch. This makes an already-open UTM library load the selected
-offline or Internet mode instead of a cached configuration. The permanent
-instance number and optional name remain, while its disposable VM UUID, MAC
-address, disk, and UEFI state are freshly generated or restored.
-
-Each Linux environment has an independent protected baseline, credentials,
-tool configuration, and numbered instances. Use **Add Linux Environment** to
-create Ubuntu, Fedora, Debian, and openSUSE environments side by side; instances from
-those environments can run concurrently. Verified image downloads are shared, but VM disks and
-state are not.
-
-During **Rebuild**, the app rebuilds only the selected environment and asks for
-its new baseline password, prefilling the current password. The chosen value is validated before any existing
-VM data is deleted, then applied by cloud-init and inherited by all new instances.
-After confirmation, macOS may ask permission for Sandfort to control UTM. The
-app uses that permission to remove the old protected baseline and every recorded
-numbered instance from UTM's library before deleting their app-owned bundles. If
-permission is denied, rebuild stops before deleting the current sandbox. Sandfort
-opens UTM automatically if it is closed, then waits for UTM to confirm each
-library removal before continuing. This prevents UTM from retaining a stale entry
-while its deletion is still in progress.
-
-macOS asks for that same permission earlier, when you first create an
-environment or start a sandbox, because starting a VM needs it. Sandfort waits
-until UTM confirms the virtual machine is in its library, then asks UTM to start
-it. If permission is denied, everything else still works — the VM is downloaded,
-verified, built, and added to UTM — but you start it yourself with UTM's play
-button, and the activity log says so.
-
-Use **Delete Environment** to remove only the selected distribution's baseline
-and instances. Other environments and cached verified downloads remain.
-
-Instance names can be changed later with **Run Instance → Rename Instance**.
-The permanent instance number, bundle path, VM UUID, disk, and baseline
-relationship do not change when a display name changes.
-
-Use **Run Instance → Delete Instance** to remove a stopped instance. The app
-unregisters it from UTM, waits for confirmation, moves its bundle to macOS Trash,
-and removes it from saved state without changing the Protected Baseline or other
-instances. Deleted instance numbers are not reused.
-
-Each instance creation and clean launch asks whether the guest should have Internet access. The default
-is offline. Internet-enabled runs still disable shared folders, clipboard, USB
-sharing, and incoming port forwarding, but UTM must relax guest-to-host network
-isolation to provide outbound access.
+Every instance creation and clean launch asks whether the guest gets Internet
+access. Offline is the default, and an Internet run still keeps shared folders,
+clipboard, USB sharing, and inbound port forwarding disabled. Rebuild, rename,
+and delete act only on the selected environment. Sign-in credentials, the
+permission macOS asks for the first time Sandfort drives UTM, and the rest of
+the day-to-day detail are in the [Help guide](HELP.md); the guarantees
+underneath them are in [docs/security-model.md](docs/security-model.md).
 
 ## Native runtime
 
