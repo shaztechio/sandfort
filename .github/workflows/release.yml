@@ -172,6 +172,9 @@ jobs:
           codesign -d --entitlements - dist/Sandfort.app 2>/dev/null \
             | grep -q 'com.apple.security.automation.apple-events' \
             || { echo "Apple Events entitlement missing; Sandfort could not start a VM."; exit 1; }
+          dmg="$(ls -t dist/Sandfort-*.dmg | head -1)"
+          codesign --verify --strict --verbose=2 "$dmg"
+          xcrun stapler validate "$dmg"
 
       # A run publishes when it was started by a tag push, or when the bump step
       # just created one. Deciding it once keeps the later steps from drifting
@@ -224,12 +227,17 @@ jobs:
           fi
           echo "Tag and built version agree: $built"
 
+      # The disk image is the download; the archive stays for anyone scripting an
+      # install, where mounting an image is friction rather than affordance.
       - name: Package for download
         run: |
           set -euo pipefail
           zip="dist/${{ steps.version.outputs.name }}.zip"
           ditto -c -k --keepParent dist/Sandfort.app "$zip"
-          shasum -a 256 "$zip" | sed 's|dist/||' | tee "$zip.sha256"
+          cd dist && shasum -a 256 \
+            "${{ steps.version.outputs.name }}.dmg" \
+            "${{ steps.version.outputs.name }}.zip" \
+            | tee "${{ steps.version.outputs.name }}.sha256"
 
       # Tag builds publish a Release, whose asset is the zip itself: downloading
       # it expands straight to Sandfort.app. Uploading the same zip as an
@@ -245,8 +253,9 @@ jobs:
         with:
           name: ${{ steps.version.outputs.name }}
           path: |
+            dist/${{ steps.version.outputs.name }}.dmg
             dist/${{ steps.version.outputs.name }}.zip
-            dist/${{ steps.version.outputs.name }}.zip.sha256
+            dist/${{ steps.version.outputs.name }}.sha256
 
       # Tags only. A manual run still builds, signs, and uploads an artifact, so
       # the pipeline can be exercised without publishing anything.
@@ -256,18 +265,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          zip="dist/${{ steps.version.outputs.name }}.zip"
+          name="${{ steps.version.outputs.name }}"
           notes="$(mktemp)"
           {
             printf 'Sandfort %s (build %s)\n\n' \
               "${{ steps.version.outputs.short }}" "${{ steps.version.outputs.build }}"
             printf 'Signed with a Developer ID certificate, notarized by Apple, and stapled.\n\n'
             printf 'Requires macOS 13 or later on Apple silicon, and [UTM](https://mac.getutm.app/).\n\n'
+            printf 'Open the .dmg and drag Sandfort to Applications. The .zip is the same app '
+            printf 'for anyone scripting an install.\n\n'
             printf 'SHA-256:\n\n```\n'
-            cat "$zip.sha256"
+            cat "dist/$name.sha256"
             printf '```\n'
           } > "$notes"
-          gh release create "${{ steps.mode.outputs.tag }}" "$zip" "$zip.sha256" \
+          gh release create "${{ steps.mode.outputs.tag }}" \
+            "dist/$name.dmg" "dist/$name.zip" "dist/$name.sha256" \
             --title "Sandfort ${{ steps.version.outputs.short }}" \
             --notes-file "$notes" \
             --verify-tag

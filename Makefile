@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: app signed-app release qualification-app ubuntu-qualification-app debian-qualification-app opensuse-qualification-app test clean
+.PHONY: app signed-app dmg release qualification-app ubuntu-qualification-app debian-qualification-app opensuse-qualification-app test clean
 
 app:
 	./tools/packaging/build-macos-app.sh
 
 signed-app:
 	./tools/packaging/sign-and-notarize.sh
+
+# Drag-to-Applications disk image from whatever make app last built.
+dmg:
+	./tools/packaging/make-dmg.sh
 
 # make release            patch bump
 # make release VERSION=1.3.0

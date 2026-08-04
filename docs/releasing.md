@@ -157,9 +157,13 @@ workflow refuse to continue if it is missing from the signed app.
 
 ## Where to download from
 
-A tagged build publishes a **GitHub Release**, and its asset is the archive
-itself. Downloading `Sandfort-x.y.z-NN.zip` from the Release expands directly to
-`Sandfort.app`, with the executable bit and the signature intact.
+A tagged build publishes a **GitHub Release** carrying two forms of the same
+app:
+
+- `Sandfort-x.y.z-NN.dmg` — the download. Open it and drag Sandfort to the
+  Applications alias beside it.
+- `Sandfort-x.y.z-NN.zip` — the same app for anyone scripting an install, where
+  mounting an image is friction rather than affordance.
 
 Do not use the Actions **artifact** for a release. Artifacts are zipped by GitHub
 on the way out, so an artifact containing an archive arrives as a zip inside a
@@ -169,6 +173,28 @@ one, because they have no Release to publish to.
 The archive inside that artifact is not redundant packaging. Artifacts do not
 preserve the executable bit, so uploading `Sandfort.app` as a directory would
 hand back a bundle whose binary cannot run.
+
+## The disk image
+
+`make dmg` builds it from whatever `make app` last produced; `make signed-app`
+does it as part of the release path.
+
+**The window layout comes from a committed `.DS_Store`**, not from driving Finder
+with AppleScript at build time. Finder scripting needs a real desktop session
+and a volume mounted where Finder can see it, which on a CI runner is flaky at
+best. Capturing the arrangement once and replaying it needs nothing but
+`hdiutil`.
+
+To change the layout: mount a read-write image, arrange the window in Finder,
+and copy the resulting `.DS_Store` over `tools/packaging/dmg-layout.DS_Store`.
+Icon positions are keyed by filename, so `Sandfort.app` and `Applications` must
+keep exactly those names.
+
+**The app and the image are notarized separately**, which means two submissions
+and roughly twice the wait. That is deliberate. Notarizing only the image would
+leave the app itself without a ticket, so dragging it to Applications and
+launching it offline would fail its first check. The app is stapled before it
+goes into the image; the image is stapled after.
 
 ## After a release
 

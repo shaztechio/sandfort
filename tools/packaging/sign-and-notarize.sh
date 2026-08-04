@@ -93,28 +93,47 @@ if ! codesign -d --entitlements - "$app" 2>/dev/null \
 fi
 printf 'Apple Events entitlement present.\n'
 
-printf 'Submitting for notarization…\n'
-archive="dist/Sandfort-notarize.zip"
-rm -f "$archive"
-ditto -c -k --keepParent "$app" "$archive"
-
 # A CI runner has no keychain profile, so credentials can be passed directly.
 # They are only ever read from the environment: putting an app-specific password
 # on the command line would expose it in the process list.
-if [ -n "${SANDFORT_APPLE_ID:-}" ] && [ -n "${SANDFORT_TEAM_ID:-}" ] \
-   && [ -n "${SANDFORT_APP_PASSWORD:-}" ]; then
-  xcrun notarytool submit "$archive" \
-    --apple-id "$SANDFORT_APPLE_ID" \
-    --team-id "$SANDFORT_TEAM_ID" \
-    --password "$SANDFORT_APP_PASSWORD" \
-    --wait
-else
-  xcrun notarytool submit "$archive" --keychain-profile "$profile" --wait
-fi
+notarize() {
+  if [ -n "${SANDFORT_APPLE_ID:-}" ] && [ -n "${SANDFORT_TEAM_ID:-}" ] \
+     && [ -n "${SANDFORT_APP_PASSWORD:-}" ]; then
+    xcrun notarytool submit "$1" \
+      --apple-id "$SANDFORT_APPLE_ID" \
+      --team-id "$SANDFORT_TEAM_ID" \
+      --password "$SANDFORT_APP_PASSWORD" \
+      --wait
+  else
+    xcrun notarytool submit "$1" --keychain-profile "$profile" --wait
+  fi
+}
+
+printf 'Submitting the app for notarization…\n'
+archive="dist/Sandfort-notarize.zip"
+rm -f "$archive"
+ditto -c -k --keepParent "$app" "$archive"
+notarize "$archive"
 rm -f "$archive"
 
 xcrun stapler staple "$app"
 spctl --assess --type execute --verbose=4 "$app"
 
-printf '\nSigned, notarized, and stapled: %s\n' "$app"
+# The app is stapled before it goes into the image, and the image is notarized
+# separately afterwards. Two submissions, deliberately: notarizing only the
+# image would leave the app with no ticket of its own, so dragging it out and
+# launching it offline would fail its first check.
+printf '\nBuilding the disk image…\n'
+./tools/packaging/make-dmg.sh
+dmg="$(ls -t dist/Sandfort-*.dmg | head -1)"
+
+printf 'Submitting the disk image for notarization…\n'
+notarize "$dmg"
+xcrun stapler staple "$dmg"
+xcrun stapler validate "$dmg"
+spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg"
+
+printf '\nSigned, notarized, and stapled:\n'
+printf '  %s\n' "$app"
+printf '  %s\n' "$dmg"
 printf 'Verify it starts a VM before distributing it.\n'
