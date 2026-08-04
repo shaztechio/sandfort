@@ -185,10 +185,22 @@ and a volume mounted where Finder can see it, which on a CI runner is flaky at
 best. Capturing the arrangement once and replaying it needs nothing but
 `hdiutil`.
 
-To change the layout: mount a read-write image, arrange the window in Finder,
-and copy the resulting `.DS_Store` over `tools/packaging/dmg-layout.DS_Store`.
-Icon positions are keyed by filename, so `Sandfort.app` and `Applications` must
-keep exactly those names.
+To change it, edit the values at the top of
+`tools/packaging/capture-dmg-layout.sh` and run it. It builds a scratch image,
+arranges it in Finder, checks that Finder stored what it was told, and only then
+overwrites `dmg-layout.DS_Store`. Icon positions are keyed by filename, so
+`Sandfort.app` and `Applications` must keep exactly those names.
+
+Two Finder quirks the script exists to survive, both of which produce a layout
+that looks captured and is not:
+
+- **Assign through the window, never a variable.** `set opts to the icon view
+  options of container window` takes a snapshot; later assignments to `opts`
+  report success and change nothing. The first captured layout had 48-point
+  icons for this reason.
+- **Read the value back before closing the window.** Asking a second Finder
+  session afterwards reports defaults rather than what was stored, so the check
+  passes or fails at random.
 
 **The app and the image are notarized separately**, which means two submissions
 and roughly twice the wait. That is deliberate. Notarizing only the image would
