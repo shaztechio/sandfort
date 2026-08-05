@@ -140,8 +140,14 @@ Release notes are generated from what merged since the previous tag, so a change
 pushed straight to `main` is a change that never appears in a changelog.
 
 - Branch from `main`.
-- **Write the title as the changelog line it will become**: what changed, for
-  someone who did not watch it happen.
+- **Title follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)**:
+  `type(scope): description`, for example `fix(utm): start VMs with UTM's start
+  command`. Merges squash and the title becomes the commit subject, so the title
+  is what has to be conventional.
+- **Mark guest-side changes as breaking.** Anything embedded in the guest forces
+  every existing user to **Rebuild**. Use `!` and a `BREAKING CHANGE:` footer
+  saying so — it is the one consequence a reader cannot infer, and the most
+  expensive to miss.
 - Write a commit message explaining *why*, not only what. The history is used to
   reconstruct intent later.
 - State the commands you ran and their results, and whether users must rebuild.

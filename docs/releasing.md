@@ -64,6 +64,11 @@ that appears in no changelog.
 The version bump the tooling commits is the one thing that does not go through a
 pull request, which is correct — it is the release, not a change in it.
 
+Subjects follow Conventional Commits, so notes can be grouped by type rather
+than listed flat, and **anything marked `!` or carrying a `BREAKING CHANGE:`
+footer is a release that requires users to Rebuild.** That belongs at the top of
+the notes, not buried in a list.
+
 ## The version lives in Info.plist, not in the tag
 
 `tools/packaging/Info.plist` is the single source of truth. The tag is derived

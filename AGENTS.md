@@ -439,11 +439,40 @@ previous tag, so a change that bypasses a pull request is a change that silently
 does not appear in any changelog. Direct pushes also skip the only automated
 check the project has.
 
-Write the pull request title as the changelog line it will become: what changed,
-for someone who did not watch it happen. "Fix the crash on baseline creation
-from a main-actor assertion" survives being read six months later; "fix bug" does
-not. Say in the body whether users must **Rebuild**, because that is the one
-consequence a reader cannot infer from a title.
+### Conventional Commits
+
+Subject lines follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/):
+
+```
+<type>(<optional scope>): <description>
+```
+
+Types in use: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`, `ci`,
+`chore`, `revert`. Useful scopes: `catalog`, `cloudinit`, `utm`, `verifier`,
+`packaging`, `site`, `release`.
+
+This governs the **subject line only**. The body still explains *why*, at
+whatever length that takes; the two conventions compose rather than compete.
+
+**A guest-side change is a breaking change.** Anything embedded in the guest —
+cloud-init, provisioning, credentials, services — forces every existing user to
+**Rebuild**, and a new binary alone is not enough. Mark those with `!` and a
+`BREAKING CHANGE:` footer saying what to do:
+
+```
+feat(cloudinit)!: install a terminal and a browser on openSUSE
+
+BREAKING CHANGE: openSUSE baselines must be rebuilt. Leap's GNOME pattern
+requires neither, so existing baselines have neither.
+```
+
+That is the whole reason to adopt the convention here. "Users must Rebuild" is
+the one consequence a reader cannot infer from a description, it is expensive to
+miss, and the spec already has a marker for exactly this.
+
+Because merges squash and the pull request title becomes the commit subject,
+**the title is the thing that has to be conventional.** A branch's intermediate
+commits matter less.
 
 Two exceptions, both mechanical:
 
