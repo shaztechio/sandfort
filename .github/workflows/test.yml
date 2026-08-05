@@ -33,6 +33,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The title becomes the commit subject on squash and then a release note line,
+  # so it is the only part of a pull request that outlives it. Cheap and fast, so
+  # it runs before the suite rather than after.
+  pull-request:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the title, and that a guest change declares its impact
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin "$BASE" "$HEAD"
+          changed="$(git diff --name-only "$BASE" "$HEAD")"
+          printf 'Changed files:\n%s\n\n' "$changed"
+          # shellcheck disable=SC2086
+          python3 tools/packaging/check-pull-request.py $changed
+
   macos-arm64:
     # The same runner the release build uses, so a green suite here means the
     # toolchain that will actually ship it.
