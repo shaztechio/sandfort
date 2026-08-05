@@ -78,7 +78,9 @@ def check_rebuild(match, body, changed):
     if not guest_files:
         return []
 
-    declared_breaking = bool(match and match.group("breaking")) or "BREAKING CHANGE:" in body
+    has_bang = bool(match and match.group("breaking"))
+    has_footer = "BREAKING CHANGE:" in body
+    declared_breaking = has_bang and has_footer
     declared_safe = "No rebuild required:" in body
     if declared_breaking or declared_safe:
         return []
