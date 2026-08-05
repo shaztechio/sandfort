@@ -54,6 +54,21 @@ creates the Release itself, and the workflow then fails trying to create one for
 a tag that already has it. It also cannot bump the version, so the tag would not
 match what is inside the app.
 
+## Release notes
+
+Every change reaches `main` through a pull request, so the notes for a release
+are the pull requests merged since the previous tag. That is the reason for the
+discipline rather than a happy side effect: a change pushed directly is a change
+that appears in no changelog.
+
+The version bump the tooling commits is the one thing that does not go through a
+pull request, which is correct — it is the release, not a change in it.
+
+Subjects follow Conventional Commits, so notes can be grouped by type rather
+than listed flat, and **anything marked `!` or carrying a `BREAKING CHANGE:`
+footer is a release that requires users to Rebuild.** That belongs at the top of
+the notes, not buried in a list.
+
 ## The version lives in Info.plist, not in the tag
 
 `tools/packaging/Info.plist` is the single source of truth. The tag is derived
