@@ -56,6 +56,9 @@ jobs:
           # The bump step pushes a commit and a tag, which needs the token the
           # checkout leaves behind.
           persist-credentials: true
+          # Release notes are built from the commits since the previous tag, so
+          # the default shallow clone would produce an empty changelog.
+          fetch-depth: 0
 
       - name: Show toolchain
         run: swift --version && xcodebuild -version
@@ -268,8 +271,10 @@ jobs:
           name="${{ steps.version.outputs.name }}"
           notes="$(mktemp)"
           {
-            printf 'Sandfort %s (build %s)\n\n' \
-              "${{ steps.version.outputs.short }}" "${{ steps.version.outputs.build }}"
+            # What changed comes first. The install boilerplate is identical
+            # every release and nobody reads it twice.
+            python3 tools/packaging/release-notes.py "${{ steps.mode.outputs.tag }}"
+            printf '\n---\n\n'
             printf 'Signed with a Developer ID certificate, notarized by Apple, and stapled.\n\n'
             printf 'Requires macOS 13 or later on Apple silicon, and [UTM](https://mac.getutm.app/).\n\n'
             printf 'Open the .dmg and drag Sandfort to Applications. The .zip is the same app '
