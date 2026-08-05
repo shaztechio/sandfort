@@ -474,6 +474,15 @@ Because merges squash and the pull request title becomes the commit subject,
 **the title is the thing that has to be conventional.** A branch's intermediate
 commits matter less.
 
+`tools/packaging/check-pull-request.py` enforces this in CI as **Tests /
+pull-request**. It rejects a non-conventional title, an unknown type, a
+capitalised or full-stopped description, and a subject over 72 characters. It
+also refuses a change to cloud-init or `GuestProvisioningSupport.swift` that does
+not declare its rebuild impact — either `!` with a `BREAKING CHANGE:` footer, or
+`No rebuild required: <why>` in the description. Not every edit to those files
+forces a rebuild; the check exists so the question is answered rather than
+skipped.
+
 Two exceptions, both mechanical:
 
 - The version bump that `make release` and the release workflow commit. It is

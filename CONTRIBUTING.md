@@ -148,6 +148,13 @@ pushed straight to `main` is a change that never appears in a changelog.
   every existing user to **Rebuild**. Use `!` and a `BREAKING CHANGE:` footer
   saying so — it is the one consequence a reader cannot infer, and the most
   expensive to miss.
+
+**Tests / pull-request** checks both automatically. If a pull request touches
+cloud-init or `GuestProvisioningSupport.swift` it will not merge until the
+description says which it is: either `!` with a `BREAKING CHANGE:` footer, or a
+line reading `No rebuild required: <why>`. A comment fix in those files is
+genuinely not breaking — say so and it passes. The point is that the question is
+answered rather than skipped.
 - Write a commit message explaining *why*, not only what. The history is used to
   reconstruct intent later.
 - State the commands you ran and their results, and whether users must rebuild.
