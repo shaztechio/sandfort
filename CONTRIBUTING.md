@@ -132,7 +132,16 @@ Summarized from AGENTS.md; read it there in full before starting.
 
 ## Pull requests
 
+**Every change goes through one, including maintainers'.** Branch, open a pull
+request, let **Tests / macos-arm64** pass, then merge. The only exceptions are
+the version bump the release tooling commits, and reverting a broken `main`.
+
+Release notes are generated from what merged since the previous tag, so a change
+pushed straight to `main` is a change that never appears in a changelog.
+
 - Branch from `main`.
+- **Write the title as the changelog line it will become**: what changed, for
+  someone who did not watch it happen.
 - Write a commit message explaining *why*, not only what. The history is used to
   reconstruct intent later.
 - State the commands you ran and their results, and whether users must rebuild.

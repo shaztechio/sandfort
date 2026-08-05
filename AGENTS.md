@@ -429,6 +429,33 @@ or setup-bundle structure should be treated as baseline-incompatible unless
 tests demonstrate a safe migration. Keep persisted `Codable` state backward
 compatible when adding fields (optional fields with defaults are preferred).
 
+## Every change goes through a pull request
+
+Branch, open a pull request, let **Tests / macos-arm64** pass, then merge. Do not
+push to `main` directly.
+
+This is not ceremony. Release notes are generated from what merged since the
+previous tag, so a change that bypasses a pull request is a change that silently
+does not appear in any changelog. Direct pushes also skip the only automated
+check the project has.
+
+Write the pull request title as the changelog line it will become: what changed,
+for someone who did not watch it happen. "Fix the crash on baseline creation
+from a main-actor assertion" survives being read six months later; "fix bug" does
+not. Say in the body whether users must **Rebuild**, because that is the one
+consequence a reader cannot infer from a title.
+
+Two exceptions, both mechanical:
+
+- The version bump that `make release` and the release workflow commit. It is
+  generated, it is the thing being released, and routing it through review would
+  be circular.
+- A revert of a broken `main`, which should be fast.
+
+If `main` is ever protected to enforce this, `github-actions[bot]` needs an
+exception or the browser release flow cannot push its bump commit. See
+`docs/releasing.md`.
+
 ## Editing and verification expectations
 
 - Inspect existing changes and preserve unrelated user work. Make focused edits;
