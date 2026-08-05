@@ -57,17 +57,32 @@ match what is inside the app.
 ## Release notes
 
 Every change reaches `main` through a pull request, so the notes for a release
-are the pull requests merged since the previous tag. That is the reason for the
-discipline rather than a happy side effect: a change pushed directly is a change
-that appears in no changelog.
+are what merged since the previous tag. That is the reason for the discipline
+rather than a happy side effect: a change pushed directly is a change that
+appears in no changelog.
 
-The version bump the tooling commits is the one thing that does not go through a
-pull request, which is correct — it is the release, not a change in it.
+`tools/packaging/release-notes.py` builds them. It reads the commits between the
+previous `v*` tag and this one, groups them by Conventional Commit type, and
+puts **breaking changes first under their own heading**, with the instruction to
+Rebuild. Not in a list: that is the one thing in a release note expensive to
+miss, and the reason the convention was worth adopting.
 
-Subjects follow Conventional Commits, so notes can be grouped by type rather
-than listed flat, and **anything marked `!` or carrying a `BREAKING CHANGE:`
-footer is a release that requires users to Rebuild.** That belongs at the top of
-the notes, not buried in a list.
+Preview any release's notes without cutting one:
+
+```sh
+python3 tools/packaging/release-notes.py v0.16.2
+```
+
+Two deliberate behaviours:
+
+- **Non-conventional subjects are kept**, under "Other changes", rather than
+  dropped. Anything written before the convention was adopted looks like that,
+  and notes that quietly omit half of what shipped are worse than untidy ones.
+- **The version bump is skipped.** It is the release, not a change in it, which
+  is also why it is the one commit exempt from the pull request rule.
+
+The workflow checks out with `fetch-depth: 0` for this. The default shallow
+clone has no history to read and would produce empty notes without failing.
 
 ## The version lives in Info.plist, not in the tag
 
