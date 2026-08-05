@@ -13,6 +13,11 @@
 Likely next targets are Intel macOS with UTM, Windows, and Linux with QEMU/KVM.
 Do not reuse ARM64 disk images or checksums on x86_64.
 
+`WINDOWS.md` and `LINUX.md` work this checklist through in detail. Read
+`LINUX.md` first whichever host you are adding: it records that starting,
+stopping, and unregistering a VM are not part of `VirtualMachineProvider` at all,
+so the contract has to grow before a second host can exist.
+
 `WINDOWS.md` works this checklist through for Windows in detail. It recommends
 QEMU rather than Hyper-V, because Hyper-V cannot express "Internet but no host
 access" without host firewall rules the user could undo.

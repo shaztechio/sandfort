@@ -88,6 +88,9 @@ without weakening the common provisioning policy.
 - `docs/security-review.md`: the brief for an external security review. Scope in
   priority order, what a finding must contain, and the adjudication gate — a
   finding that cannot be written as a failing test is almost always wrong.
+- `docs/LINUX.md`: plan only, nothing built. QEMU/KVM, and the finding that
+  matters beyond Linux: starting, stopping, and unregistering a VM live outside
+  `VirtualMachineProvider`, so the contract has to grow before any second host.
 - `docs/WINDOWS.md`: plan only, nothing built. The concrete Windows instance of
   `adding-a-platform.md`, including why it recommends QEMU over the Hyper-V that
   document assumes, and the open questions to settle before phase 1.

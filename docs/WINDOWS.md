@@ -27,8 +27,15 @@ port is transcription rather than invention.
 
 ## What has to be written
 
+**A wider provider contract, first.** `LINUX.md` records a gap that applies here
+equally: starting, stopping, and unregistering a VM live in `UTMLauncher` and
+`UTMRegistryController`, written against Apple Events, outside
+`VirtualMachineProvider` entirely. The contract has to grow to cover lifecycle
+before any second host can exist, and that work belongs on macOS with the
+existing tests green — not inside a port.
+
 **A `VirtualMachineProvider` implementation.** Seven methods, all of them about
-packaging and launching rather than provisioning:
+packaging rather than provisioning:
 
 ```
 createSetupBundle    createCleanBundle    resetCleanBundle
