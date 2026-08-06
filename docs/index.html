@@ -87,8 +87,19 @@ body {
   color: var(--ink);
   font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
 }
+
+/* Grid and flex children default to min-width: auto, so a track cannot shrink
+   below its content's min-content width. One unbreakable string — the clone URL
+   in the terminal — was therefore holding the whole page wider than an iPhone,
+   and `overflow-x: hidden` on the body was hiding it from every check that
+   measured scrollWidth. Let the tracks shrink; the pre scrolls on its own. */
+.quick > *, .problem > *, .cols2 > *, .steps > *, .features > *,
+.doclist > *, .distros > *, .hero-grid > *, .download > * { min-width: 0; }
+
+/* A long URL or path should wrap rather than push the page sideways. */
+body { overflow-wrap: break-word; }
+pre, code { overflow-wrap: normal; }
 h1, h2, h3 { line-height: 1.18; letter-spacing: -.02em; margin: 0; font-weight: 640; }
 p { margin: 0; }
 a { color: var(--sky-500); text-decoration-thickness: 1px; text-underline-offset: 2px; }
