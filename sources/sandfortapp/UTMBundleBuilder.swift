@@ -81,11 +81,11 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             try fileManager.copyItem(at: source, to: destination)
             try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
         }
-        try repairBundle(at: destinationURL, profile: profile)
+        try repairBundle(at: destinationURL, profile: profile, role: .cleanInstance)
         try setCleanNetworkMode(networkMode, at: destinationURL)
     }
 
-    func repairBundle(at bundleURL: URL, profile: LinuxGuestProfile) throws {
+    func repairBundle(at bundleURL: URL, profile: LinuxGuestProfile, role: VirtualMachineRole) throws {
         let configURL = bundleURL.appendingPathComponent("config.plist")
         guard FileManager.default.fileExists(atPath: configURL.path) else { return }
         let data = try Data(contentsOf: configURL)
@@ -94,10 +94,13 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         }
         plist["Serial"] = plist["Serial"] ?? []
         plist["Sound"] = plist["Sound"] ?? []
-        let name = (plist["Information"] as? [String: Any])?["Name"] as? String
-        let isSetup = name?.hasPrefix("Sandbox Ubuntu Setup") == true
-            || name?.contains("Baseline Setup") == true
-        let isProtectedBaseline = name?.contains("Protected Baseline") == true
+        // Role comes from the caller. It used to be read out of
+        // Information.Name by matching "Baseline Setup" and "Protected
+        // Baseline" — but that name embeds the user's instance label, so
+        // renaming an instance "Baseline Setup" reclassified it as the
+        // provisioning VM and cleared IsolateFromHost on the next state read.
+        let isSetup = role == .setup
+        let isProtectedBaseline = role == .protectedBaseline
         let isBaseline = isSetup || isProtectedBaseline
         plist["Display"] = isBaseline ? [] : [displayConfiguration]
         plist["Serial"] = isBaseline ? [serialTerminalConfiguration] : []

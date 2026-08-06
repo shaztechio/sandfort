@@ -1286,7 +1286,7 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertEqual(setupNetwork["IsolateFromHost"] as? Bool, false)
 
         try builder.setDisplayName("Sandfort — Protected Baseline TEST01", at: setup)
-        try builder.repairBundle(at: setup, profile: profile)
+        try builder.repairBundle(at: setup, profile: profile, role: .protectedBaseline)
         let protectedPlistData = try Data(contentsOf: setup.appendingPathComponent("config.plist"))
         let protectedPlist = try XCTUnwrap(PropertyListSerialization.propertyList(from: protectedPlistData, format: nil) as? [String: Any])
         XCTAssertEqual(
@@ -1344,7 +1344,7 @@ final class SandfortAppTests: XCTestCase {
         XCTAssertEqual(internetNetwork["IsolateFromHost"] as? Bool, false)
         XCTAssertEqual(internetNetwork["PortForward"] as? [String], [])
 
-        try builder.repairBundle(at: clean, profile: profile)
+        try builder.repairBundle(at: clean, profile: profile, role: .cleanInstance)
         let resumedPlistData = try Data(contentsOf: clean.appendingPathComponent("config.plist"))
         let resumedPlist = try XCTUnwrap(PropertyListSerialization.propertyList(from: resumedPlistData, format: nil) as? [String: Any])
         let resumedNetwork = try XCTUnwrap((resumedPlist["Network"] as? [[String: Any]])?.first)

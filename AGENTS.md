@@ -381,7 +381,11 @@ Treat these as requirements, not optional defaults:
 - Keep every Linux environment's state, VM directory, baseline, credentials, and
   instance numbering independent. Sharing the verified-image cache is allowed;
   sharing mutable guest disks or firmware is not.
-- Treat optional instance labels as display metadata only. Renaming must preserve
+- Treat optional instance labels as display metadata only. **Never derive
+  behaviour from a VM's display name**: it embeds the user's label, so anything
+  that reads policy out of it lets a rename change that policy. `repairBundle`
+  did exactly this, and naming an instance "Baseline Setup" cleared
+  `IsolateFromHost`. Roles are passed in by the caller, which always knows. Renaming must preserve
   the permanent number, bundle path, UUID, MAC address, disk, and UEFI state.
 - Keep instance deletion app-owned, recoverable through macOS Trash, and guarded
   by a disk-lock check. Never expose baseline deletion outside Rebuild, and never

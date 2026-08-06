@@ -135,9 +135,20 @@ actor SandfortWorkflow {
             try? save(state)
         }
         if let profile = try? guestProfile(for: state) {
-            try? provider.repairBundle(at: URL(fileURLWithPath: state.setupBundlePath), profile: profile)
+            // Before Finish Setup that bundle is the provisioning VM; after it,
+            // it is the protected baseline. The stage says which, so nothing has
+            // to guess from a name.
+            try? provider.repairBundle(
+                at: URL(fileURLWithPath: state.setupBundlePath),
+                profile: profile,
+                role: state.stage == .provisioning ? .setup : .protectedBaseline
+            )
             for instance in state.resolvedInstances {
-                try? provider.repairBundle(at: URL(fileURLWithPath: instance.bundlePath), profile: profile)
+                try? provider.repairBundle(
+                    at: URL(fileURLWithPath: instance.bundlePath),
+                    profile: profile,
+                    role: .cleanInstance
+                )
             }
         }
         return state
@@ -313,7 +324,7 @@ actor SandfortWorkflow {
         let instanceTag = tag(for: state)
         let protectedName = protectedBaselineName(tag: instanceTag)
         try provider.setDisplayName(protectedName, at: setupURL)
-        try provider.repairBundle(at: setupURL, profile: profile)
+        try provider.repairBundle(at: setupURL, profile: profile, role: .protectedBaseline)
         let cleanName = instanceName(number: 1, tag: instanceTag)
         let cleanURL = bundleURL(named: cleanName)
         if fileManager.fileExists(atPath: cleanURL.path) { try fileManager.removeItem(at: cleanURL) }
@@ -577,7 +588,7 @@ actor SandfortWorkflow {
         guard state.stage == .provisioning else { throw SandboxError.setupNotComplete }
         let bundleURL = URL(fileURLWithPath: state.setupBundlePath)
         let profile = try guestProfile(for: state, requireExactMetadata: true)
-        try provider.repairBundle(at: bundleURL, profile: profile)
+        try provider.repairBundle(at: bundleURL, profile: profile, role: .setup)
         try profile.seedISO(credentials: state.credentials, tools: state.tools ?? .recommended).write(
             to: bundleURL.appendingPathComponent("Data/seed.iso"),
             options: .atomic

@@ -43,7 +43,8 @@ final class RunningVirtualMachineScopeTests: XCTestCase {
             profile: LinuxGuestProfile, networkMode: SandboxNetworkMode
         ) throws {}
         func setDisplayName(_ name: String, at bundleURL: URL) throws {}
-        func repairBundle(at bundleURL: URL, profile: LinuxGuestProfile) throws {}
+        func repairBundle(at bundleURL: URL, profile: LinuxGuestProfile,
+                          role: VirtualMachineRole) throws {}
         func ensureBundleNotRunning(at bundleURL: URL) throws {
             if busyPathFragments.contains(where: { bundleURL.path.contains($0) }) {
                 throw SandboxError.virtualMachineRunning
