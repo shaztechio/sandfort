@@ -134,6 +134,25 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             qemu["DebugLog"] = true
             plist["QEMU"] = qemu
         }
+        // Isolation has to be reasserted here, not only written once at
+        // creation. UTM's own settings UI can turn clipboard sharing, a shared
+        // host directory, or USB passthrough on for any VM in its library, and
+        // nothing else puts them back — so an instance kept them across Resume
+        // while the app went on claiming the opposite.
+        //
+        // Merged rather than replaced, so a key UTM adds in a later version
+        // survives while the ones this app makes promises about do not drift.
+        var sharing = plist["Sharing"] as? [String: Any] ?? [:]
+        sharing["ClipboardSharing"] = false
+        sharing["DirectoryShareMode"] = "None"
+        sharing["DirectoryShareReadOnly"] = true
+        plist["Sharing"] = sharing
+
+        var input = plist["Input"] as? [String: Any] ?? [:]
+        input["UsbSharing"] = false
+        input["MaximumUsbShare"] = 0
+        input["UsbBusSupport"] = input["UsbBusSupport"] ?? "3.0"
+        plist["Input"] = input
         let repaired = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         try repaired.write(to: configURL, options: .atomic)
         if let disk = try? diskURL(in: bundleURL),
