@@ -101,6 +101,12 @@ without weakening the common provisioning policy.
 - `docs/WINDOWS.md`: plan only, nothing built. The concrete Windows instance of
   `adding-a-platform.md`, including why it recommends QEMU over the Hyper-V that
   document assumes, and the open questions to settle before phase 1.
+- `docs/INTEL.md`: plan only, and the one port plan that argues against itself.
+  Intel macOS is the cheapest of the three ports — the widened-contract
+  prerequisite is a second-*host* problem, not a second-*architecture* one, so
+  it does not apply — and it still should not be built, for reasons of hardware
+  arithmetic rather than engineering. Its Phase 0 is worth doing regardless of
+  that verdict, and both other port plans need it too.
 - `docs/index.html` and `docs/assets/`: the public project site, served by GitHub
   Pages from `main` and `/docs`. It shares this folder with the documentation, so
   `docs/.nojekyll` must stay: without it Jekyll renders every `.md` here into a
