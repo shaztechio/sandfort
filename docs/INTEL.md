@@ -80,7 +80,7 @@ Never reuse an ARM64 checksum or revision.
 
 ## Sonoma is the wrong floor, and it is worth being blunt about why
 
-Intel Macs that run Sonoma, minus those that run Sequoia, is a list of two
+Intel Macs that run Sonoma, minus those that run Sequoia, are two
 machines: **MacBook Air 2018 and 2019**. Dual-core, four-thread, 7-watt parts,
 sold with 8 GB of RAM and a 128 GB SSD at the base configuration.
 
