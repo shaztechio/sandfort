@@ -426,6 +426,121 @@ final class OpenPGPSignatureVerifierTests: XCTestCase {
         -----END PGP SIGNATURE-----
         """
 
+    // MARK: - The returned message is the text that was verified
+
+    /// Dash-escaping is not tampering: RFC 4880 §7.1 *requires* a line starting
+    /// with "-" to be escaped, and requires the escape to be stripped before
+    /// hashing. So this document must verify. What matters is that the message
+    /// handed back is the text that was hashed, or a caller reading it gets
+    /// bytes nobody signed.
+    func testADashEscapedLineVerifiesAndIsReturnedUnescaped() throws {
+        let prefix = "SHA256 (Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2) = "
+        let target = prefix + LinuxGuestCatalog.fedora44ARM64.image.sha256
+        let escaped = fedoraChecksumDocument.replacingOccurrences(of: target, with: "- " + target)
+        XCTAssertNotEqual(escaped, fedoraChecksumDocument)
+
+        let result = try OpenPGPSignatureVerifier.verifyClearsignedMessage(
+            armored: escaped, using: try fedoraKey()
+        )
+        XCTAssertEqual(
+            checksum(forPrefix: prefix, in: result.message),
+            LinuxGuestCatalog.fedora44ARM64.image.sha256,
+            "the returned message must be the dash-unescaped text that was hashed"
+        )
+    }
+
+    /// Trailing whitespace is excluded from the hash precisely so transport can
+    /// add or strip it. Returning the raw line put it back, so the value a
+    /// caller extracted was not the value that was signed.
+    func testTrailingWhitespaceIsStrippedFromTheReturnedMessage() throws {
+        let prefix = "SHA256 (Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2) = "
+        let target = prefix + LinuxGuestCatalog.fedora44ARM64.image.sha256
+        let padded = fedoraChecksumDocument.replacingOccurrences(of: target, with: target + "   \t")
+        XCTAssertNotEqual(padded, fedoraChecksumDocument)
+
+        let result = try OpenPGPSignatureVerifier.verifyClearsignedMessage(
+            armored: padded, using: try fedoraKey()
+        )
+        XCTAssertEqual(
+            checksum(forPrefix: prefix, in: result.message),
+            LinuxGuestCatalog.fedora44ARM64.image.sha256,
+            "the returned message must carry no trailing whitespace the signature did not cover"
+        )
+    }
+
+    /// The region between the header and the first blank line is unsigned. It
+    /// must be armor headers and nothing else: skipping to the first blank line
+    /// regardless of content let arbitrary unauthenticated text — including a
+    /// plausible-looking checksum line — sit inside the signed-message section
+    /// of a document that verifies.
+    func testUnsignedTextInTheArmorHeaderRegionIsRejected() throws {
+        let forged = fedoraChecksumDocument.replacingOccurrences(
+            of: "Hash: SHA256\n",
+            with: "Hash: SHA256\nSHA256 (Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2) = "
+                + String(repeating: "0", count: 64) + "\n"
+        )
+        XCTAssertNotEqual(forged, fedoraChecksumDocument)
+        XCTAssertThrowsError(
+            try OpenPGPSignatureVerifier.verifyClearsignedMessage(armored: forged, using: try fedoraKey())
+        ) { XCTAssertEqual($0 as? OpenPGPSignatureVerifier.VerificationError, .malformedArmor) }
+    }
+
+    /// A packet length must never be able to end the process. `parseKeyPacket`
+    /// is called through `try?`, and a `try?` cannot catch a Swift runtime trap:
+    /// before the guard, a tag-6 body over 65535 bytes killed the process rather
+    /// than skipping the key.
+    func testAnOversizedKeyPacketThrowsRatherThanTrapping() throws {
+        var body = Data([0x04])                                   // v4
+        body.append(contentsOf: [0, 0, 0, 0])                     // creation time
+        body.append(0x01)                                         // RSA
+        body.append(contentsOf: [0x00, 0x08]); body.append(0xFF)  // modulus MPI
+        body.append(contentsOf: [0x00, 0x02]); body.append(0x03)  // exponent MPI
+        body.append(Data(repeating: 0x41, count: 70_000 - body.count))
+
+        var blob = Data([UInt8(0x80 | (6 << 2) | 2)])             // old format, tag 6, 4-octet length
+        blob.append(contentsOf: withUnsafeBytes(of: UInt32(70_000).bigEndian, Array.init))
+        blob.append(body)
+
+        XCTAssertThrowsError(try OpenPGPSignatureVerifier.publicKey(
+            binaryKeyring: blob,
+            pinnedFingerprint: String(repeating: "0", count: 40)
+        ))
+    }
+
+    /// A body one byte under the limit still parses, which is what shows the
+    /// boundary is the two-octet fingerprint length and not the packet shape.
+    func testAKeyPacketAtTheTwoOctetLimitStillParses() throws {
+        var body = Data([0x04])
+        body.append(contentsOf: [0, 0, 0, 0])
+        body.append(0x01)
+        body.append(contentsOf: [0x00, 0x08]); body.append(0xFF)
+        body.append(contentsOf: [0x00, 0x02]); body.append(0x03)
+        body.append(Data(repeating: 0x41, count: 65_535 - body.count))
+
+        var blob = Data([UInt8(0x80 | (6 << 2) | 2)])
+        blob.append(contentsOf: withUnsafeBytes(of: UInt32(65_535).bigEndian, Array.init))
+        blob.append(body)
+
+        // Not the pinned fingerprint, so it is reported as a mismatch rather
+        // than an unsupported length: the packet itself was parsed.
+        XCTAssertThrowsError(try OpenPGPSignatureVerifier.publicKey(
+            binaryKeyring: blob,
+            pinnedFingerprint: String(repeating: "0", count: 40)
+        )) { error in
+            guard case .fingerprintMismatch(_, let actual)? =
+                error as? OpenPGPSignatureVerifier.VerificationError else {
+                return XCTFail("expected a fingerprint mismatch, got \(error)")
+            }
+            XCTAssertFalse(actual.isEmpty, "the oversized-adjacent packet must still yield a fingerprint")
+        }
+    }
+
+    private func checksum(forPrefix prefix: String, in message: String) -> String? {
+        message.components(separatedBy: "\n")
+            .first { $0.hasPrefix(prefix) }
+            .map { String($0.dropFirst(prefix.count)) }
+    }
+
     private func fedoraKey() throws -> OpenPGPSignatureVerifier.PublicKey {
         try OpenPGPSignatureVerifier.publicKey(
             binaryKeyring: Data(base64Encoded: TrustedSigningKeys.fedoraKeyringBase64

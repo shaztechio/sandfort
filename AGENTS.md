@@ -58,7 +58,11 @@ without weakening the common provisioning policy.
   depending on the `gpg` tool. A verifier fails open when it is wrong, so a
   parsing mistake turns "invalid signature" into "accepted". Keep it strictly
   bounds-checked, keep the algorithm allowlist narrow, and never let the stored
-  left-16 digest bits stand in for real verification.
+  left-16 digest bits stand in for real verification. Whatever it hands back as
+  verified must be the bytes it actually hashed, not the slice of the document
+  they came from; a `try?` around a parser cannot catch a Swift trap, so a
+  declared length that overflows a conversion ends the process instead of
+  failing the key.
 - `TrustedSigningKeys.swift`: **security-critical data.** Reviewed, bundled
   Ubuntu, Fedora, and openSUSE signing keys with their pinned fingerprints. The
   fingerprint is the trust anchor, and keys are selected from vendor key files by

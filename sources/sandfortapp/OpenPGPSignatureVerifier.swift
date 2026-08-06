@@ -163,6 +163,14 @@ enum OpenPGPSignatureVerifier {
         let modulus = try reader.multiprecisionInteger()
         let exponent = try reader.multiprecisionInteger()
 
+        // The v4 fingerprint is defined over a two-octet length, so a body that
+        // cannot be expressed in two octets is not a v4 key packet. Without this
+        // the UInt16 conversion below traps, and the `try?` at the call site
+        // cannot catch a trap: the process dies instead of skipping the key.
+        guard body.count <= Int(UInt16.max) else {
+            throw VerificationError.unsupportedPacketLength
+        }
+
         var fingerprintInput = Data([0x99])
         fingerprintInput.append(contentsOf: withUnsafeBytes(of: UInt16(body.count).bigEndian, Array.init))
         fingerprintInput.append(body)
@@ -197,20 +205,26 @@ enum OpenPGPSignatureVerifier {
     /// manifests, and returns the message body that the signature covers.
     ///
     /// Callers must read values from the returned message, never from the
-    /// original document. Only the canonicalized text below is signed; anything
-    /// outside it, including armor headers, is unauthenticated.
+    /// original document. The returned message is the canonicalized text that
+    /// was hashed, byte for byte, joined with LF instead of CRLF — not the raw
+    /// slice of the document it came from. Anything outside it, including armor
+    /// headers, is unauthenticated.
     static func verifyClearsignedMessage(
         armored: String,
         using key: PublicKey
     ) throws -> (signature: VerifiedSignature, message: String) {
         let (message, signatureBlock) = try splitClearsignedDocument(armored)
+        // One canonicalization, used for both the bytes that are hashed and the
+        // bytes handed back. They must not be able to drift apart: returning the
+        // raw slice would hand a caller text the signature does not cover.
+        let canonical = canonicalLinesForSigning(message)
         let verified = try verifySignaturePacket(
             in: try packets(inArmored: signatureBlock),
-            payload: canonicalTextForSigning(message),
+            payload: Data(canonical.joined(separator: "\r\n").utf8),
             key: key,
             requiredType: 0x01
         )
-        return (verified, message)
+        return (verified, canonical.joined(separator: "\n"))
     }
 
     private static func verifySignaturePacket(
@@ -254,9 +268,16 @@ enum OpenPGPSignatureVerifier {
         }), signatureIndex > headerIndex else { throw VerificationError.malformedArmor }
 
         // Armor headers such as "Hash:" run to the first blank line; the message
-        // is everything after that up to the signature block.
+        // is everything after that up to the signature block. Nothing in this
+        // region is signed, so it must be headers and nothing else — skipping to
+        // the first blank line regardless of content would let arbitrary
+        // unauthenticated text sit inside the signed-message section. RFC 4880
+        // §7 permits only "Key: Value" here, and gpg rejects anything else.
         var messageStart = headerIndex + 1
         while messageStart < signatureIndex, !lines[messageStart].isEmpty {
+            guard isArmorHeaderLine(lines[messageStart]) else {
+                throw VerificationError.malformedArmor
+            }
             messageStart += 1
         }
         messageStart += 1
@@ -266,11 +287,27 @@ enum OpenPGPSignatureVerifier {
         return (message, signatureBlock)
     }
 
-    /// Canonical text form: dash-escaping removed, trailing whitespace stripped
-    /// from every line, lines joined with CRLF, and no trailing line break. All
-    /// four rules matter; skipping any of them verifies the wrong bytes.
-    private static func canonicalTextForSigning(_ message: String) -> Data {
-        let canonical = message
+    /// An armor header is `Key: Value`, with the key a non-empty run of
+    /// printable ASCII that is not a colon or a space.
+    private static func isArmorHeaderLine(_ line: String) -> Bool {
+        guard let colon = line.firstIndex(of: ":"), colon > line.startIndex else { return false }
+        let key = line[line.startIndex..<colon]
+        guard key.allSatisfy({ $0.isASCII && $0 != " " && $0.asciiValue.map({ $0 > 32 && $0 < 127 }) == true })
+        else { return false }
+        return line[line.index(after: colon)...].hasPrefix(" ")
+            || line.index(after: colon) == line.endIndex
+    }
+
+    /// Canonical text form, line by line: dash-escaping removed and trailing
+    /// whitespace stripped. Callers join with CRLF to hash and with LF to hand
+    /// back — the content is identical either way, which is the point. Both
+    /// rules matter; skipping either verifies the wrong bytes.
+    ///
+    /// Returning lines rather than a joined string is deliberate. The signature
+    /// covers this text and not the raw document, so anything presented as "the
+    /// verified message" has to come from here.
+    private static func canonicalLinesForSigning(_ message: String) -> [String] {
+        message
             .components(separatedBy: "\n")
             .map { line -> String in
                 var text = line
@@ -278,8 +315,6 @@ enum OpenPGPSignatureVerifier {
                 while let last = text.last, last == " " || last == "\t" { text.removeLast() }
                 return text
             }
-            .joined(separator: "\r\n")
-        return Data(canonical.utf8)
     }
 
     // MARK: - Signature versions
