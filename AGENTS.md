@@ -107,6 +107,13 @@ without weakening the common provisioning policy.
   it does not apply — and it still should not be built, for reasons of hardware
   arithmetic rather than engineering. Its Phase 0 is worth doing regardless of
   that verdict, and both other port plans need it too.
+- `docs/APP-STORE.md`: feasibility record for Mac App Store distribution. The
+  expected blocker is not the blocker — UTM publishes scripting access groups, so
+  a sandboxed app can send it `start`/`stop`/`delete` through
+  `com.apple.security.scripting-targets` rather than a temporary exception. What
+  stands in the way is file access between two containers and a reviewer on a
+  clean Mac. It also frames the larger question of hosting VMs through
+  Virtualization.framework instead of driving UTM.
 - `docs/index.html` and `docs/assets/`: the public project site, served by GitHub
   Pages from `main` and `/docs`. It shares this folder with the documentation, so
   `docs/.nojekyll` must stay: without it Jekyll renders every `.md` here into a
