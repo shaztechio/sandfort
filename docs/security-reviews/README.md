@@ -12,7 +12,7 @@ comment on each tracking issue is the authoritative outcome.
 | Reviewer | Model | Brief | Review | Issue | Findings |
 | --- | --- | --- | --- | --- | --- |
 | Claude | Opus 5 | [claude-brief.md](claude-brief.md) | [claude-review.md](claude-review.md) | [#9](https://github.com/shaztechio/sandfort/issues/9) | 1 Medium, 2 Low, 1 informational |
-| Gemini | 3 Pro | [gemini-brief.md](gemini-brief.md) | [gemini-review.md](gemini-review.md) | [#11](https://github.com/shaztechio/sandfort/issues/11) | 1 confirmed, 1 downgraded |
+| Gemini | 3.1 Pro | [gemini-brief.md](gemini-brief.md) | [gemini-review.md](gemini-review.md) | [#11](https://github.com/shaztechio/sandfort/issues/11) | 1 confirmed, 1 downgraded |
 | Codex | — | [codex-brief.md](codex-brief.md) | pending | [#10](https://github.com/shaztechio/sandfort/issues/10) | — |
 
 ## What came of it
