@@ -13,7 +13,10 @@
   Explicit Internet-enabled launches relax UTM's guest-to-host isolation for
   that instance; no bridged networking is used.
 - No port forwards, host directory sharing, synchronized clipboard, or automatic
-  USB sharing.
+  USB sharing. These are reasserted by `repairBundle` on every state read, not
+  only written once at creation: UTM's settings UI can turn any of them on for a
+  VM in its library, so a guarantee that is only written once is a guarantee that
+  drifts.
 - Distribution-specific cloud-init disables SSH, denies unsolicited inbound
   traffic, applies upgrades, and enables unattended security updates. Ubuntu
   uses UFW and unattended-upgrades; Fedora uses firewalld and
