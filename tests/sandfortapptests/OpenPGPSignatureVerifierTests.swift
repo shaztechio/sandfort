@@ -535,6 +535,43 @@ final class OpenPGPSignatureVerifierTests: XCTestCase {
         }
     }
 
+    /// RFC 4880 §5.2.4 canonical text treats CR, LF, and CRLF alike, and the
+    /// signature is over the CRLF form however the document arrived. A CRLF
+    /// document is therefore the same message as its LF twin and must verify
+    /// identically — it was rejected as malformed armor, because splitting it on
+    /// LF left a trailing CR that made the blank separator line non-empty.
+    func testACRLFDocumentVerifiesIdenticallyToItsLFTwin() throws {
+        let prefix = "SHA256 (Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2) = "
+        let crlf = fedoraChecksumDocument.replacingOccurrences(of: "\n", with: "\r\n")
+        XCTAssertNotEqual(crlf, fedoraChecksumDocument)
+
+        let key = try fedoraKey()
+        let fromCRLF = try OpenPGPSignatureVerifier.verifyClearsignedMessage(armored: crlf, using: key)
+        let fromLF = try OpenPGPSignatureVerifier.verifyClearsignedMessage(
+            armored: fedoraChecksumDocument, using: key
+        )
+
+        XCTAssertEqual(fromCRLF.message, fromLF.message, "both forms carry the same signed text")
+        XCTAssertEqual(
+            checksum(forPrefix: prefix, in: fromCRLF.message),
+            LinuxGuestCatalog.fedora44ARM64.image.sha256
+        )
+    }
+
+    /// Normalization must not become a way to smuggle text past verification:
+    /// tampering with a CRLF document still has to fail.
+    func testATamperedCRLFDocumentStillFails() throws {
+        let crlf = fedoraChecksumDocument
+            .replacingOccurrences(
+                of: LinuxGuestCatalog.fedora44ARM64.image.sha256,
+                with: String(repeating: "0", count: 64)
+            )
+            .replacingOccurrences(of: "\n", with: "\r\n")
+        XCTAssertThrowsError(
+            try OpenPGPSignatureVerifier.verifyClearsignedMessage(armored: crlf, using: try fedoraKey())
+        )
+    }
+
     private func checksum(forPrefix prefix: String, in message: String) -> String? {
         message.components(separatedBy: "\n")
             .first { $0.hasPrefix(prefix) }

@@ -256,10 +256,21 @@ enum OpenPGPSignatureVerifier {
     // MARK: - Cleartext framework
 
     /// Splits a cleartext-signed document into its message and signature block.
+    ///
+    /// Line endings are normalized to LF first. RFC 4880 §5.2.4 canonical text
+    /// treats CR, LF, and CRLF alike, and the signature is computed over the
+    /// CRLF form regardless of how the document arrived — so a CRLF document is
+    /// the same message as its LF twin and must verify the same way. Splitting a
+    /// CRLF document on LF instead leaves a trailing CR on every line, which
+    /// makes the blank separator non-empty and rejects the document. This is a
+    /// no-op for the LF documents all four distributions actually publish.
     private static func splitClearsignedDocument(
         _ document: String
     ) throws -> (message: String, signatureBlock: String) {
-        let lines = document.components(separatedBy: "\n")
+        let lines = document
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
         guard let headerIndex = lines.firstIndex(where: {
             $0.hasPrefix("-----BEGIN PGP SIGNED MESSAGE-----")
         }) else { throw VerificationError.malformedArmor }
