@@ -88,6 +88,14 @@ a filter, triage costs more than the review saves.
 4. Survivors become issues, with the `security-model` label where they touch a
    guarantee.
 
+## The outputs
+
+Each reviewer's brief and the review it produced are archived verbatim in
+[`security-reviews/`](security-reviews/), alongside what came of each finding.
+The reviews are the raw material; the adjudication comment on each tracking
+issue is the authoritative outcome, and in two cases it differs from what the
+reviewer proposed.
+
 ## Two constraints specific to this repository
 
 **Never expose the signing material.** The Developer ID `.p12`, the 1Password

@@ -92,6 +92,9 @@ without weakening the common provisioning policy.
 - `docs/security-review.md`: the brief for an external security review. Scope in
   priority order, what a finding must contain, and the adjudication gate — a
   finding that cannot be written as a failing test is almost always wrong.
+  `docs/security-reviews/` archives each brief and review verbatim, with what
+  came of every finding. The reviews are raw material, not decisions: two
+  findings were adjudicated differently from how their reviewer proposed.
 - `docs/LINUX.md`: plan only, nothing built. QEMU/KVM, and the finding that
   matters beyond Linux: starting, stopping, and unregistering a VM live outside
   `VirtualMachineProvider`, so the contract has to grow before any second host.
