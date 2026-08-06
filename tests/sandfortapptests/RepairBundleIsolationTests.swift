@@ -53,6 +53,9 @@ final class RepairBundleIsolationTests: XCTestCase {
         return root
     }
 
+    /// The role a caller would pass for each bundle under test.
+    private var role: VirtualMachineRole { .cleanInstance }
+
     private func repaired(_ url: URL) throws -> [String: Any] {
         let data = try Data(contentsOf: url.appendingPathComponent("config.plist"))
         return try XCTUnwrap(
@@ -64,7 +67,7 @@ final class RepairBundleIsolationTests: XCTestCase {
     /// synchronized clipboard, no automatic USB sharing — in every mode.
     func testRepairTurnsSharingAndUsbBackOff() throws {
         let url = try bundle(named: "Sandfort — Ubuntu — Instance 1 — TEST", sharingEnabled: true)
-        try UTMBundleBuilder().repairBundle(at: url, profile: LinuxGuestCatalog.defaultProfile)
+        try UTMBundleBuilder().repairBundle(at: url, profile: LinuxGuestCatalog.defaultProfile, role: role)
         let plist = try repaired(url)
 
         let sharing = try XCTUnwrap(plist["Sharing"] as? [String: Any])
@@ -81,7 +84,8 @@ final class RepairBundleIsolationTests: XCTestCase {
     /// it matters most that its isolation cannot be edited away in UTM.
     func testRepairTurnsSharingOffForTheProtectedBaselineToo() throws {
         let url = try bundle(named: "Sandfort — Ubuntu — Protected Baseline TEST", sharingEnabled: true)
-        try UTMBundleBuilder().repairBundle(at: url, profile: LinuxGuestCatalog.defaultProfile)
+        try UTMBundleBuilder().repairBundle(
+            at: url, profile: LinuxGuestCatalog.defaultProfile, role: .protectedBaseline)
         let plist = try repaired(url)
 
         XCTAssertEqual((plist["Sharing"] as? [String: Any])?["ClipboardSharing"] as? Bool, false)
@@ -95,7 +99,7 @@ final class RepairBundleIsolationTests: XCTestCase {
     /// cannot be blamed for drift it did not cause.
     func testRepairLeavesAnAlreadyIsolatedBundleAlone() throws {
         let url = try bundle(named: "Sandfort — Ubuntu — Instance 2 — TEST", sharingEnabled: false)
-        try UTMBundleBuilder().repairBundle(at: url, profile: LinuxGuestCatalog.defaultProfile)
+        try UTMBundleBuilder().repairBundle(at: url, profile: LinuxGuestCatalog.defaultProfile, role: role)
         let plist = try repaired(url)
 
         XCTAssertEqual((plist["Sharing"] as? [String: Any])?["DirectoryShareMode"] as? String, "None")
@@ -106,7 +110,7 @@ final class RepairBundleIsolationTests: XCTestCase {
     /// covers the whole "reassert isolation" contract rather than half of it.
     func testRepairStillClearsPortForwardsAndExtraQemuArguments() throws {
         let url = try bundle(named: "Sandfort — Ubuntu — Instance 3 — TEST", sharingEnabled: true)
-        try UTMBundleBuilder().repairBundle(at: url, profile: LinuxGuestCatalog.defaultProfile)
+        try UTMBundleBuilder().repairBundle(at: url, profile: LinuxGuestCatalog.defaultProfile, role: role)
         let plist = try repaired(url)
 
         let network = try XCTUnwrap((plist["Network"] as? [[String: Any]])?.first)
