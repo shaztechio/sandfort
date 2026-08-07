@@ -88,6 +88,18 @@ bundle or change its identity. Reset may replace the hypervisor UUID and MAC
 address while retaining the app-level number, label, bundle path, and display
 name.
 
+That independence is not paid for in disk. `FileManager.copyItem` clones on
+APFS, so creating or resetting an instance shares the baseline's blocks rather
+than rewriting them, and the kernel splits a block only when one side writes.
+Creation of a 5.68 GiB baseline bundle measures at 0.005 s and no measurable
+free-space change. `InstanceCloneCostTests` pins that, along with the property
+that makes it safe: a write through an instance's disk cannot reach the
+baseline. `security-model.md` records why a QCOW2 backing file is not used to
+get the same saving. What an instance genuinely does cost is its suspended
+state — `efi_vars.fd` is itself a QCOW2, and UTM stores the saved machine state
+in it as an internal snapshot, taking it from 640 KiB to well over a gigabyte
+once an instance has been suspended.
+
 The environment selector scopes every routine action. **Add Linux Environment**
 creates another profile without deleting an existing one. Rebuild and Delete
 Environment affect only the selected environment, and every operation resolves

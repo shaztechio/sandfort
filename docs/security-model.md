@@ -53,6 +53,48 @@ disks, and UEFI state are separate. Rebuild and Delete Environment resolve the
 selected environment before unregistering any exact UTM names; they never infer
 another environment from a global default.
 
+## Instances are clones, never overlays
+
+An instance is a complete, independent copy of the baseline bundle, and it is
+cheap anyway. On APFS `FileManager.copyItem` clones: the copy is made by sharing
+the source's extents, and the kernel splits a block only when one side writes to
+it. Measured on a real 5.68 GiB Ubuntu baseline bundle, creating an instance
+took 0.005 s and moved volume free space by 0.002 GiB, with all 4,000 sampled
+logical offsets in the copy resolving to the same physical device offset as the
+original. A byte copy of the same data takes about 5.5 s per 2 GiB.
+
+`du` reports the full size for each clone, because it counts blocks per file
+rather than per volume. A baseline and an instance that each read 6.1 GB, for
+13 GB together, can therefore be one 6.1 GB counted twice — and on this machine
+they were: a baseline and an instance that had already been booted and used
+still shared 99.7% of their sampled blocks.
+
+Sandfort deliberately does **not** use a QCOW2 backing file to obtain that
+saving, though the space result would look similar. The sharing above is
+enforced by the kernel, below QEMU and invisible to it, and a clone is finished
+the moment it exists. A backing file shares at the image layer instead, which
+makes the protected baseline a permanent live dependency of every instance
+derived from it:
+
+- **Rebuild deletes the baseline.** Instances survive it today because they are
+  independent. Under a backing file, Rebuild would orphan or corrupt every
+  existing instance of that environment.
+- **Write-through is the failure the baseline exists to prevent.** A shared
+  read-only backing file is a weaker claim than a copy, and the process doing
+  the reading is the one running untrusted guest code. A clone hands the guest
+  no reference to the baseline at all.
+- **A running instance would make the baseline look busy.** `ensureNotInUse`
+  treats a lock anywhere on a disk as a running VM, and QEMU locks backing
+  images as well as overlays, so one running instance would likely block reset
+  and Rebuild for the whole environment. That last consequence is reasoned, not
+  observed: the design was rejected before anything was built to boot.
+
+So the rule above is unchanged and now says why. Environments share verified
+source-image downloads, and unwritten blocks at the filesystem layer where
+sharing is copy-on-write. They never share a mutable guest disk or firmware
+state. A future host filesystem without cloning — NTFS has no equivalent —
+reopens the cost question but none of the three objections. See `WINDOWS.md`.
+
 Instance deletion is app-owned and allowed only when the instance disk is not
 locked by a running VM. Sandfort asks UTM to unregister the exact saved VM name,
 waits for UTM to confirm its removal, moves the bundle to macOS Trash, and only
