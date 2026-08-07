@@ -25,7 +25,7 @@ comment on each tracking issue is the authoritative outcome.
 | An oversized public-key packet trapped the process | Fixed, [#20](https://github.com/shaztechio/sandfort/pull/20) |
 | Clearsigned documents with CRLF line endings were rejected | Fixed, [#20](https://github.com/shaztechio/sandfort/pull/20) |
 | Resume launched an instance whose isolation repair had failed | Fixed, [#28](https://github.com/shaztechio/sandfort/pull/28) |
-| Verify-then-use window on the image cache | Open, [#18](https://github.com/shaztechio/sandfort/issues/18) |
+| Verify-then-use window on the image cache | Fixed, [#31](https://github.com/shaztechio/sandfort/pull/31) |
 
 ## Three things worth keeping from how this went
 
