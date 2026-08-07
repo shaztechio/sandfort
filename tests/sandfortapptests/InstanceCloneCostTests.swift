@@ -145,6 +145,27 @@ final class InstanceCloneCostTests: XCTestCase {
         var instanceDisk: URL { instance.appendingPathComponent("Data/sandfort.qcow2") }
     }
 
+    /// A profile identical to the shipped Ubuntu one except for the pinned
+    /// checksum, so the fixture can pin the synthetic image it actually wrote.
+    private func profile(pinning sha256: String) -> LinuxGuestProfile {
+        let ubuntu = LinuxGuestCatalog.defaultProfile
+        return LinuxGuestProfile(
+            id: ubuntu.id,
+            revision: ubuntu.revision,
+            displayName: ubuntu.displayName,
+            distributionName: ubuntu.distributionName,
+            setupDurationDescription: ubuntu.setupDurationDescription,
+            image: LinuxGuestProfile.Image(
+                url: ubuntu.image.url,
+                sha256: sha256,
+                fileName: ubuntu.image.fileName,
+                downloadSizeDescription: ubuntu.image.downloadSizeDescription
+            ),
+            hardware: ubuntu.hardware,
+            provisioner: ubuntu.provisioner
+        )
+    }
+
     /// Builds a baseline and one instance through the real provider calls.
     private func makeFixture() throws -> Fixture {
         let root = FileManager.default.temporaryDirectory
@@ -158,7 +179,11 @@ final class InstanceCloneCostTests: XCTestCase {
         let firmware = root.appendingPathComponent("firmware.fd")
         try Data(repeating: 0xa5, count: 4096).write(to: firmware)
 
-        let profile = LinuxGuestCatalog.defaultProfile
+        // The bundle builder verifies the disk it copied against the profile's
+        // pinned checksum, so a synthetic image has to be pinned to its own
+        // hash. Claiming the shipped Ubuntu checksum for four bytes of test data
+        // is what broke this file when that verification landed.
+        let profile = profile(pinning: try DiskUtilities.sha256(of: image))
         let builder = UTMBundleBuilder(firmwareURLOverride: firmware)
         let setup = root.appendingPathComponent("Setup.utm", isDirectory: true)
         try builder.createSetupBundle(
