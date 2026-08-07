@@ -487,6 +487,14 @@ actor SandfortWorkflow {
         guard fileManager.fileExists(atPath: bundle.path) else {
             throw SandboxError.sandboxInstanceNotFound
         }
+        // Resume is the only launch that starts a bundle it did not just write:
+        // openSetup repairs through a throwing call, and Reset rebuilds from the
+        // baseline. Relying on the `try?` in currentState() meant a repair that
+        // failed was discarded and the instance launched anyway, with whatever
+        // clipboard, directory, USB, or port-forward setting had drifted in UTM.
+        // Reasserting here, and failing if it cannot, is the whole guarantee.
+        let profile = try guestProfile(for: state)
+        try provider.repairBundle(at: bundle, profile: profile, role: .cleanInstance)
         await UTMLauncher.openAndStart(bundle: bundle, name: instance.vmName)
     }
 

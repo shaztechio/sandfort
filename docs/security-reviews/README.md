@@ -13,7 +13,7 @@ comment on each tracking issue is the authoritative outcome.
 | --- | --- | --- | --- | --- | --- |
 | Claude | Opus 5 | [claude-brief.md](claude-brief.md) | [claude-review.md](claude-review.md) | [#9](https://github.com/shaztechio/sandfort/issues/9) | 1 Medium, 2 Low, 1 informational |
 | Gemini | 3.1 Pro | [gemini-brief.md](gemini-brief.md) | [gemini-review.md](gemini-review.md) | [#11](https://github.com/shaztechio/sandfort/issues/11) | 1 confirmed, 1 downgraded |
-| Codex | — | [codex-brief.md](codex-brief.md) | pending | [#10](https://github.com/shaztechio/sandfort/issues/10) | — |
+| Codex | OpenAI 5.6 sol, extra-high reasoning | [codex-brief.md](codex-brief.md) | [codex-review.md](codex-review.md) | [#10](https://github.com/shaztechio/sandfort/issues/10) | 1 Medium |
 
 ## What came of it
 
@@ -24,6 +24,7 @@ comment on each tracking issue is the authoritative outcome.
 | `verifyClearsignedMessage` returned text it had not verified | Fixed, [#20](https://github.com/shaztechio/sandfort/pull/20) |
 | An oversized public-key packet trapped the process | Fixed, [#20](https://github.com/shaztechio/sandfort/pull/20) |
 | Clearsigned documents with CRLF line endings were rejected | Fixed, [#20](https://github.com/shaztechio/sandfort/pull/20) |
+| Resume launched an instance whose isolation repair had failed | Fixed, [#28](https://github.com/shaztechio/sandfort/pull/28) |
 | Verify-then-use window on the image cache | Open, [#18](https://github.com/shaztechio/sandfort/issues/18) |
 
 ## Three things worth keeping from how this went
@@ -35,7 +36,17 @@ less state than creation paths, and infer what they do not carry* — reached fr
 two directions, with neither reviewer seeing the other's half. That is the
 entire argument for running more than one.
 
-**A correct finding does not imply a correct fix.** Claude's finding 2 was right
+**A correct finding does not imply a correct fix.** It happened twice, to two
+different reviewers, and it is the single most useful thing this exercise
+produced. Codex's finding was right that Resume launched a bundle whose
+isolation repair had failed, and its test asserted that `currentState()` should
+return nil. Seventeen call sites read `currentState()`: nil-ing it would hide the
+environment from the sidebar, make Rebuild and Delete throw, and — because
+`runningVirtualMachines` returns `[]` on nil state — stop the disk-lock guard
+from refusing while a VM was running. That trades one fail-open for a broader
+one. The fix reasserts isolation in the launch path instead.
+
+Claude's finding 2 was right
 that the verifier returned bytes it had not verified, and its proposed test
 asserted that dash-escaped and trailing-whitespace documents must be rejected.
 They must not: RFC 4880 §7.1 *requires* a line beginning with `-` to be escaped,
