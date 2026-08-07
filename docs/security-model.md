@@ -1,5 +1,23 @@
 # Security model
 
+## Which UTM these guarantees were established against
+
+Sandfort enforces most of this model by writing keys into a property list that
+**UTM** parses, and by sending Apple Events that **UTM** implements. Both belong
+to an application this project does not ship, so every claim below is a claim
+about a particular UTM version.
+
+Everything here is verified against **UTM 4.7.5**, which is UTM's current
+stable release. UTM 5.0.x is a beta line at the time of writing. Sandfort
+documents and enforces no minimum UTM version.
+
+The key names and Apple Event codes were re-checked against UTM 5.0.4's source
+and are unchanged there; no shipped UTM 5 build has been exercised.
+`utm-version-audit.md` records exactly which claims are verified, which are
+read from UTM's source, and which still need a live UTM 5 check. A renamed
+plist key would be a silently removed guarantee, so that separation is
+deliberate rather than pedantic.
+
 ## Enforced boundaries
 
 - Official immutable cloud images with profile-specific pinned SHA-256 values.
@@ -113,10 +131,12 @@ it to UTM, which imports and registers it asynchronously, so Sandfort first
 polls UTM for about fifteen seconds asking whether that exact name is present —
 a read that changes nothing — and then sends UTM's `start` command for it.
 
-Starting therefore depends on Automation permission. UTM's documented
-`utm://start?name=` URL is a no-op on UTM 4.7.5: opening it against a
-registered, stopped VM leaves the VM stopped, verified directly. UTM's scripting
-interface is the only mechanism that actually starts a VM, so there is no
+Starting therefore depends on Automation permission. The `utm://start?name=`
+URL is a no-op: opening it against a registered, stopped VM leaves the VM
+stopped, verified directly against UTM 4.7.5. UTM's macOS URL handler
+implements only `utm://downloadVM` and file import — there is no `start` case in
+its source at either 4.7.5 or 5.0.4 — so its scripting
+interface is the only mechanism that actually starts a VM, and there is no
 permission-free fallback to offer. If Automation is denied, Sandfort still
 downloads, verifies, builds, and registers the VM; it reports that it cannot
 start it and the user presses play in UTM. No security property depends on the

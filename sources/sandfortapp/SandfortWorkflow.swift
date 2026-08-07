@@ -847,11 +847,14 @@ enum UTMLauncher {
     /// Opens a bundle in UTM, waits for UTM to register it, and starts it.
     ///
     /// Both steps are Apple Events, so both need Automation permission. That is
-    /// not a design choice: UTM's documented `utm://start?name=` URL does
-    /// nothing on UTM 4.7.5 — opening it against a registered, stopped VM leaves
-    /// it stopped — so its scripting interface is the only mechanism that
+    /// not a design choice: the `utm://start?name=` URL does nothing — verified
+    /// on UTM 4.7.5 by opening it against a registered, stopped VM, which stayed
+    /// stopped, and UTM's URL handler has no `start` case in its source at 4.7.5
+    /// or 5.0.4 — so its scripting interface is the only mechanism that
     /// actually starts a VM. Without the permission, Sandfort can add a VM to
     /// UTM but cannot start it, and says so rather than failing silently.
+    ///
+    /// See docs/utm-version-audit.md.
     static func openAndStart(
         bundle: URL,
         name: String,

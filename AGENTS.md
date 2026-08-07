@@ -93,6 +93,13 @@ without weakening the common provisioning policy.
   metadata; keep that true when editing them.
 - `docs/linux-profile-provenance.md`: immutable guest-image intake records and
   qualification status.
+- `docs/utm-version-audit.md`: which UTM version each claim in the security
+  model was established against, split three ways — verified on the installed
+  4.7.5, read in UTM 5.0.4's source, or still needing a live UTM 5 check. The
+  isolation guarantees are plist keys another application parses, so a renamed
+  key is a silently removed guarantee that every test would still pass. None
+  had changed as of 5.0.4. Keep the split honest: source-reading never
+  graduates to "verified", and UTM 5.0.x is still a beta line.
 - `docs/releasing.md`: cutting a release, the Developer ID and notarization
   setup, and the entitlement a notarized build needs to drive UTM.
 - `docs/security-review.md`: the brief for an external security review. Scope in

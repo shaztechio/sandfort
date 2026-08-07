@@ -279,10 +279,14 @@ provenance record, and Make target.
   `systemd-analyze critical-chain graphical.target` on x86_64 rather than
   assuming the ARM64 tuning transfers.
 - **Does UTM 5 change any of this?** Everything above was verified against 4.7.5
-  and UTM's current source. UTM 5.0.4 shipped 2026-08-01, requires macOS 13, and
-  rewrote the graphics backend. **Sandfort's docs still describe 4.7.5 behaviour
-  throughout, including the `utm://start` finding. That gap exists today,
-  independent of Intel, and is more urgent than this port.**
+  and UTM's current source. That gap has since been audited on its own terms —
+  see `utm-version-audit.md`, which found no change to any plist key, Apple
+  Event code, or URL behaviour Sandfort depends on, and left a list of live
+  checks that still need a UTM 5 install. Two of its findings bear on this plan
+  specifically: UTM 5.0.x is still a **beta** line, so a port cannot assume
+  users are on it; and the `edk2-i386-vars.fd` path this document relies on
+  sits in the same UTM-internal directory whose UTM 5 contents are unconfirmed.
+  The x86_64-specific questions above remain unanswered either way.
 - **Does repeated `swift build --arch` produce a working universal product, and
   where does it land?** SwiftPM relocates the product under
   `.build/apple/Products/Release/` for multi-arch builds, so the packaging script
