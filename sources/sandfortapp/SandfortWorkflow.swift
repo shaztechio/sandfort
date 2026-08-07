@@ -192,20 +192,58 @@ actor SandfortWorkflow {
 
     func doctor() async throws -> String {
         let state = currentState()
-        let architecture = SystemArchitecture.current
+        let architecture = HostArchitecture.description()
         let stateDescription = state.map {
             "Sandbox state: \($0.stage.rawValue), \($0.resolvedInstances.count) clean instance(s)."
         } ?? "No sandbox has been created yet."
+        // Reported for the environment's own resolved profile rather than a
+        // process-wide default: each workspace supports exactly one.
+        let profile = environment.defaultProfile
+        let accelerationDescription = HostArchitecture.current
+            .canHardwareAccelerate(profile.hardware.utmArchitecture)
+            ? ""
+            : "\nThis Mac cannot hardware-accelerate a \(profile.hardware.utmArchitecture) guest, "
+                + "so \(profile.displayName) cannot be created here."
+        let resourcesDescription = "This Mac has \(hostMemoryDescription) of memory"
+            + (hostFreeSpaceDescription.map { " and \($0) free for sandboxes" } ?? "")
+            + ". A baseline needs about \(profile.hardware.diskSizeGiB) GiB of disk and "
+            + "\(profile.hardware.memoryMiB / 1024) GiB of memory while it runs, "
+            + "and each instance is a separate copy."
         guard let utm = UTMLauncher.installation else {
             // Reported rather than thrown: "what is wrong with my Mac" is the
             // question this answers, so the answer should be actionable.
             return "UTM is not installed. Sandfort needs it to run virtual machines. "
                 + "Download it from \(UTMLauncher.downloadPage.absoluteString), then run this check again.\n"
-                + "This Mac is \(architecture). \(stateDescription)"
+                + "This Mac is \(architecture).\(accelerationDescription)\n"
+                + "\(resourcesDescription) \(stateDescription)"
         }
         let version = utm.version.map { "UTM \($0)" } ?? "UTM"
         return "\(version) is installed at \(utm.applicationURL.path).\n"
-            + "This Mac is \(architecture). \(stateDescription)"
+            + "This Mac is \(architecture).\(accelerationDescription)\n"
+            + "\(resourcesDescription) \(stateDescription)"
+    }
+
+    private var hostMemoryDescription: String {
+        ByteCountFormatter.string(
+            fromByteCount: Int64(bitPattern: ProcessInfo.processInfo.physicalMemory),
+            countStyle: .memory
+        )
+    }
+
+    /// Free space on the volume that holds the app-owned sandbox directory.
+    ///
+    /// Asked of the deepest ancestor that exists: on a first run neither the
+    /// support directory nor its parent has been created yet, and a capacity
+    /// query against a missing path returns nothing at all.
+    private var hostFreeSpaceDescription: String? {
+        var url = canonicalRootURL
+        while !fileManager.fileExists(atPath: url.path), url.pathComponents.count > 1 {
+            url = url.deletingLastPathComponent()
+        }
+        guard let capacity = try? url.resourceValues(
+            forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+        ).volumeAvailableCapacityForImportantUsage else { return nil }
+        return ByteCountFormatter.string(fromByteCount: capacity, countStyle: .file)
     }
 
     func create(
@@ -217,6 +255,20 @@ actor SandfortWorkflow {
     ) async throws -> SandboxState {
         guard environment.supportedProfiles.contains(profile) else {
             throw SandboxError.unsupportedGuestProfile(profile.id)
+        }
+        // A guest whose architecture differs from the host's cannot be
+        // hardware-accelerated: UTM's `hasHypervisorSupport` is false, so it
+        // ignores `"Hypervisor": true` and starts QEMU with `-accel tcg`
+        // without saying so. Today this cannot fire — every profile is aarch64
+        // and every supported host is Apple silicon — but it has to exist
+        // before the first x86-64 profile does, because the failure it prevents
+        // looks like a working build that takes all day.
+        guard HostArchitecture.current.canHardwareAccelerate(profile.hardware.utmArchitecture) else {
+            throw SandboxError.unacceleratedGuestArchitecture(
+                profileName: profile.displayName,
+                guestArchitecture: profile.hardware.utmArchitecture,
+                host: HostArchitecture.current.name
+            )
         }
         // Validate user input before deleting an existing baseline during Rebuild.
         let requestedCredentials = try password.map { try profile.credentials(password: $0) }
@@ -764,8 +816,15 @@ enum UTMLauncher {
         /// Derived from wherever UTM was found rather than assumed, so a UTM
         /// outside /Applications no longer produces a "reinstall UTM" error
         /// about an installation that is perfectly fine.
-        var firmwareURL: URL {
-            applicationURL.appendingPathComponent("Contents/Resources/qemu/edk2-arm-vars.fd")
+        ///
+        /// The variable-store filename comes from the resolved profile rather
+        /// than a constant. UTM ships one per architecture, and a second guest
+        /// architecture would otherwise be handed the ARM64 store — which boots
+        /// nothing and reports nothing useful about why.
+        func firmwareURL(for profile: LinuxGuestProfile) -> URL {
+            applicationURL
+                .appendingPathComponent("Contents/Resources/qemu")
+                .appendingPathComponent(profile.hardware.utmFirmwareVarsName)
         }
     }
 
@@ -880,15 +939,5 @@ enum UTMLauncher {
             log?("Sandfort could not start “\(name)” automatically: "
                 + "\(error.localizedDescription) Press play in UTM to start it.")
         }
-    }
-}
-
-private enum SystemArchitecture {
-    static var current: String {
-        #if arch(arm64)
-        return "Apple silicon (ARM64)"
-        #else
-        return "an unsupported architecture; this release requires Apple silicon"
-        #endif
     }
 }

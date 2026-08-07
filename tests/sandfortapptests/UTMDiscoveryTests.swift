@@ -40,7 +40,7 @@ final class UTMDiscoveryTests: XCTestCase {
             fileExists: { _ in true }
         )
         XCTAssertEqual(
-            resolved?.firmwareURL.path,
+            resolved?.firmwareURL(for: LinuxGuestCatalog.defaultProfile).path,
             "/Volumes/Tools/UTM.app/Contents/Resources/qemu/edk2-arm-vars.fd"
         )
     }

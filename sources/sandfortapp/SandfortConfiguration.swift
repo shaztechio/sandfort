@@ -149,6 +149,11 @@ enum SandboxError: LocalizedError {
     case unsupportedGuestProfile(String)
     case incompatibleGuestProfile(String)
     case incompleteSetupProfileMetadata
+    case unacceleratedGuestArchitecture(
+        profileName: String,
+        guestArchitecture: String,
+        host: String
+    )
 
     var errorDescription: String? {
         switch self {
@@ -171,7 +176,10 @@ enum SandboxError: LocalizedError {
         case .setupNotComplete:
             return "Finish the Linux guest setup before creating clean sessions."
         case .utmResourcesMissing:
-            return "UTM's ARM64 UEFI firmware could not be found. Reinstall the current version of UTM."
+            // Not "ARM64": the firmware UTM is asked for is whichever one this
+            // guest's architecture needs, and naming the wrong one sends the
+            // reader looking for a file that was never the problem.
+            return "UTM's UEFI firmware for this guest architecture could not be found. Reinstall the current version of UTM."
         case .virtualMachineRunning:
             return "Shut down the virtual machine in UTM before restoring or copying its clean disk."
         case .setupScriptTooLarge:
@@ -188,6 +196,12 @@ enum SandboxError: LocalizedError {
             return "This baseline uses an incompatible revision or image of the Linux guest profile '\(profileID)'. You may Resume an existing instance without changing it, or choose Rebuild to create a compatible baseline."
         case .incompleteSetupProfileMetadata:
             return "This unfinished setup predates exact Linux profile tracking, so Sandfort cannot safely recreate its setup media. Choose Rebuild to start a verified setup."
+        case let .unacceleratedGuestArchitecture(profileName, guestArchitecture, host):
+            // Refused rather than allowed to run slowly. UTM would fall back to
+            // full emulation without reporting it, and a baseline build that
+            // normally takes half an hour would take most of a day while
+            // looking exactly like a working one.
+            return "\(profileName) is a \(guestArchitecture) guest, and this Mac is \(host), so UTM would have to emulate it instead of using the hypervisor. Choose a guest that matches this Mac."
         }
     }
 }

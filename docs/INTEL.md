@@ -226,24 +226,31 @@ the port against the configuration that cannot run it.
 ## Phases
 
 **Phase 0 — make the architecture axis explicit, ship no x86_64 profile.**
-Roughly half a day, no new hardware, no forced rebuild, entirely on Apple
-silicon with the existing suite green. **Worth merging on its own merits.**
+**Done.** No new hardware, no forced rebuild, entirely on Apple silicon with the
+existing suite green. It was worth merging on its own merits, and it was.
 
-- Move the firmware vars name, the serial console device, and the archive
-  architecture into `LinuxGuestProfile.Hardware`, and thread them through the
-  four provisioners in place of the hardcoded literals. Assert the ARM64 output
-  is byte-identical so no revision bumps.
-- Replace the compile-time architecture check with a runtime one, including
-  Rosetta detection, so `doctor()` stops lying. Extend it to report host RAM and
-  free space, which [AGENTS.md](../AGENTS.md) already asks for.
-- Add the guard that must exist before any x86_64 profile does: refuse to create
-  a baseline whose architecture cannot be hardware-accelerated on this host.
-- Fix the "ARM64" firmware error string.
+- The firmware vars name, the serial console device, and the archive
+  architecture are `LinuxGuestProfile.Hardware` fields, threaded through the
+  four provisioners in place of the hardcoded literals. Firmware resolution
+  takes the resolved profile rather than a constant path.
+- The compile-time architecture check is now `HostArchitecture`, detected at run
+  time including Rosetta, and `doctor()` reports host RAM and free space.
+- `create()` refuses a baseline whose architecture this host cannot
+  hardware-accelerate. A no-op today by construction; it exists so it cannot be
+  forgotten when it stops being one.
+- The firmware error no longer says "ARM64".
 
-Phase 0 removes latent hardcoding that is wrong today, it is the shared
+The expectation that this would be easy was itself the finding, and it held.
+The one thing worth passing on: **byte-equality is the only assertion that
+proves a guest did not change.** Every other test in the suite is a `contains`,
+so all of them stayed green through a mutation that would have forced every
+existing user to Rebuild. `GuestArchitectureTests` pins a SHA-256 of the
+generated `user-data` per profile per tool selection, captured before the
+change; a failure there is a changed guest, not a test to update.
+
+Phase 0 removed latent hardcoding that was wrong today, it is the shared
 prerequisite both other port plans need for their x86-64 catalogs, and it turns
-the rest of this into a catalog change. If it proves hard, the whole idea dies
-cheaply — but the expectation that it will be easy is itself the finding.
+the rest of this into a catalog change.
 
 **Phase 1 — one profile, one boot, one machine.** Ubuntu x86_64 into the
 qualification profiles, a universal build, its own qualification target, and a

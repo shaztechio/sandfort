@@ -49,7 +49,7 @@ final class UTMLauncherIsolationTests: XCTestCase {
             fileExists: { _ in true }
         )
         XCTAssertEqual(
-            resolved?.firmwareURL.lastPathComponent,
+            resolved?.firmwareURL(for: LinuxGuestCatalog.defaultProfile).lastPathComponent,
             "edk2-arm-vars.fd"
         )
     }

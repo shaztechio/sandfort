@@ -26,6 +26,26 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
         let architecture: String
         let utmArchitecture: String
         let utmTarget: String
+        /// The UEFI variable store UTM ships for this architecture, copied into
+        /// every bundle as `efi_vars.fd`. Named here rather than hardcoded at
+        /// the firmware lookup so the lookup is a property of the guest being
+        /// built and not of the only guest that has ever existed.
+        let utmFirmwareVarsName: String
+        /// Where the guest's kernel puts its serial console. `virt` on ARM64
+        /// exposes a PL011 as `ttyAMA0`; the x86-64 `q35` machine exposes a
+        /// 16550 as `ttyS0`. Baseline setup logs to it and the failure path
+        /// unmasks a getty on it, so getting this wrong loses every diagnostic.
+        let serialConsoleDevice: String
+        /// How Node.js and Visual Studio Code spell this architecture in their
+        /// download paths.
+        ///
+        /// **This is not `architecture`.** Node.js publishes
+        /// `node-vX-linux-x64.tar.xz` and VS Code's update channel is
+        /// `linux-x64`; neither vendor uses `x86_64` or `amd64`. The value is
+        /// consumed by two separate call sites in `GuestProvisioningSupport`,
+        /// and a wrong one fails inside the guest half an hour into a baseline
+        /// build rather than at compile time.
+        let linuxArchiveArchitecture: String
         let memoryMiB: Int
         let cpuCount: Int
         let diskSizeGiB: UInt64
@@ -63,19 +83,31 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
             }
         }
 
+        /// `hardware` is passed rather than looked up so a provisioner never
+        /// reaches for a process-wide default, and so the architecture-shaped
+        /// values it embeds in the guest belong to the profile being built.
         func seedISO(
             credentials: SandboxCredentials,
-            tools: SandboxToolSelection
+            tools: SandboxToolSelection,
+            hardware: Hardware
         ) throws -> Data {
             switch self {
             case .ubuntu2404:
-                return try UbuntuCloudInit.seedISO(credentials: credentials, tools: tools)
+                return try UbuntuCloudInit.seedISO(
+                    credentials: credentials, tools: tools, hardware: hardware
+                )
             case .fedora44:
-                return try FedoraCloudInit.seedISO(credentials: credentials, tools: tools)
+                return try FedoraCloudInit.seedISO(
+                    credentials: credentials, tools: tools, hardware: hardware
+                )
             case .debian13:
-                return try DebianCloudInit.seedISO(credentials: credentials, tools: tools)
+                return try DebianCloudInit.seedISO(
+                    credentials: credentials, tools: tools, hardware: hardware
+                )
             case .opensuseLeap16:
-                return try OpenSUSECloudInit.seedISO(credentials: credentials, tools: tools)
+                return try OpenSUSECloudInit.seedISO(
+                    credentials: credentials, tools: tools, hardware: hardware
+                )
             }
         }
     }
@@ -101,7 +133,7 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
         credentials: SandboxCredentials,
         tools: SandboxToolSelection = .recommended
     ) throws -> Data {
-        try provisioner.seedISO(credentials: credentials, tools: tools)
+        try provisioner.seedISO(credentials: credentials, tools: tools, hardware: hardware)
     }
 }
 
@@ -122,6 +154,9 @@ enum LinuxGuestCatalog {
             architecture: "arm64",
             utmArchitecture: "aarch64",
             utmTarget: "virt",
+            utmFirmwareVarsName: "edk2-arm-vars.fd",
+            serialConsoleDevice: "ttyAMA0",
+            linuxArchiveArchitecture: "arm64",
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64
@@ -145,6 +180,9 @@ enum LinuxGuestCatalog {
             architecture: "arm64",
             utmArchitecture: "aarch64",
             utmTarget: "virt",
+            utmFirmwareVarsName: "edk2-arm-vars.fd",
+            serialConsoleDevice: "ttyAMA0",
+            linuxArchiveArchitecture: "arm64",
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64
@@ -168,6 +206,9 @@ enum LinuxGuestCatalog {
             architecture: "arm64",
             utmArchitecture: "aarch64",
             utmTarget: "virt",
+            utmFirmwareVarsName: "edk2-arm-vars.fd",
+            serialConsoleDevice: "ttyAMA0",
+            linuxArchiveArchitecture: "arm64",
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64
@@ -191,6 +232,9 @@ enum LinuxGuestCatalog {
             architecture: "arm64",
             utmArchitecture: "aarch64",
             utmTarget: "virt",
+            utmFirmwareVarsName: "edk2-arm-vars.fd",
+            serialConsoleDevice: "ttyAMA0",
+            linuxArchiveArchitecture: "arm64",
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64

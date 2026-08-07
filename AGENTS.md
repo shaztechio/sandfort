@@ -18,7 +18,19 @@ without weakening the common provisioning policy.
   of the pre-Phase-7 singleton environment without moving or silently
   re-registering its VM bundles. New and rebuilt VMs include the distribution.
 - `LinuxGuestCatalog.swift`: curated guest metadata, immutable verified images,
-  hardware requirements, and the provisioning strategy boundary.
+  hardware requirements, and the provisioning strategy boundary. `Hardware` also
+  carries the architecture axis — `utmFirmwareVarsName`, `serialConsoleDevice`,
+  and `linuxArchiveArchitecture` — which the provisioners and firmware lookup
+  are handed rather than hardcoding. `linuxArchiveArchitecture` is the *vendor's*
+  spelling, not the architecture's: Node.js and VS Code both publish `x64`, and
+  neither uses `x86_64` or `amd64`.
+- `HostArchitecture.swift`: what the Mac is, detected at run time including
+  Rosetta, and which UTM guest architecture it can hardware-accelerate. A
+  compile-time `#if arch(arm64)` describes the running slice instead, which made
+  `doctor()` call an Apple-silicon Mac unsupported under Rosetta. `create()`
+  refuses a guest this host cannot accelerate: UTM's `hasHypervisorSupport` is
+  false when the architectures differ, so it ignores `"Hypervisor": true` and
+  falls back to `-accel tcg` without saying anything.
 - `GuestProvisioningSupport.swift`: distribution-neutral credential validation,
   custom-script embedding, Node.js and Visual Studio Code installation, the
   terminal and browser verification commands, MOTD, and completion helpers. Both
@@ -76,6 +88,11 @@ without weakening the common provisioning policy.
   mirror, or any runtime source at run time. Debian publishes no signature for
   its cloud manifest and stays hash-only.
 - `tests/sandfortapptests`: policy and bundle-format regression tests.
+  `GuestArchitectureTests` pins a SHA-256 of each profile's generated
+  `user-data`, per tool selection. It is the only assertion in the suite that
+  can prove a guest did **not** change; everything else is a `contains`, and a
+  rebuild-forcing edit passes all of them. A failure there means the guest
+  changed: undo it, or bump the profile revision and declare the rebuild.
 - `tools/packaging`: development app-bundle packaging metadata and script.
 - `HELP.md`: canonical user help source. Packaging renders it into Sandfort's
   indexed native macOS Help Book; do not edit generated Help Book HTML directly.
@@ -258,9 +275,10 @@ Design notes for whoever picks this up:
 - Put it in its own sheet, not the development-tools sheet. Tool selections apply
   only to the next baseline; these apply to instances on reset, and mixing them
   misrepresents when each takes effect.
-- `doctor()` reports only UTM, architecture, and sandbox state. It should also
-  report host RAM and free space and flag a configuration the Mac cannot afford;
-  nothing warns today.
+- `doctor()` now reports host RAM and free space alongside UTM, architecture,
+  and sandbox state, and states what one baseline costs. It still does not flag
+  a *configured* size the Mac cannot afford, because nothing is configurable
+  yet; that check belongs with this work.
 - No profile revision bump and no rebuild: nothing inside the guest changes and
   the disk format is untouched, only its virtual size, through a path that
   already runs. That is the judgment call in this plan most worth challenging

@@ -25,7 +25,8 @@ enum UbuntuCloudInit {
 
     static func seedISO(
         credentials: SandboxCredentials,
-        tools: SandboxToolSelection = .recommended
+        tools: SandboxToolSelection = .recommended,
+        hardware: LinuxGuestProfile.Hardware
     ) throws -> Data {
         var packages = [
             "ubuntu-desktop-minimal", "curl", "git", "jq",
@@ -62,11 +63,11 @@ enum UbuntuCloudInit {
         """
         let nodeInstallCommands = GuestProvisioningSupport.nodeLTSInstallCommands(
             enabled: tools.nodeJS,
-            linuxArchiveArchitecture: "arm64"
+            linuxArchiveArchitecture: hardware.linuxArchiveArchitecture
         )
         let vsCodeInstallCommands = GuestProvisioningSupport.vsCodeInstallCommands(
             enabled: tools.installsVSCode,
-            linuxArchiveArchitecture: "arm64"
+            linuxArchiveArchitecture: hardware.linuxArchiveArchitecture
         )
         let finalizerScript = """
         #!/usr/bin/env bash
@@ -77,8 +78,8 @@ enum UbuntuCloudInit {
           trap - ERR
           set +e
           status "ERROR: Setup failed. The VM will remain on; enabling the sandbox login prompt for diagnostics."
-          systemctl unmask --runtime serial-getty@ttyAMA0.service
-          systemctl start serial-getty@ttyAMA0.service
+          systemctl unmask --runtime serial-getty@\(hardware.serialConsoleDevice).service
+          systemctl start serial-getty@\(hardware.serialConsoleDevice).service
           exit "$result"
         }
         trap setup_failed ERR
@@ -158,7 +159,7 @@ enum UbuntuCloudInit {
               password: '\(GuestProvisioningSupport.yamlSingleQuoted(credentials.password))'
               type: text
         bootcmd:
-          - [systemctl, mask, --runtime, --now, serial-getty@ttyAMA0.service]
+          - [systemctl, mask, --runtime, --now, serial-getty@\(hardware.serialConsoleDevice).service]
           - [sh, -c, "echo '[Sandfort] Baseline setup has started. Leave this VM running until it powers itself off automatically. Installation commonly takes 10-30 minutes.' > /dev/console"]
         # sandfort packages:
         \(packageList.replacingOccurrences(of: "  - ", with: "#   - "))

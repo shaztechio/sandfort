@@ -25,7 +25,8 @@ enum FedoraCloudInit {
 
     static func seedISO(
         credentials: SandboxCredentials,
-        tools: SandboxToolSelection = .recommended
+        tools: SandboxToolSelection = .recommended,
+        hardware: LinuxGuestProfile.Hardware
     ) throws -> Data {
         var packages = [
             "ca-certificates", "curl", "dnf5-plugin-automatic", "firewalld",
@@ -67,11 +68,11 @@ enum FedoraCloudInit {
         """
         let nodeInstallCommands = GuestProvisioningSupport.nodeLTSInstallCommands(
             enabled: tools.nodeJS,
-            linuxArchiveArchitecture: "arm64"
+            linuxArchiveArchitecture: hardware.linuxArchiveArchitecture
         )
         let vsCodeInstallCommands = GuestProvisioningSupport.vsCodeInstallCommands(
             enabled: tools.installsVSCode,
-            linuxArchiveArchitecture: "arm64"
+            linuxArchiveArchitecture: hardware.linuxArchiveArchitecture
         )
         let finalizerScript = """
         #!/usr/bin/env bash
@@ -82,8 +83,8 @@ enum FedoraCloudInit {
           trap - ERR
           set +e
           status "ERROR: Setup failed. The VM will remain on; enabling the sandbox login prompt for diagnostics."
-          systemctl unmask --runtime serial-getty@ttyAMA0.service
-          systemctl start serial-getty@ttyAMA0.service
+          systemctl unmask --runtime serial-getty@\(hardware.serialConsoleDevice).service
+          systemctl start serial-getty@\(hardware.serialConsoleDevice).service
           exit "$result"
         }
         trap setup_failed ERR
@@ -185,7 +186,7 @@ enum FedoraCloudInit {
               password: '\(GuestProvisioningSupport.yamlSingleQuoted(credentials.password))'
               type: text
         bootcmd:
-          - [systemctl, mask, --runtime, --now, serial-getty@ttyAMA0.service]
+          - [systemctl, mask, --runtime, --now, serial-getty@\(hardware.serialConsoleDevice).service]
           - [sh, -c, "echo '[Sandfort] Fedora baseline setup has started. Leave this VM running until it powers itself off automatically. Installation commonly takes 20-45 minutes.' > /dev/console"]
         # sandfort packages:
         \(packageList.replacingOccurrences(of: "  - ", with: "#   - "))
