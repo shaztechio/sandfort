@@ -25,7 +25,7 @@ final class UTMDiscoveryTests: XCTestCase {
 
     func testLaunchServicesResultWinsOverTheConventionalPaths() {
         let resolved = UTMLauncher.resolveInstallation(
-            identifierLookup: { _ in self.elsewhere },
+            identifierLookup: { _ in [self.elsewhere] },
             fallbackPaths: ["/Applications/UTM.app"],
             fileExists: { _ in true }
         )
@@ -35,7 +35,7 @@ final class UTMDiscoveryTests: XCTestCase {
     /// A UTM outside /Applications must be found, which is the whole point.
     func testFirmwareComesFromWhereverUTMWasFound() {
         let resolved = UTMLauncher.resolveInstallation(
-            identifierLookup: { _ in self.elsewhere },
+            identifierLookup: { _ in [self.elsewhere] },
             fallbackPaths: [],
             fileExists: { _ in true }
         )
@@ -47,7 +47,7 @@ final class UTMDiscoveryTests: XCTestCase {
 
     func testFallsBackToTheConventionalPathWhenLaunchServicesDoesNotKnowIt() {
         let resolved = UTMLauncher.resolveInstallation(
-            identifierLookup: { _ in nil },
+            identifierLookup: { _ in [] },
             fallbackPaths: ["/nope/UTM.app", "/Applications/UTM.app"],
             fileExists: { $0 == "/Applications/UTM.app" }
         )
@@ -56,7 +56,7 @@ final class UTMDiscoveryTests: XCTestCase {
 
     func testMissingUTMResolvesToNothing() {
         let resolved = UTMLauncher.resolveInstallation(
-            identifierLookup: { _ in nil },
+            identifierLookup: { _ in [] },
             fallbackPaths: ["/Applications/UTM.app"],
             fileExists: { _ in false }
         )
@@ -67,7 +67,7 @@ final class UTMDiscoveryTests: XCTestCase {
     /// deleted, which would otherwise be reported as installed.
     func testStaleLaunchServicesPathIsNotTreatedAsInstalled() {
         let resolved = UTMLauncher.resolveInstallation(
-            identifierLookup: { _ in self.elsewhere },
+            identifierLookup: { _ in [self.elsewhere] },
             fallbackPaths: [],
             fileExists: { _ in false }
         )
@@ -108,5 +108,79 @@ final class UTMDiscoveryTests: XCTestCase {
             XCTAssertTrue(report.contains("mac.getutm.app"))
         }
         XCTAssertTrue(report.contains("This Mac is"))
+    }
+
+    // MARK: - Choosing between several registered copies
+
+    /// The reported case: UTM 5 in /Applications with the 4.7.5 installer disk
+    /// image still mounted. Both are registered under the same identifier, and
+    /// leaving a DMG mounted after upgrading is the most ordinary thing a user
+    /// can do — no deliberate second install required.
+    ///
+    /// A read-only volume can be ejected mid-baseline, and firmware is read from
+    /// whatever was resolved, so the installed copy has to win.
+    func testAnInstalledCopyBeatsOneOnAMountedVolume() {
+        for order in [[mountedDMG, installed], [installed, mountedDMG]] {
+            let resolved = UTMLauncher.resolveInstallation(
+                identifierLookup: { _ in order },
+                fallbackPaths: [],
+                fileExists: { _ in true }
+            )
+            XCTAssertEqual(
+                resolved?.applicationURL, installed,
+                "the installed copy must win regardless of Launch Services order"
+            )
+        }
+    }
+
+    /// Trashed copies stay in the Launch Services database. Driving one is
+    /// never right: the user has already said they do not want it, and emptying
+    /// the Trash would pull it out from under a running baseline.
+    func testATrashedCopyIsNeverChosen() {
+        let resolved = UTMLauncher.resolveInstallation(
+            identifierLookup: { _ in [self.trashed, self.installed] },
+            fallbackPaths: [],
+            fileExists: { _ in true }
+        )
+        XCTAssertEqual(resolved?.applicationURL, installed)
+    }
+
+    /// And not even when it is the only thing registered — falling through to
+    /// the conventional path, or to nothing, beats driving a deleted app.
+    func testATrashedCopyAloneResolvesToNothing() {
+        let resolved = UTMLauncher.resolveInstallation(
+            identifierLookup: { _ in [self.trashed] },
+            fallbackPaths: [],
+            fileExists: { _ in true }
+        )
+        XCTAssertNil(resolved)
+    }
+
+    /// Preference, not prohibition. Running UTM from an external disk is a
+    /// legitimate setup, and `testFirmwareComesFromWhereverUTMWasFound` already
+    /// pins that intent — so a volume copy still wins when it is the only one.
+    func testAVolumeCopyIsStillUsedWhenItIsTheOnlyOne() {
+        let resolved = UTMLauncher.resolveInstallation(
+            identifierLookup: { _ in [self.elsewhere] },
+            fallbackPaths: [],
+            fileExists: { _ in true }
+        )
+        XCTAssertEqual(resolved?.applicationURL, elsewhere)
+    }
+
+    /// So the ambiguity can be reported rather than silently resolved.
+    func testTheOtherCandidatesAreReported() {
+        let resolved = UTMLauncher.resolveInstallation(
+            identifierLookup: { _ in [self.installed, self.mountedDMG] },
+            fallbackPaths: [],
+            fileExists: { _ in true }
+        )
+        XCTAssertEqual(resolved?.alternatives, [mountedDMG])
+    }
+
+    private var installed: URL { URL(fileURLWithPath: "/Applications/UTM.app", isDirectory: true) }
+    private var mountedDMG: URL { URL(fileURLWithPath: "/Volumes/UTM/UTM.app", isDirectory: true) }
+    private var trashed: URL {
+        URL(fileURLWithPath: NSHomeDirectory() + "/.Trash/UTM.app", isDirectory: true)
     }
 }
