@@ -90,10 +90,15 @@ enum UTMRegistryController {
 
     /// Asks UTM to start the VM registered under this exact name.
     ///
-    /// UTM's documented `utm://start?name=` URL is a no-op on UTM 4.7.5:
-    /// verified by opening it against a registered, stopped VM, which stayed
-    /// stopped. UTM's scripting interface exposes a real `start` command
+    /// The `utm://start?name=` URL is a no-op: verified by opening it against a
+    /// registered, stopped VM on UTM 4.7.5, which stayed stopped. UTM's macOS
+    /// URL handler implements only `downloadVM` and file import — there is no
+    /// `start` case in its source at 4.7.5 or 5.0.4 — so this is not a bug that
+    /// might be fixed. UTM's scripting interface exposes a real `start` command
     /// (`UTMvstar`), which does work, so the app uses that.
+    ///
+    /// See docs/utm-version-audit.md for which UTM versions this was checked
+    /// against and how to re-check it.
     static func startVirtualMachine(named name: String) throws {
         let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
         let event = NSAppleEventDescriptor(

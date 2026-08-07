@@ -119,11 +119,12 @@ final class UTMAutoStartTests: XCTestCase {
         XCTAssertEqual(probe.calls, 1)
     }
 
-    /// `utm://start?name=` is documented by UTM but does nothing on 4.7.5:
-    /// opening it against a registered, stopped VM left the VM stopped. The
-    /// scripting interface's `start` command does work. If the URL ever comes
-    /// back it can be reinstated, but nothing should quietly reintroduce it as
-    /// though it were a working fallback.
+    /// `utm://start?name=` does nothing: opening it against a registered,
+    /// stopped VM on 4.7.5 left the VM stopped. UTM's URL handler has no
+    /// `start` case at 4.7.5 or 5.0.4 — only `downloadVM` and file import — so
+    /// this is not a bug awaiting a fix. The scripting interface's `start`
+    /// command does work. Nothing should quietly reintroduce the URL as though
+    /// it were a working fallback. See docs/utm-version-audit.md.
     func testStartingDoesNotRelyOnTheURLScheme() throws {
         let source = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -144,6 +145,12 @@ final class UTMAutoStartTests: XCTestCase {
     /// Taken from UTM's own scripting dictionary, where `start` is UTMvstar.
     /// A wrong code is silently ignored by UTM rather than reported, which is
     /// exactly how the URL scheme failed.
+    ///
+    /// Re-checked against an installed UTM 5.0.4's shipped
+    /// `Contents/Resources/UTM.sdef`: unchanged. The diff from 4.7.5 adds
+    /// `reload configuration` and some VLAN properties and touches none of the
+    /// codes below. That the dictionary still advertises them is not the same
+    /// as having sent one to a running 5.0.4 — see docs/utm-version-audit.md §7.
     func testStartUsesUTMsDocumentedEventCode() {
         XCTAssertEqual(Self.code("UTMv"), 0x55544D76)
         XCTAssertEqual(Self.code("star"), 0x73746172)
