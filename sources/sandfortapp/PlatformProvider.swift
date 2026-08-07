@@ -31,6 +31,14 @@ enum VirtualMachineRole: Sendable {
 
 protocol VirtualMachineProvider: Sendable {
     var identifier: String { get }
+    /// Builds the provisioning VM from a verified image.
+    ///
+    /// The image arrives already checked against `profile.image.sha256`, and an
+    /// implementation must check it **again** against the disk it placed in the
+    /// bundle, before anything modifies that disk. The caller verifies a file in
+    /// the shared cache; what boots is a copy, and only the provider is in a
+    /// position to confirm those are the same bytes. A failure must throw and
+    /// leave nothing behind that a later step could mistake for a baseline.
     func createSetupBundle(at: URL, name: String, from: URL, profile: LinuxGuestProfile, credentials: SandboxCredentials, tools: SandboxToolSelection) throws
     func createCleanBundle(from: URL, at: URL, name: String, profile: LinuxGuestProfile, networkMode: SandboxNetworkMode) throws
     func resetCleanBundle(from: URL, at: URL, profile: LinuxGuestProfile, networkMode: SandboxNetworkMode) throws

@@ -54,40 +54,71 @@ final class UTMLauncherIsolationTests: XCTestCase {
         )
     }
 
-    /// A QCOW2 header just complete enough for `resizeQCOW2` to accept: the
-    /// signature, version 3, and a virtual size below the profile's.
+    /// A QCOW2 complete enough for `resizeQCOW2` to accept *and grow*: the
+    /// signature, version 3, 64 KiB clusters, a 2 GiB virtual size below the
+    /// profile's, and an L1 table with room to spare.
+    ///
+    /// The cluster and L1 fields are not decoration. Without them the resize
+    /// throws before the firmware lookup, so an earlier version of this file
+    /// stopped one statement short of the call it exists to reach and passed
+    /// anyway, on an assertion about the copied disk rather than the resolver.
     ///
     /// The source image has to be real. An absent one makes `createSetupBundle`
-    /// throw at `copyItem`, two statements before the firmware lookup — which is
-    /// how the first version of this test passed against the very bug it was
-    /// written to catch.
+    /// throw at `copyItem`, which is how the first version of this test passed
+    /// against the very bug it was written to catch.
     private func writeMinimalQCOW2(at url: URL) throws {
-        var header = Data(count: 512)
-        header.replaceSubrange(0..<4, with: [0x51, 0x46, 0x49, 0xfb])   // "QFI\xfb"
-        header.replaceSubrange(4..<8, with: [0, 0, 0, 3])               // version 3
-        let virtualSize = UInt64(2 * 1024 * 1024 * 1024)                // 2 GiB
-        header.replaceSubrange(24..<32, with: (0..<8).map {
-            UInt8(truncatingIfNeeded: virtualSize >> (8 * (7 - $0)))
-        })
-        try header.write(to: url)
+        var image = Data(count: 128 * 1024)
+        image.replaceSubrange(0..<4, with: [0x51, 0x46, 0x49, 0xfb])        // "QFI\xfb"
+        image.replaceSubrange(4..<8, with: [0, 0, 0, 3])                    // version 3
+        image.replaceSubrange(20..<24, with: [0, 0, 0, 16])                 // 64 KiB clusters
+        image.replaceSubrange(24..<32, with: [0, 0, 0, 0, 0x80, 0, 0, 0])   // 2 GiB virtual size
+        image.replaceSubrange(36..<40, with: [0, 0, 0, 7])                  // L1 entries
+        image.replaceSubrange(40..<48, with: [0, 0, 0, 0, 0, 1, 0, 0])      // L1 at 64 KiB
+        try image.write(to: url)
+    }
+
+    /// The shipped Ubuntu profile with its checksum pinned to whatever this test
+    /// wrote. `createSetupBundle` verifies the disk it copied into the bundle,
+    /// so a stub image under a real profile's pinned hash is refused before the
+    /// firmware lookup this test is trying to reach.
+    private func profile(pinning sha256: String) -> LinuxGuestProfile {
+        let ubuntu = LinuxGuestCatalog.defaultProfile
+        return LinuxGuestProfile(
+            id: ubuntu.id,
+            revision: ubuntu.revision,
+            displayName: ubuntu.displayName,
+            distributionName: ubuntu.distributionName,
+            setupDurationDescription: ubuntu.setupDurationDescription,
+            image: LinuxGuestProfile.Image(
+                url: ubuntu.image.url,
+                sha256: sha256,
+                fileName: ubuntu.image.fileName,
+                downloadSizeDescription: ubuntu.image.downloadSizeDescription
+            ),
+            hardware: ubuntu.hardware,
+            provisioner: ubuntu.provisioner
+        )
     }
 
     /// Creating a baseline reaches the real resolver, with no override in the
     /// way, from an actor — exactly as the app does.
     ///
-    /// The disk is copied and resized immediately before the firmware lookup, so
-    /// a resized disk on disk proves execution actually arrived at the call that
-    /// used to trap. What happens after it is not this test's business.
+    /// The outcome proves the arrival. Every step before the lookup has its own
+    /// distinct error, so `utmResourcesMissing` can only come from the resolver
+    /// itself returning nil, and success can only come from getting past it.
+    /// This used to be asserted on the copied disk still being there, which no
+    /// longer holds: a failed `createSetupBundle` now removes what it created,
+    /// so a rejected image cannot be left behind looking like a baseline.
     func testCreatingABundleOffTheMainActorReachesTheFirmwareLookup() async throws {
         actor Creator {
-            func attempt(into root: URL, from image: URL) -> Error? {
+            func attempt(into root: URL, from image: URL, profile: LinuxGuestProfile) -> Error? {
                 let builder = UTMBundleBuilder()   // no firmwareURLOverride
                 do {
                     try builder.createSetupBundle(
                         at: root.appendingPathComponent("Setup.utm", isDirectory: true),
                         name: "Sandfort Isolation Test",
                         from: image,
-                        profile: LinuxGuestCatalog.defaultProfile,
+                        profile: profile,
                         credentials: SandboxCredentials(username: "sandfort", password: "test-test-test-test"),
                         tools: SandboxToolSelection(python: false, nodeJS: false)
                     )
@@ -105,22 +136,15 @@ final class UTMLauncherIsolationTests: XCTestCase {
 
         let image = root.appendingPathComponent("source.qcow2")
         try writeMinimalQCOW2(at: image)
+        let profile = profile(pinning: try DiskUtilities.sha256(of: image))
 
         // Reaching the next line at all is the result: the trap killed the
         // process here rather than returning an error.
-        let thrown = await Creator().attempt(into: root, from: image)
+        let thrown = await Creator().attempt(into: root, from: image, profile: profile)
 
-        let disk = root.appendingPathComponent("Setup.utm/Data/sandfort.qcow2")
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: disk.path),
-            "the disk is written immediately before the firmware lookup, so it must exist"
-        )
-        if let thrown {
-            // Only a missing UTM is a legitimate failure this far in.
-            XCTAssertTrue(
-                thrown is SandboxError,
-                "unexpected failure past the resolver: \(thrown)"
-            )
+        guard let thrown else { return }   // UTM is installed; the lookup succeeded.
+        guard case SandboxError.utmResourcesMissing = thrown else {
+            return XCTFail("stopped before the resolver, or past it, with: \(thrown)")
         }
     }
 }
