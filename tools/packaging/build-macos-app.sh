@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")/../.." && pwd)"
+root="$(cd "$(dirname "$0")/../.." && pwd -P)"
 qualification_profile_id="${SANDFORT_QUALIFICATION_PROFILE_ID:-}"
 qualification_distribution="${SANDFORT_QUALIFICATION_DISTRIBUTION:-Fedora}"
 if [[ -n "$qualification_profile_id" ]]; then

@@ -1176,6 +1176,7 @@ final class SandfortAppTests: XCTestCase {
             setupBundlePath: "/tmp/Baseline.utm",
             sandboxBundlePath: "/tmp/Instance 1.utm",
             setupVMName: "Sandfort — Protected Baseline ABC123",
+            setupVMImportedName: "Sandfort — Baseline Setup ABC123",
             sandboxVMName: "Sandfort — Instance 1 — ABC123",
             instances: [
                 SandboxInstance(number: 1, bundlePath: "/tmp/Instance 1.utm", vmName: "Sandfort — Instance 1 — ABC123"),
@@ -1186,6 +1187,7 @@ final class SandfortAppTests: XCTestCase {
 
         XCTAssertEqual(state.utmRegistrationNames, [
             "Sandfort — Protected Baseline ABC123",
+            "Sandfort — Baseline Setup ABC123",
             "Sandfort — Instance 1 — ABC123",
             "Sandfort — Instance 2 — ABC123"
         ])

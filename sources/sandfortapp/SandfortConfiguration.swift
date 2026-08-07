@@ -81,6 +81,9 @@ struct SandboxState: Codable, Sendable {
     var setupBundlePath: String
     var sandboxBundlePath: String?
     var setupVMName: String? = nil
+    /// The name UTM first registered before Finish Setup relabeled the bundle.
+    /// UTM can keep this cached name even after `config.plist` changes.
+    var setupVMImportedName: String? = nil
     var sandboxVMName: String? = nil
     var instances: [SandboxInstance]? = nil
     var nextInstanceNumber: Int? = nil
@@ -103,7 +106,7 @@ struct SandboxState: Codable, Sendable {
 
     var utmRegistrationNames: [String] {
         var seen: Set<String> = []
-        return ([setupVMName].compactMap { $0 } + resolvedInstances.map(\.vmName))
+        return ([setupVMName, setupVMImportedName].compactMap { $0 } + resolvedInstances.map(\.vmName))
             .filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
