@@ -5,3 +5,9 @@ dist/
 .DS_Store
 __pycache__/
 *.pyc
+
+# Background agents check out nested worktrees here. They are full copies of the
+# repository living inside it, so an ordinary `git add -A` would stage hundreds
+# of megabytes of duplicated tree. Ignoring the directory rather than all of
+# `.claude/` leaves room to commit shared settings later.
+.claude/worktrees/
