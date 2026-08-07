@@ -39,6 +39,12 @@ without weakening the common provisioning policy.
   `docs/security-model.md`; it must never imply the sandbox makes the user safe.
   Raise `currentVersion` only when a user should genuinely see it again.
 - `UTMBundleBuilder.swift`: UTM plist/bundle generation and clean-session reset.
+  Instances are created and reset with `FileManager.copyItem`, which **clones**
+  on APFS: a 5.68 GiB baseline bundle copies in 0.005 s and costs no measurable
+  disk. Never replace it with a streaming or chunked copy, which would look
+  identical everywhere except time and space. `InstanceCloneCostTests` holds
+  that line, and `docs/security-model.md` records why a QCOW2 backing file is
+  not used to get the same saving.
 - `CloudInit.swift`: current Ubuntu credentials, packages, hardening, and
   baseline setup behind the catalog profile.
 - `FedoraCloudInit.swift`: Fedora 44 DNF5, Workstation, firewalld, SELinux,

@@ -160,23 +160,27 @@ of correct signing — plan for that rather than being surprised by it.
 - **Where instance disks live**, and whether roaming profiles or OneDrive
   redirection can put a 64 GiB sparse file somewhere that syncs.
 
-## An optimization worth taking on both platforms
+## An optimization macOS already has for free, and Windows will not
 
-Instance creation is a full byte copy today. Measured on the Debian environment:
+Instance creation looks like a full byte copy and is not one. `FileManager.copyItem`
+clones on APFS, so an instance shares the baseline's blocks until something
+writes to them: 0.005 s and no measurable disk for a 5.68 GiB baseline bundle.
+The `du` reading that suggested otherwise — 6.1G baseline plus 6.1G instance,
+13G total — was the same 6.1G counted twice, because `du` counts blocks per file.
+`security-model.md` has the measurement and the reasoning, and
+`InstanceCloneCostTests` keeps it true.
 
-```
-Protected Baseline    on-disk 6.1G
-Instance 1            on-disk 6.1G
-environment total     13G
-```
+**This is the one place in this document where Windows is genuinely worse off.**
+NTFS has no clone: `CopyFile2` copies bytes. An instance there really would cost
+a full copy of the baseline, in time and in space, on the filesystem the port
+would actually ship on. ReFS has block cloning but is not what a user's C: drive
+is formatted as, and the port cannot require it.
 
-`FileManager.copyItem` does not clone on APFS, so this is not a macOS advantage
-that Windows would fail to match — both platforms pay the same cost. A QCOW2
-**backing file** would make instances near-free on either.
-
-It is not free of consequence. A backing file is shared state between the
-baseline and every instance derived from it, and the security model currently
-forbids sharing mutable guest disks. Read-only backing is a weaker claim than a
-full copy, and the decision belongs in `security-model.md` before it belongs in
-code. Raise it as its own change, on macOS first, not as a detail of the Windows
-port.
+A QCOW2 **backing file** is the obvious answer and was rejected on macOS for
+reasons that are not about cost: Rebuild deletes the baseline and would orphan
+every instance depending on it, the guest's own hypervisor would hold a
+reference to the protected baseline, and a running instance would lock it. None
+of those become less true on Windows. If the copy proves unacceptable there,
+solve it against those three objections rather than by reopening the decision —
+and note that a Windows provider is free to use a different mechanism from the
+macOS one, since each provider owns its own VM packaging.
