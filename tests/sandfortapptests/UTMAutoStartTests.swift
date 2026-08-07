@@ -146,9 +146,11 @@ final class UTMAutoStartTests: XCTestCase {
     /// A wrong code is silently ignored by UTM rather than reported, which is
     /// exactly how the URL scheme failed.
     ///
-    /// Re-checked against UTM 5.0.4's `Scripting/UTM.sdef`: unchanged. The
-    /// diff from 4.7.5 adds `reload configuration` and some VLAN properties and
-    /// touches none of the codes below.
+    /// Re-checked against an installed UTM 5.0.4's shipped
+    /// `Contents/Resources/UTM.sdef`: unchanged. The diff from 4.7.5 adds
+    /// `reload configuration` and some VLAN properties and touches none of the
+    /// codes below. That the dictionary still advertises them is not the same
+    /// as having sent one to a running 5.0.4 — see docs/utm-version-audit.md §7.
     func testStartUsesUTMsDocumentedEventCode() {
         XCTAssertEqual(Self.code("UTMv"), 0x55544D76)
         XCTAssertEqual(Self.code("star"), 0x73746172)

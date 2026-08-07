@@ -35,8 +35,11 @@ import XCTest
 /// wanted, that is a security-model decision and this test is where it should
 /// be argued, not a detail to slip past in a rendering fix.
 ///
-/// Established by reading UTM 5.0.4's source; not verified against a running
-/// UTM 5. See docs/utm-version-audit.md §3. Issue #25.
+/// Established by reading UTM 5.0.4's source. `virtio-gpu-pci` is present in an
+/// installed 5.0.4's binary and its new `QEMURenderServer.app` did ship, so the
+/// feature is real and the gating predicate is what keeps it away from this
+/// display — but no VM has been booted under UTM 5 to see it render. See
+/// docs/utm-version-audit.md §3. Issue #25.
 final class UTMDisplayHardwareTests: XCTestCase {
     private func configuration(setupMode: Bool) throws -> [String: Any] {
         let root = FileManager.default.temporaryDirectory

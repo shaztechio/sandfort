@@ -7,16 +7,25 @@ Sandfort enforces most of this model by writing keys into a property list that
 to an application this project does not ship, so every claim below is a claim
 about a particular UTM version.
 
-Everything here is verified against **UTM 4.7.5**, which is UTM's current
-stable release. UTM 5.0.x is a beta line at the time of writing. Sandfort
+The **runtime** behaviour below is verified against **UTM 4.7.5**, which is
+UTM's current stable release; UTM 5.0.x is still a beta line. Sandfort
 documents and enforces no minimum UTM version.
 
-The key names and Apple Event codes were re-checked against UTM 5.0.4's source
-and are unchanged there; no shipped UTM 5 build has been exercised.
-`utm-version-audit.md` records exactly which claims are verified, which are
-read from UTM's source, and which still need a live UTM 5 check. A renamed
-plist key would be a silently removed guarantee, so that separation is
-deliberate rather than pedantic.
+Static compatibility with **UTM 5.0.4** has been confirmed against both UTM's
+source and a shipped, signed 5.0.4 build: no plist key, enum value, Apple Event
+code, or firmware path Sandfort depends on has changed. **No VM has been booted
+under UTM 5**, so nothing here is claimed as verified at runtime on 5.x.
+
+`utm-version-audit.md` records which claims sit in which class and what a live
+UTM 5 run still has to settle. A renamed plist key would be a silently removed
+guarantee — the tests assert what Sandfort writes, not what UTM reads — so that
+separation is deliberate rather than pedantic.
+
+One consequence worth knowing regardless of version: Sandfort resolves UTM by
+bundle identifier, so if more than one UTM is registered with macOS — a second
+copy, or merely an installer disk image left mounted — the one it drives is
+Launch Services' choice, not the user's. The version it resolved is reported by
+**Check Setup**.
 
 ## Enforced boundaries
 
