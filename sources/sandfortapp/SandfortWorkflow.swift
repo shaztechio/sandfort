@@ -333,6 +333,7 @@ actor SandfortWorkflow {
             setupBundlePath: setupURL.path,
             sandboxBundlePath: nil,
             setupVMName: setupName,
+            setupVMImportedName: setupName,
             sandboxVMName: nil,
             guestProfileID: profile.id,
             guestProfileRevision: profile.revision,
@@ -776,6 +777,19 @@ actor SandfortWorkflow {
             ? baselineSetupName(tag: tag)
             : protectedBaselineName(tag: tag)
         var changed = false
+        if state.setupVMImportedName == nil, let setupVMName = state.setupVMName {
+            // Finish Setup changes the bundle's display name after UTM imported
+            // it. UTM 5 can retain that original registration in its open
+            // library, so cleanup must try both exact, environment-tagged names.
+            // Existing ready state predates `setupVMImportedName`; when it
+            // already carries the current protected name, reconstruct the setup
+            // name that this naming scheme imported it under. Otherwise retain
+            // the saved name before the migration below replaces it.
+            state.setupVMImportedName = state.stage == .ready && setupVMName == desiredBaselineName
+                ? baselineSetupName(tag: tag)
+                : setupVMName
+            changed = true
+        }
         if !environment.preserveExistingDisplayNames,
            state.setupVMName != desiredBaselineName,
            (try? provider.setDisplayName(desiredBaselineName, at: URL(fileURLWithPath: state.setupBundlePath))) != nil {

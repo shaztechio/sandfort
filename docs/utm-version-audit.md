@@ -7,7 +7,8 @@ UTM version each claim was established against**, so a claim that quietly
 became a claim about an old version can be found rather than trusted.
 
 Audit date: 2026-08-07. Issue #25. Revised the same day after UTM 5.0.4 was
-installed; the first pass had only 4.7.5 available.
+installed; the first pass had only 4.7.5 available. Live-run addendum:
+2026-08-08, using Sandfort 0.16.2 build 101 and UTM 5.0.4 build 123.
 
 ## The versions in play
 
@@ -39,10 +40,15 @@ booted VM** — that distinction is the whole point of the split.
 - **[S] Read in UTM 5 source or release notes** — read at the `v5.0.4` tag in
   `utmapp/UTM`, cited by file. Source-reading tells you what the code says, not
   what a shipped build does.
+- **[R5] Live-run verified on UTM 5.0.4** — exercised through Sandfort 0.16.2
+  build 101 against UTM build 123. All four production profiles booted both
+  offline and Internet-enabled, and their terminals and Visual Studio Code
+  launched. This was a compatibility smoke pass, not every item in each
+  profile's qualification matrix.
 - **[L] Needs a live run** — requires actually creating a baseline, booting a
-  VM, or resetting an instance under UTM 5. **No VM has been booted under UTM
-  5.0.4.** Nothing has moved out of this class on the strength of static
-  inspection.
+  VM, resetting an instance, or inspecting a runtime guarantee not covered by
+  the recorded [R5] pass. Nothing moves out of this class on the strength of
+  static inspection alone.
 
 ### A methodological warning about `strings -a`
 
@@ -132,6 +138,11 @@ plist can still be ignored, overridden by a cached configuration, or applied to
 a device that is not the one the guest ends up using. The concrete check is
 item 2 in §7.
 
+[R5] The offline and Internet-enabled network modes behaved as selected for all
+four profiles. The pass did not record UTM's settings UI for directory,
+clipboard, USB, or port-forward state, so it does not close the broader key
+inspection above.
+
 **No security finding.** Had a key moved, this would have been filed as its own
 issue rather than a documentation edit. It did not.
 
@@ -193,6 +204,10 @@ exercised. A wrong or unhandled code is silently ignored rather than reported,
 which is exactly how the URL scheme failed — so this class of claim cannot be
 closed by reading the dictionary. Items 4 and 6 in §7.
 
+[R5] Sandfort's normal launch path started all four profiles in both network
+modes. A cold-UTM launch, polite stop, and delete/rebuild lifecycle were not all
+recorded as part of that smoke pass.
+
 [L] That a *notarized* Sandfort build's Apple Events reach a shipped UTM 5
 under the hardened runtime and the current Automation prompt.
 
@@ -231,9 +246,9 @@ exists in the installed bundle, which is the new out-of-process renderer that
 cut — the feature is there, and the gating predicate is what keeps it away from
 Sandfort's display.
 
-[L] That `virtio-gpu-pci` still **renders a usable GNOME desktop** under 5.0.4.
-The device string being present proves nothing about what a guest sees. Item 7
-in §7.
+[R5] `virtio-gpu-pci` rendered a usable GNOME desktop for all four profiles
+under 5.0.4; each profile's terminal and Visual Studio Code launched. This is
+the runtime evidence the device string alone could not provide. Item 7 in §7.
 
 **This is worth keeping true deliberately, not by accident.** Switching the
 display to a `-gl` variant would, on UTM 5, silently opt every sandbox into a
@@ -275,7 +290,8 @@ Recommendation, on the evidence in this document: **do not introduce one yet.**
 
 The version worth stating in documentation is not a minimum but a
 **verified-against**, and it is now two: static compatibility confirmed against
-4.7.5 and 5.0.4, runtime behaviour confirmed against 4.7.5 only.
+4.7.5 and 5.0.4, full runtime qualification against 4.7.5, and the scoped [R5]
+runtime smoke pass against 5.0.4.
 
 ### The resolver pins nothing, and that is now demonstrably a hazard
 
@@ -336,6 +352,16 @@ the single most important guarantee in the security model.
 duplicate library entries. Sandfort recreates bundles externally, so how UTM 5
 treats a bundle recreated at a known path is worth a live check. [L]
 
+[R5] A related cache split was observed during **Delete Environment**. UTM had
+imported Ubuntu's setup VM under its `Baseline Setup` name; after Sandfort
+rewrote `config.plist` to label the same bundle `Protected Baseline`, UTM kept
+the imported name in its open library. Sandfort 0.16.2 asked UTM to delete only
+the new name, accepted “not found” as already removed, then deleted its local
+state. The baseline registration was left orphaned in UTM. Sandfort now persists
+the imported setup name and, for existing state, reconstructs it from the
+environment's unique tag; Rebuild and Delete Environment remove both exact
+names before local data. This fix still needs a live re-check against 5.0.4.
+
 ### `docs/APP-STORE.md`'s premises still hold
 
 That document reasons from two facts about UTM 4.7.5's code signature. Both
@@ -385,13 +411,12 @@ happened to be right — which is not the same as having been safe to rely on.
 The file being present and the right size is not the same as UEFI variables
 that a guest initialises and reuses across a reset. Items 1 and 3 in §7.
 
-## 7. What still needs a live run under UTM 5
+## 7. What the live run established and what remains
 
-**No VM has been booted under UTM 5.0.4.** Everything settled above is static:
-files, string tables, dictionaries, entitlements, registrations. That was
-enough to answer the question the issue asked — whether the keys and codes
-still exist and still mean what Sandfort thinks — and it is not enough to
-answer whether a sandbox works.
+The 2026-08-08 [R5] pass established that every production profile boots in
+both network modes and provides a usable desktop, terminal, and Visual Studio
+Code under UTM 5.0.4. It did not repeat every qualification step. Static
+evidence remains static, and unrecorded runtime guarantees remain open.
 
 The one item that static inspection *did* close is the old #1, the firmware
 path (§6). The rest stand, renumbered.
@@ -404,34 +429,34 @@ path (§6). The rest stand, renumbered.
    None, clipboard sharing is off, USB sharing is off, and no port forward
    exists. Reading the plist back is *not* sufficient — the question is what
    UTM did with it (§1). This is the item the whole security model rests on.
-3. **The offline guarantee end to end.** Offline clean instance under 5.0.4: no
-   route off the guest, tested from inside it. The guarantee, not a proxy for
-   it.
-4. **Launch.** Confirm the open-register-poll-`UTMvstar` sequence starts a VM,
-   including from a cold UTM. The dictionary advertises the command; nothing
-   yet shows it lands (§2).
+3. **The offline guarantee end to end — smoke-pass complete.** [R5] All four
+   profiles ran without Internet and with Internet when selected. The full
+   settings inspection in item 2 remains separate.
+4. **Launch — normal path complete, cold UTM remains.** [R5] The
+   open-register-poll-`UTMvstar` sequence started all four profiles. A launch
+   beginning with UTM closed was not recorded (§2).
 5. **`utm://start` on 5.0.4.** Expected to remain a no-op, now with a source
    explanation. Cheap to confirm while 5.0.4 is installed.
 6. **Stop and delete.** `UTMvstop`/`ReQu` powers a guest down politely, and
    Rebuild's `coredelo` still unregisters by exact name (§2).
-7. **`virtio-gpu-pci` renders.** Confirm the GNOME greeter appears and is
-   usable — the graphics rewrite should not touch a non-GL display, but that is
-   a source argument (§3).
+7. **`virtio-gpu-pci` renders — complete.** [R5] All four GNOME desktops were
+   usable enough to launch their terminals and Visual Studio Code (§3).
 8. **Bundle re-registration.** Reset an instance and confirm UTM 5 does not end
    up with a duplicate or stale library entry, given the new inode-based
-   identity check (§5).
-9. **Config caching.** After `repairBundle` rewrites `config.plist` under a
-   registered VM, does UTM 5 use the new file or a cached one? UTM 5 shipping a
-   `reload configuration` command is upstream conceding this can diverge. Worth
-   asking of 4.7.5 too (§5).
+   identity check. Also re-check the two-name baseline cleanup fix (§5).
+9. **Config caching — name caching observed, policy caching remains.** [R5] UTM
+   retained the baseline's imported name after Sandfort rewrote its display
+   name. Whether UTM also caches isolation policy changed by `repairBundle`
+   remains open and is the higher-consequence question (§5).
 10. **A non-default renderer backend.** Only when reproducing a user report:
     whether UTM's global Vulkan/renderer defaults can fail a start for a
     non-GL VM (§3).
 
-Until items 1–3 are done, the honest statement is the one this repository now
-makes: **Sandfort's UTM 5 compatibility is established statically — from UTM's
-source and from the shipped 5.0.4 build — and its runtime behaviour is verified
-against 4.7.5 only.**
+The honest statement is now narrower: **Sandfort's UTM 5 compatibility is
+established statically, and boot, network-mode selection, desktop rendering,
+terminal launch, and Visual Studio Code launch are verified across all four
+profiles on 5.0.4. The full isolation and lifecycle qualification remains
+verified against 4.7.5 only.**
 
 ## Reproducing this audit
 

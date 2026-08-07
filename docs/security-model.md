@@ -7,14 +7,17 @@ Sandfort enforces most of this model by writing keys into a property list that
 to an application this project does not ship, so every claim below is a claim
 about a particular UTM version.
 
-The **runtime** behaviour below is verified against **UTM 4.7.5**, which is
-UTM's current stable release; UTM 5.0.x is still a beta line. Sandfort
+The full **runtime** qualification below is verified against **UTM 4.7.5**,
+which is UTM's current stable release; UTM 5.0.x is still a beta line. Sandfort
 documents and enforces no minimum UTM version.
 
 Static compatibility with **UTM 5.0.4** has been confirmed against both UTM's
 source and a shipped, signed 5.0.4 build: no plist key, enum value, Apple Event
-code, or firmware path Sandfort depends on has changed. **No VM has been booted
-under UTM 5**, so nothing here is claimed as verified at runtime on 5.x.
+code, or firmware path Sandfort depends on has changed. A live pass with
+Sandfort 0.16.2 build 101 and UTM 5.0.4 build 123 booted all four profiles both
+offline and Internet-enabled, and launched their terminals and Visual Studio
+Code. That is runtime compatibility evidence, not a repeat of every isolation
+and lifecycle check in the qualification matrices.
 
 `utm-version-audit.md` records which claims sit in which class and what a live
 UTM 5 run still has to settle. A renamed plist key would be a silently removed
@@ -125,10 +128,14 @@ reopens the cost question but none of the three objections. See `WINDOWS.md`.
 Instance deletion is app-owned and allowed only when the instance disk is not
 locked by a running VM. Sandfort asks UTM to unregister the exact saved VM name,
 waits for UTM to confirm its removal, moves the bundle to macOS Trash, and only
-then updates app state. **Rebuild** is the only app action that deletes the Protected Baseline.
-After its destructive confirmation, rebuild uses a native Apple Event addressed
-to UTM to remove only the exact baseline and instance names held in app state;
-it does not invoke AppleScript, a shell command, or UI automation. A denied
+then updates app state. **Rebuild** and **Delete Environment** are the only app
+actions that delete the Protected Baseline. UTM may retain the name under which
+the setup VM was first imported after Sandfort relabels its bundle as the
+Protected Baseline, so Sandfort keeps both exact, environment-tagged names and
+removes both registrations before deleting local state. After destructive
+confirmation, these operations use a native Apple Event addressed to UTM to
+remove only the exact baseline and instance names held in app state; they do not
+invoke AppleScript, a shell command, or UI automation. A denied
 macOS Automation permission aborts before local VM data is deleted. If UTM is not
 running, Sandfort launches it with `NSWorkspace` and waits for its Apple Event
 interface to become ready. The workflow also waits until UTM can no longer resolve
