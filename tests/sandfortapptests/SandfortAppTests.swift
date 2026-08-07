@@ -413,7 +413,11 @@ final class SandfortAppTests: XCTestCase {
 
     func testFedoraCloudInitEnforcesDistributionSpecificProvisioningAndSecurity() throws {
         let credentials = SandboxCredentials(username: "sandfort", password: "safe'fedora-phrase")
-        let iso = try FedoraCloudInit.seedISO(credentials: credentials, tools: .recommended)
+        let iso = try FedoraCloudInit.seedISO(
+            credentials: credentials,
+            tools: .recommended,
+            hardware: LinuxGuestCatalog.fedora44ARM64.hardware
+        )
         let isoText = String(decoding: iso, as: UTF8.self)
         let finalizer = try decodedFinalizer(from: iso)
 
@@ -465,7 +469,11 @@ final class SandfortAppTests: XCTestCase {
 
     func testOpenSUSECloudInitEnforcesDistributionSpecificProvisioningAndSecurity() throws {
         let credentials = SandboxCredentials(username: "sandfort", password: "safe'opensuse-phrase")
-        let iso = try OpenSUSECloudInit.seedISO(credentials: credentials, tools: .recommended)
+        let iso = try OpenSUSECloudInit.seedISO(
+            credentials: credentials,
+            tools: .recommended,
+            hardware: LinuxGuestCatalog.opensuseLeap16ARM64.hardware
+        )
         let isoText = String(decoding: iso, as: UTF8.self)
         let finalizer = try decodedFinalizer(from: iso)
 
@@ -539,7 +547,8 @@ final class SandfortAppTests: XCTestCase {
                 nodeJS: false,
                 customSetupScript: script,
                 verboseSetupLogging: true
-            )
+            ),
+            hardware: LinuxGuestCatalog.fedora44ARM64.hardware
         )
         let isoText = String(decoding: iso, as: UTF8.self)
         let finalizer = try decodedFinalizer(from: iso)
@@ -558,13 +567,18 @@ final class SandfortAppTests: XCTestCase {
                 python: false,
                 nodeJS: false,
                 customSetupScript: String(repeating: "x", count: 65_537)
-            )
+            ),
+            hardware: LinuxGuestCatalog.fedora44ARM64.hardware
         ))
     }
 
     func testDebianCloudInitEnforcesDistributionSpecificProvisioningAndSecurity() throws {
         let credentials = SandboxCredentials(username: "sandfort", password: "safe'debian-phrase")
-        let iso = try DebianCloudInit.seedISO(credentials: credentials, tools: .recommended)
+        let iso = try DebianCloudInit.seedISO(
+            credentials: credentials,
+            tools: .recommended,
+            hardware: LinuxGuestCatalog.debian13ARM64.hardware
+        )
         let isoText = String(decoding: iso, as: UTF8.self)
         let finalizer = try decodedFinalizer(from: iso)
 
@@ -628,7 +642,8 @@ final class SandfortAppTests: XCTestCase {
                 nodeJS: false,
                 customSetupScript: script,
                 verboseSetupLogging: true
-            )
+            ),
+            hardware: LinuxGuestCatalog.debian13ARM64.hardware
         )
         let isoText = String(decoding: iso, as: UTF8.self)
         let finalizer = try decodedFinalizer(from: iso)
@@ -1245,6 +1260,9 @@ final class SandfortAppTests: XCTestCase {
                 architecture: "test-arm64",
                 utmArchitecture: "test-aarch64",
                 utmTarget: "test-virt",
+                utmFirmwareVarsName: "test-vars.fd",
+                serialConsoleDevice: "ttyTEST0",
+                linuxArchiveArchitecture: "test-arm64",
                 memoryMiB: 3072,
                 cpuCount: 2,
                 diskSizeGiB: 72

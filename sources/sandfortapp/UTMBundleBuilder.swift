@@ -58,7 +58,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
                 )
             }
             try DiskUtilities.resizeQCOW2(at: diskURL, toGiB: profile.hardware.diskSizeGiB)
-            guard let firmwareURL = firmwareURLOverride ?? Self.utmFirmwareURL() else {
+            guard let firmwareURL = firmwareURLOverride ?? Self.utmFirmwareURL(for: profile) else {
                 throw SandboxError.utmResourcesMissing
             }
             try fileManager.copyItem(at: firmwareURL, to: dataURL.appendingPathComponent("efi_vars.fd"))
@@ -367,8 +367,12 @@ struct UTMBundleBuilder: VirtualMachineProvider {
     /// resolver from here through `MainActor.assumeIsolated` compiled and passed
     /// tests, then trapped at runtime on every baseline creation: it asserts the
     /// current executor rather than hopping to it.
-    private static func utmFirmwareURL() -> URL? {
-        guard let firmware = UTMLauncher.installation?.firmwareURL,
+    ///
+    /// The profile is passed in rather than defaulted: which variable store UTM
+    /// must supply is a property of the guest being built, and every caller
+    /// already holds the resolved profile.
+    private static func utmFirmwareURL(for profile: LinuxGuestProfile) -> URL? {
+        guard let firmware = UTMLauncher.installation?.firmwareURL(for: profile),
               FileManager.default.fileExists(atPath: firmware.path) else { return nil }
         return firmware
     }

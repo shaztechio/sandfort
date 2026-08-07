@@ -25,7 +25,8 @@ enum OpenSUSECloudInit {
 
     static func seedISO(
         credentials: SandboxCredentials,
-        tools: SandboxToolSelection = .recommended
+        tools: SandboxToolSelection = .recommended,
+        hardware: LinuxGuestProfile.Hardware
     ) throws -> Data {
         // Leap's GNOME pattern pulls in no browser: `patterns-gnome-gnome`
         // requires only `gnome-session-wayland` and declares no recommends, and
@@ -82,11 +83,11 @@ enum OpenSUSECloudInit {
         """
         let nodeInstallCommands = GuestProvisioningSupport.nodeLTSInstallCommands(
             enabled: tools.nodeJS,
-            linuxArchiveArchitecture: "arm64"
+            linuxArchiveArchitecture: hardware.linuxArchiveArchitecture
         )
         let vsCodeInstallCommands = GuestProvisioningSupport.vsCodeInstallCommands(
             enabled: tools.installsVSCode,
-            linuxArchiveArchitecture: "arm64"
+            linuxArchiveArchitecture: hardware.linuxArchiveArchitecture
         )
         let finalizerScript = """
         #!/usr/bin/env bash
@@ -97,8 +98,8 @@ enum OpenSUSECloudInit {
           trap - ERR
           set +e
           status "ERROR: Setup failed. The VM will remain on; enabling the sandbox login prompt for diagnostics."
-          systemctl unmask --runtime serial-getty@ttyAMA0.service
-          systemctl start serial-getty@ttyAMA0.service
+          systemctl unmask --runtime serial-getty@\(hardware.serialConsoleDevice).service
+          systemctl start serial-getty@\(hardware.serialConsoleDevice).service
           exit "$result"
         }
         trap setup_failed ERR
@@ -211,7 +212,7 @@ enum OpenSUSECloudInit {
               password: '\(GuestProvisioningSupport.yamlSingleQuoted(credentials.password))'
               type: text
         bootcmd:
-          - [systemctl, mask, --runtime, --now, serial-getty@ttyAMA0.service]
+          - [systemctl, mask, --runtime, --now, serial-getty@\(hardware.serialConsoleDevice).service]
           - [sh, -c, "echo '[Sandfort] openSUSE baseline setup has started. Leave this VM running until it powers itself off automatically. Installation commonly takes 20-45 minutes.' > /dev/console"]
         # sandfort packages:
         \(packageList.replacingOccurrences(of: "  - ", with: "#   - "))
