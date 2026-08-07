@@ -388,6 +388,11 @@ Treat these as requirements, not optional defaults:
 
 - Download only an immutable official image for the exact guest architecture
   and verify its pinned SHA-256 before use. Never silently accept a mismatch.
+  Verify it twice: once on the cached download, and again on the copy inside the
+  bundle before anything modifies it. The first check verifies a cache entry;
+  only the second verifies the bytes a VM actually boots. A provider that copies
+  a verified image into a bundle owes that second check, and owes a failure that
+  removes what it created.
 - Treat `OpenPGPSignatureVerifier.swift` and `TrustedSigningKeys.swift` as
   security-critical. Changes there need the full negative-test set kept green,
   not only the passing signature: tampered payload, tampered signature,

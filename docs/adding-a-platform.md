@@ -3,6 +3,10 @@
 1. Add a new app/package target for the host OS and CPU architecture.
 2. Implement `VirtualMachineProvider` for that hypervisor's native bundle format.
 3. Add an immutable official image URL and SHA-256 for the guest architecture.
+   Re-verify that SHA-256 against the disk **inside the bundle you just built**,
+   before anything modifies it, and delete what you created if it fails. The
+   download check alone verifies a cache entry, not the bytes your hypervisor
+   boots.
 4. Reuse the cloud-init policy and ISO fixtures where the guest supports NoCloud.
 5. Prove in tests that sharing, clipboard, USB auto-capture, bridging, inbound port
    forwards, and persistent untrusted writes are disabled.

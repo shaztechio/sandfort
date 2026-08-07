@@ -1225,13 +1225,22 @@ final class SandfortAppTests: XCTestCase {
         let clean = root.appendingPathComponent("Clean.utm", isDirectory: true)
         let clean2 = root.appendingPathComponent("Clean2.utm", isDirectory: true)
         let ubuntu = LinuxGuestCatalog.defaultProfile
+        // Pinned to the synthetic image this test actually writes. The builder
+        // verifies the disk it copied into the bundle, so a profile claiming
+        // Ubuntu's checksum over a 128 KiB stub is now rejected — which is the
+        // point of that check, not an obstacle to it.
         let profile = LinuxGuestProfile(
             id: "test-profile",
             revision: 7,
             displayName: "Test Linux",
             distributionName: "Test",
             setupDurationDescription: "a few minutes",
-            image: ubuntu.image,
+            image: LinuxGuestProfile.Image(
+                url: ubuntu.image.url,
+                sha256: try DiskUtilities.sha256(of: image),
+                fileName: ubuntu.image.fileName,
+                downloadSizeDescription: ubuntu.image.downloadSizeDescription
+            ),
             hardware: LinuxGuestProfile.Hardware(
                 architecture: "test-arm64",
                 utmArchitecture: "test-aarch64",

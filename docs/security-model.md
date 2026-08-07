@@ -99,6 +99,34 @@ installed with stock settings, so its telemetry is on by default. An
 Internet-enabled instance running it can therefore report usage to Microsoft.
 Clean instances default to offline, where it cannot.
 
+## Where the guest image is verified
+
+Twice, against the same pinned SHA-256, at two different files.
+
+The download path hashes what arrived in the shared cache, and a mismatch
+deletes it and fails before anything is built. A cached file is re-hashed on
+every reuse, so a stale file or a filename collision between profiles fails
+closed rather than being trusted.
+
+The provider then hashes **the bundle's own disk**, after copying the cached
+image into it and before `resizeQCOW2` rewrites its header. The image is
+verified in one file and booted from another, and the second hash is what makes
+those the same bytes: nothing else re-reads the cache entry between the check
+and the copy, and the QCOW2 header arithmetic in `resizeQCOW2` is a
+well-formedness check, not an authenticity one. A failure removes what the call
+created, so a rejected image cannot survive as a half-built baseline.
+
+The window this closes needs a hostile local process with write access to
+`~/Library/Application Support/Sandfort/Cache`, which is a capability that can
+already overwrite a finished baseline or replace the app. It is closed anyway,
+because "verified before use" only means something when the verified bytes and
+the used bytes are the same bytes. The cost is one extra pass over the image —
+about 0.48s for the largest catalog image on an Apple silicon SSD, ahead of a
+guest provisioning run measured in tens of minutes.
+
+Any future provider owes the same check. Copying a verified image into a bundle
+is where a host-specific implementation would otherwise reintroduce this gap.
+
 ## Image signature verification (security-critical code)
 
 `OpenPGPSignatureVerifier.swift` and `TrustedSigningKeys.swift` are

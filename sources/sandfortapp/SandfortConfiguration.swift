@@ -131,6 +131,11 @@ enum SandboxError: LocalizedError {
     case utmNotInstalled
     case invalidDownloadResponse
     case checksumMismatch(expected: String, actual: String)
+    /// The verified image and the bytes that reached a VM bundle are not the
+    /// same bytes. Kept distinct from `checksumMismatch`, which is a bad
+    /// download: this one means a file that already passed verification changed
+    /// underneath the app, which is a different thing to tell a user.
+    case imageChangedBeforeUse(expected: String, actual: String)
     case invalidCloudDisk(String)
     case alreadyExists
     case sandboxNotCreated
@@ -155,6 +160,8 @@ enum SandboxError: LocalizedError {
             return "The Linux image download server returned an unexpected response."
         case let .checksumMismatch(expected, actual):
             return "The Linux image failed SHA-256 verification (expected \(expected), received \(actual)). Nothing was opened."
+        case let .imageChangedBeforeUse(expected, actual):
+            return "The verified Linux image changed before it could be used (expected SHA-256 \(expected), found \(actual)). No virtual machine was created. Another program on this Mac may be modifying Sandfort's image cache; if this repeats, treat the Mac as compromised rather than retrying."
         case let .invalidCloudDisk(reason):
             return "The downloaded cloud disk is invalid: \(reason)"
         case .alreadyExists:
