@@ -218,7 +218,16 @@ actor SandfortWorkflow {
                 + "\(resourcesDescription) \(stateDescription)"
         }
         let version = utm.version.map { "UTM \($0)" } ?? "UTM"
-        return "\(version) is installed at \(utm.applicationURL.path).\n"
+        // Which UTM is driven was previously visible nowhere. More than one
+        // registers for an ordinary reason — an installer disk image left
+        // mounted after an upgrade — and a baseline built against one copy
+        // should not be resumed against another without the user ever being
+        // told there was a choice.
+        let otherCopies = utm.alternatives.isEmpty ? "" :
+            "\nOther copies of UTM are also registered on this Mac, and are not being used:\n"
+                + utm.alternatives.map { "  \($0.path)" }.joined(separator: "\n")
+                + "\nSandfort uses the one above. Eject or remove the others to be certain."
+        return "\(version) is installed at \(utm.applicationURL.path).\(otherCopies)\n"
             + "This Mac is \(architecture).\(accelerationDescription)\n"
             + "\(resourcesDescription) \(stateDescription)"
     }
@@ -813,6 +822,22 @@ enum UTMLauncher {
         let applicationURL: URL
         let version: String?
 
+        /// Other copies registered under the same identifier that were not
+        /// chosen. Reported by `doctor()` rather than acted on: when there is
+        /// more than one UTM, which one Sandfort drives is worth stating out
+        /// loud instead of leaving the user to infer it from a version number.
+        let alternatives: [URL]
+
+        /// Spelled out rather than synthesized so `alternatives` can be `let`
+        /// and still be omitted. A `let` with an initial value is dropped from
+        /// the memberwise initializer entirely, which would have made the
+        /// default unusable at the one call site that supplies it.
+        init(applicationURL: URL, version: String?, alternatives: [URL] = []) {
+            self.applicationURL = applicationURL
+            self.version = version
+            self.alternatives = alternatives
+        }
+
         /// Derived from wherever UTM was found rather than assumed, so a UTM
         /// outside /Applications no longer produces a "reinstall UTM" error
         /// about an installation that is perfectly fine.
@@ -841,19 +866,56 @@ enum UTMLauncher {
     /// creating a baseline. When it was main-actor isolated that caller reached
     /// it through `MainActor.assumeIsolated`, which asserts rather than hops and
     /// trapped every time a baseline was created.
+    /// Launch Services can return several copies for one identifier, and it
+    /// does so for an entirely ordinary reason: leaving the installer disk
+    /// image mounted after upgrading registers the old UTM inside it. Trashed
+    /// copies stay registered too.
+    ///
+    /// Asking for one URL took whichever macOS happened to prefer, with no
+    /// version comparison and no path pin — so Sandfort could build bundles
+    /// for, read firmware from, and drive a UTM the user did not think they
+    /// were using, and the choice could differ between launches. Firmware is
+    /// the sharp edge: a read-only volume can be ejected mid-baseline.
+    ///
+    /// Preference, not prohibition. Running UTM from an external disk is a
+    /// legitimate setup, so a volume copy still wins when it is the only one.
+    /// A trashed copy never does — the user has already said they do not want
+    /// it, and emptying the Trash would pull it out from under a running VM.
     nonisolated static func resolveInstallation(
-        identifierLookup: (String) -> URL? = { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) },
+        identifierLookup: (String) -> [URL] = {
+            NSWorkspace.shared.urlsForApplications(withBundleIdentifier: $0)
+        },
         fallbackPaths: [String] = ["/Applications/UTM.app", NSHomeDirectory() + "/Applications/UTM.app"],
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> Installation? {
-        let located = identifierLookup(bundleIdentifier)
+        let registered = identifierLookup(bundleIdentifier)
+            .filter { fileExists($0.path) && !isDiscarded($0) }
+        // Stable, so Launch Services' own preference still decides between two
+        // copies that are equally reachable.
+        let ranked = registered.enumerated().sorted {
+            isOnMountedVolume($0.element) == isOnMountedVolume($1.element)
+                ? $0.offset < $1.offset
+                : !isOnMountedVolume($0.element)
+        }.map(\.element)
+
+        let located = ranked.first
             ?? fallbackPaths.first(where: fileExists).map { URL(fileURLWithPath: $0, isDirectory: true) }
         guard let located, fileExists(located.path) else { return nil }
         let info = NSDictionary(contentsOf: located.appendingPathComponent("Contents/Info.plist"))
         return Installation(
             applicationURL: located,
-            version: info?["CFBundleShortVersionString"] as? String
+            version: info?["CFBundleShortVersionString"] as? String,
+            alternatives: ranked.filter { $0 != located }
         )
+    }
+
+    /// A mounted volume can disappear while a baseline is being written.
+    nonisolated private static func isOnMountedVolume(_ url: URL) -> Bool {
+        url.path.hasPrefix("/Volumes/")
+    }
+
+    nonisolated private static func isDiscarded(_ url: URL) -> Bool {
+        url.pathComponents.contains(".Trash") || url.pathComponents.contains(".Trashes")
     }
 
     nonisolated static var installation: Installation? { resolveInstallation() }

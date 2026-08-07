@@ -44,7 +44,7 @@ final class UTMLauncherIsolationTests: XCTestCase {
     /// which is where `utmFirmwareURL()` sits.
     func testResolverIsCallableFromASynchronousNonisolatedContext() {
         let resolved = UTMLauncher.resolveInstallation(
-            identifierLookup: { _ in URL(fileURLWithPath: "/Applications/UTM.app", isDirectory: true) },
+            identifierLookup: { _ in [URL(fileURLWithPath: "/Applications/UTM.app", isDirectory: true)] },
             fallbackPaths: [],
             fileExists: { _ in true }
         )
