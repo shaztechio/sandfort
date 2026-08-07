@@ -826,7 +826,17 @@ enum UTMLauncher {
         /// chosen. Reported by `doctor()` rather than acted on: when there is
         /// more than one UTM, which one Sandfort drives is worth stating out
         /// loud instead of leaving the user to infer it from a version number.
-        var alternatives: [URL] = []
+        let alternatives: [URL]
+
+        /// Spelled out rather than synthesized so `alternatives` can be `let`
+        /// and still be omitted. A `let` with an initial value is dropped from
+        /// the memberwise initializer entirely, which would have made the
+        /// default unusable at the one call site that supplies it.
+        init(applicationURL: URL, version: String?, alternatives: [URL] = []) {
+            self.applicationURL = applicationURL
+            self.version = version
+            self.alternatives = alternatives
+        }
 
         /// Derived from wherever UTM was found rather than assumed, so a UTM
         /// outside /Applications no longer produces a "reinstall UTM" error
