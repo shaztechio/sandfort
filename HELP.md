@@ -62,6 +62,8 @@ Every instance is listed as its own row, and each row's buttons act on that
 instance. There is no separate selection step.
 
 - **Resume** continues the instance exactly where you left it. Its files, changes, contamination, and last selected network mode remain.
+
+Every launch writes to the activity log what that instance carries: the distribution, its network mode, the tools the baseline was built with, whether a custom setup script was used, and which materials are attached — or that none are. Resume does not state a network mode, because it keeps whatever the instance last ran with rather than choosing one.
 - **Reset & Run Clean** deletes that instance's changes and restores it from the Protected Baseline.
 - **Rename Instance**, in the row's **⋯** menu, adds or changes its descriptive label without changing its number, disk, or identity.
 - **Shut Down Instance**, in the row's **⋯** menu, asks the guest to power itself down.
