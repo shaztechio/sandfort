@@ -129,6 +129,41 @@ final class MaterialsAttachmentTests: XCTestCase {
         )
     }
 
+    /// A failed attach must not leave the user's file behind.
+    ///
+    /// The image is written before the plist that references it, so a failure in
+    /// between would otherwise leave an orphaned copy inside the bundle with
+    /// nothing pointing at it — the precise outcome the rest of this file exists
+    /// to prevent. Failing without materials is fine; failing with a hidden copy
+    /// of them is not.
+    ///
+    /// Getting the failure in the right place matters more than it looks. Making
+    /// `config.plist` unreadable fails *before* the image is written, so the
+    /// assertion passes trivially and proves nothing. The bundle directory is
+    /// made read-only instead, leaving `Data/` writable: the image write and the
+    /// permission change both succeed, and only the atomic plist rewrite — which
+    /// needs a temporary file beside `config.plist` — fails.
+    func testAFailedAttachLeavesNoOrphanedImage() throws {
+        let root = try workspace()
+        let instance = try bundle(in: root)
+        let imageURL = instance.appendingPathComponent("Data/materials.iso")
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o500], ofItemAtPath: instance.path
+        )
+        addTeardownBlock {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700], ofItemAtPath: instance.path
+            )
+        }
+
+        XCTAssertThrowsError(try self.builder.attachMaterials(try self.materials(), to: instance))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: imageURL.path),
+            "a failed attach must not leave the user's file in the bundle"
+        )
+    }
+
     // MARK: - The drift that repairBundle exists to undo
 
     /// `ReadOnly` is a key another application parses, and UTM's own settings UI
@@ -196,7 +231,7 @@ final class MaterialsAttachmentTests: XCTestCase {
             .write(to: baseline.appendingPathComponent("Data/materials.iso"))
 
         let instance = root.appendingPathComponent("Instance1.utm", isDirectory: true)
-        try? builder.createCleanBundle(
+        try builder.createCleanBundle(
             from: baseline, at: instance, name: "Sandfort — Instance 1",
             profile: profile, networkMode: .offline
         )

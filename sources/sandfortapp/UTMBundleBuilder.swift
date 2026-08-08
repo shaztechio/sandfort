@@ -97,8 +97,8 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         // there would reach every instance ever made from it, with no drive
         // entry pointing at it once the plist is rewritten below — an orphaned
         // copy of the user's file in a place nobody would think to look.
-        try? fileManager.removeItem(
-            at: destinationURL.appendingPathComponent("Data/\(Self.materialsImageName)")
+        try removeIfPresent(
+            destinationURL.appendingPathComponent("Data/\(Self.materialsImageName)")
         )
         let diskName = try diskName(in: destinationURL)
         try writeConfiguration(
@@ -131,6 +131,25 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         try setCleanNetworkMode(networkMode, at: destinationURL)
     }
 
+    /// Removes a file if it is there, and **throws if it is there and will not
+    /// go**.
+    ///
+    /// `try?` was wrong here, and wrong in a way this project has been bitten by
+    /// three times: a swallowed error turns an isolation guard into a no-op that
+    /// reports success. A removal that fails for any reason other than absence
+    /// leaves the user's materials sitting inside a bundle, which is the exact
+    /// outcome the callers exist to prevent.
+    private func removeIfPresent(_ url: URL) throws {
+        do {
+            try FileManager.default.removeItem(at: url)
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
+            return
+        } catch let error as NSError
+            where error.domain == NSPOSIXErrorDomain && error.code == Int(ENOENT) {
+            return
+        }
+    }
+
     /// The image the guest reads, and the only file in a bundle that came from
     /// somewhere the user chose.
     static let materialsImageName = "materials.iso"
@@ -153,24 +172,41 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         let imageURL = bundleURL
             .appendingPathComponent("Data", isDirectory: true)
             .appendingPathComponent(Self.materialsImageName)
-        try image.data.write(to: imageURL, options: .atomic)
-        // Same mode the restored disk gets: readable by the user who owns the
-        // app, and by nothing else on a shared Mac.
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: imageURL.path)
+        // Whether this is a first attach decides what failure has to undo. On a
+        // replace the previous image is already gone and cannot be restored, but
+        // the bundle stays consistent because its drive entry is unchanged.
+        let replacing = FileManager.default.fileExists(atPath: imageURL.path)
+        do {
+            try image.data.write(to: imageURL, options: .atomic)
+            // Same mode the restored disk gets: readable by the user who owns
+            // the app and nobody else on a shared Mac. Not best-effort — an
+            // image the rest of the machine can read is a weaker promise than
+            // the one being made, so it fails rather than degrades.
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600], ofItemAtPath: imageURL.path
+            )
 
-        var drives = plist["Drive"] as? [[String: Any]] ?? []
-        drives.removeAll { $0["ImageName"] as? String == Self.materialsImageName }
-        drives.append([
-            "Identifier": UUID().uuidString.uppercased(),
-            "ImageName": Self.materialsImageName,
-            "ImageType": "Disk",
-            "Interface": "VirtIO",
-            "InterfaceVersion": 1,
-            "ReadOnly": true
-        ])
-        plist["Drive"] = drives
-        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-            .write(to: configURL, options: .atomic)
+            var drives = plist["Drive"] as? [[String: Any]] ?? []
+            drives.removeAll { $0["ImageName"] as? String == Self.materialsImageName }
+            drives.append([
+                "Identifier": UUID().uuidString.uppercased(),
+                "ImageName": Self.materialsImageName,
+                "ImageType": "Disk",
+                "Interface": "VirtIO",
+                "InterfaceVersion": 1,
+                "ReadOnly": true
+            ])
+            plist["Drive"] = drives
+            try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+                .write(to: configURL, options: .atomic)
+        } catch {
+            // An image with no drive entry pointing at it is an orphaned copy of
+            // the user's file, which is the thing this whole feature is careful
+            // about. Failing without materials is fine; failing with a hidden
+            // copy of them is not.
+            if !replacing { try? FileManager.default.removeItem(at: imageURL) }
+            throw error
+        }
     }
 
     func repairBundle(at bundleURL: URL, profile: LinuxGuestProfile, role: VirtualMachineRole) throws {
@@ -213,8 +249,8 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             // keys are reasserted here.
             if role != .cleanInstance {
                 drives.removeAll { $0["ImageName"] as? String == Self.materialsImageName }
-                try? FileManager.default.removeItem(
-                    at: bundleURL.appendingPathComponent("Data/\(Self.materialsImageName)")
+                try removeIfPresent(
+                    bundleURL.appendingPathComponent("Data/\(Self.materialsImageName)")
                 )
             }
             for index in drives.indices {
