@@ -191,8 +191,20 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             drives.append([
                 "Identifier": UUID().uuidString.uppercased(),
                 "ImageName": Self.materialsImageName,
-                "ImageType": "Disk",
-                "Interface": "VirtIO",
+                // Optical media on a USB bus, not a plain VirtIO disk, and the
+                // difference is the whole user experience. udisks2 decides
+                // "removable" from the bus, and a virtio-blk device has no
+                // hotpluggable one — so it is classed as an internal system
+                // drive, which GNOME Files buries under "Other Locations" and
+                // never auto-mounts. A USB CD-ROM is unambiguously removable
+                // media, which is what makes it appear and be clickable.
+                //
+                // The seed ISO was deliberately moved *off* USB because media
+                // can appear after cloud-init has already searched for NoCloud
+                // data. That timing does not apply here: materials are wanted
+                // when someone is sitting at the desktop, not during early boot.
+                "ImageType": "CD",
+                "Interface": "USB",
                 "InterfaceVersion": 1,
                 "ReadOnly": true
             ])
@@ -280,8 +292,12 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             for index in drives.indices {
                 drives[index].removeValue(forKey: "Removable")
                 if drives[index]["ImageName"] as? String == Self.materialsImageName {
-                    drives[index]["ImageType"] = "Disk"
-                    drives[index]["Interface"] = "VirtIO"
+                    // Must match what `attachMaterials` writes. Reasserting a
+                    // different shape here would silently undo the attach on the
+                    // next state read, since `currentState()` repairs every
+                    // instance every time it runs.
+                    drives[index]["ImageType"] = "CD"
+                    drives[index]["Interface"] = "USB"
                     drives[index]["InterfaceVersion"] = 1
                     drives[index]["ReadOnly"] = true
                 }
