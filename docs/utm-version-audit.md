@@ -554,14 +554,43 @@ All four now reach the image. Two findings are not about the drive at all:
 
 **Still needs a live run:**
 
-- Fedora, Debian, and openSUSE. Their desktop stacks differ, and openSUSE's GNOME
-  pattern has already shipped two defects of exactly this kind.
 - Whether the volume auto-mounts or requires the click.
 - That `ReadOnly: true` reaches QEMU as a genuinely read-only device — writing to
   the mounted volume must fail. Note the stronger guarantee, that the user's
   original file is untouchable, does not depend on this at all: the guest is
   handed an image built from a copy.
 - UTM 4.7.5. The drive was only ever exercised against 5.0.4.
+
+Fedora, Debian, and openSUSE were on this list and have since had live runs; the
+results are in the table above. openSUSE took three attempts, and none of the
+three failures were the drive — they were the guest's desktop packaging.
+
+## 9. The distribution icon
+
+`Information.Icon` names one of the 69 icons UTM ships in
+`Contents/Resources/Icons`, as a **bare resource name with no extension** —
+`"ubuntu"`, not `"ubuntu.png"`. UTM resolves it with
+`Bundle.main.url(forResource:withExtension:"png",subdirectory:"Icons")`, and
+`IconCustom: false` says it is one of UTM's rather than a file in the bundle.
+
+**Verified against UTM 5.0.4 on 2026-08-09.** All four distributions render their
+own icon in the UTM library list, on baselines and instances alike. Existing VMs
+picked the icon up through `repairBundle` on the next state read, with no
+rebuild, no re-import, and no UTM restart — so the retrofit path is confirmed and
+not just the creation path.
+
+The four files `ubuntu.png`, `fedora.png`, `debian.png`, and `opensuse.png` were
+confirmed present in the installed app first, and `Information.Icon` was read in
+UTM 5.0.4's source.
+
+Note that a `strings` sweep of Sandfort's own binary **cannot** confirm the icon
+names are compiled in: `"ubuntu"`, `"Icon"`, and `"IconCustom"` are all at or
+under 15 UTF-8 bytes and are therefore stored inline by Swift's small-string
+optimization rather than in the string table. An empty grep here means nothing.
+Same false negative recorded in §1 and §7.
+
+Both spellings of the openSUSE icon exist (`SUSE.png` and `opensuse.png`); the
+lowercase one is used, matching the other three.
 
 ## Reproducing this audit
 

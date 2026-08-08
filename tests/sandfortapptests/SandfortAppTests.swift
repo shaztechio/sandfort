@@ -1251,6 +1251,7 @@ final class SandfortAppTests: XCTestCase {
             revision: 7,
             displayName: "Test Linux",
             distributionName: "Test",
+            utmIconName: "ubuntu",
             setupDurationDescription: "a few minutes",
             image: LinuxGuestProfile.Image(
                 url: ubuntu.image.url,
@@ -1295,6 +1296,9 @@ final class SandfortAppTests: XCTestCase {
         let setupPlistData = try Data(contentsOf: setup.appendingPathComponent("config.plist"))
         let setupPlist = try XCTUnwrap(PropertyListSerialization.propertyList(from: setupPlistData, format: nil) as? [String: Any])
         XCTAssertEqual((setupPlist["Information"] as? [String: Any])?["Name"] as? String, "Sandfort — Baseline Setup TEST01")
+        // Written at creation, not only retrofitted by repair.
+        XCTAssertEqual((setupPlist["Information"] as? [String: Any])?["Icon"] as? String, "ubuntu")
+        XCTAssertEqual((setupPlist["Information"] as? [String: Any])?["IconCustom"] as? Bool, false)
         let setupSystem = try XCTUnwrap(setupPlist["System"] as? [String: Any])
         XCTAssertEqual(setupSystem["Architecture"] as? String, "test-aarch64")
         XCTAssertEqual(setupSystem["Target"] as? String, "test-virt")
@@ -1331,6 +1335,7 @@ final class SandfortAppTests: XCTestCase {
         let plistData = try Data(contentsOf: clean.appendingPathComponent("config.plist"))
         let plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any])
         XCTAssertEqual((plist["Information"] as? [String: Any])?["Name"] as? String, "Sandfort — Instance 1 — TEST01")
+        XCTAssertEqual((plist["Information"] as? [String: Any])?["Icon"] as? String, "ubuntu")
         XCTAssertNotNil(plist["Serial"] as? [Any])
         XCTAssertNotNil(plist["Sound"] as? [Any])
         let display = try XCTUnwrap((plist["Display"] as? [[String: Any]])?.first)

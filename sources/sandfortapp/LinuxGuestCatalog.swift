@@ -132,6 +132,18 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
     let revision: Int
     let displayName: String
     let distributionName: String
+    /// The built-in UTM icon shown for this distribution's virtual machines.
+    ///
+    /// Distribution identity, so it belongs here rather than on `Hardware`,
+    /// which describes machine shape. The value is a **bare resource name with
+    /// no extension** — UTM resolves it against its own `Icons` directory, and
+    /// `"ubuntu.png"` would not match.
+    ///
+    /// Referencing UTM's copy is also why Sandfort ships no distribution logo of
+    /// its own and takes on no trademark question. A name UTM does not have
+    /// degrades to its default icon rather than failing, so this is not
+    /// validated at run time.
+    let utmIconName: String
     let setupDurationDescription: String
     let image: Image
     let hardware: Hardware
@@ -159,6 +171,7 @@ enum LinuxGuestCatalog {
         revision: 4,
         displayName: "Ubuntu 24.04 LTS",
         distributionName: "Ubuntu",
+        utmIconName: "ubuntu",
         setupDurationDescription: "10-30 minutes",
         image: LinuxGuestProfile.Image(
             url: URL(string: "https://cloud-images.ubuntu.com/releases/noble/release-20260725/ubuntu-24.04-server-cloudimg-arm64.img")!,
@@ -186,6 +199,7 @@ enum LinuxGuestCatalog {
         revision: 4,
         displayName: "Fedora Cloud 44",
         distributionName: "Fedora",
+        utmIconName: "fedora",
         setupDurationDescription: "20-45 minutes",
         image: LinuxGuestProfile.Image(
             url: URL(string: "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2")!,
@@ -213,6 +227,7 @@ enum LinuxGuestCatalog {
         revision: 7,
         displayName: "Debian 13 (Trixie)",
         distributionName: "Debian",
+        utmIconName: "debian",
         setupDurationDescription: "20-45 minutes",
         image: LinuxGuestProfile.Image(
             url: URL(string: "https://cloud.debian.org/images/cloud/trixie/20260712-2537/debian-13-generic-arm64-20260712-2537.qcow2")!,
@@ -240,6 +255,7 @@ enum LinuxGuestCatalog {
         revision: 8,
         displayName: "openSUSE Leap 16.0",
         distributionName: "openSUSE",
+        utmIconName: "opensuse",
         setupDurationDescription: "20-45 minutes",
         image: LinuxGuestProfile.Image(
             url: URL(string: "https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2")!,

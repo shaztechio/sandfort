@@ -259,6 +259,20 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         }
         plist["Serial"] = plist["Serial"] ?? []
         plist["Sound"] = plist["Sound"] ?? []
+        // Retrofit the distribution icon. `writeConfiguration` only runs when a
+        // bundle is created, so without this a baseline built before icons
+        // existed would keep UTM's generic one forever — and the baseline is
+        // exactly the long-lived VM a user sees most. `currentState()` calls
+        // repair on every state read, so this reaches everything.
+        //
+        // It does overwrite an icon set by hand in UTM. That is accepted: it is
+        // cosmetic, and the app already reasserts far more consequential things
+        // here. `Name` is deliberately not touched — that carries the user's
+        // instance label.
+        var information = plist["Information"] as? [String: Any] ?? [:]
+        information["Icon"] = profile.utmIconName
+        information["IconCustom"] = false
+        plist["Information"] = information
         // Role comes from the caller. It used to be read out of
         // Information.Name by matching "Baseline Setup" and "Protected
         // Baseline" — but that name embeds the user's instance label, so
@@ -391,6 +405,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             "Backend": "QEMU",
             "ConfigurationVersion": 4,
             "Information": [
+                "Icon": profile.utmIconName,
                 "IconCustom": false,
                 "Name": name,
                 "UUID": machineID

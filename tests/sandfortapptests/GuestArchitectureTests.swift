@@ -267,6 +267,7 @@ final class GuestArchitectureTests: XCTestCase {
             revision: 1,
             displayName: "Test x86-64",
             distributionName: "Test",
+            utmIconName: "ubuntu",
             setupDurationDescription: "a few minutes",
             image: LinuxGuestCatalog.defaultProfile.image,
             hardware: LinuxGuestProfile.Hardware(
@@ -364,6 +365,7 @@ final class GuestArchitectureTests: XCTestCase {
             revision: 1,
             displayName: "Test Foreign Guest",
             distributionName: "Test",
+            utmIconName: "ubuntu",
             setupDurationDescription: "a few minutes",
             image: LinuxGuestCatalog.defaultProfile.image,
             hardware: LinuxGuestProfile.Hardware(

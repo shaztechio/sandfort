@@ -154,6 +154,7 @@ final class InstanceCloneCostTests: XCTestCase {
             revision: ubuntu.revision,
             displayName: ubuntu.displayName,
             distributionName: ubuntu.distributionName,
+            utmIconName: ubuntu.utmIconName,
             setupDurationDescription: ubuntu.setupDurationDescription,
             image: LinuxGuestProfile.Image(
                 url: ubuntu.image.url,
