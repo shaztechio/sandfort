@@ -62,12 +62,12 @@ Every instance is listed as its own row, and each row's buttons act on that
 instance. There is no separate selection step.
 
 - **Resume** continues the instance exactly where you left it. Its files, changes, contamination, and last selected network mode remain.
-
-Every launch writes to the activity log what that instance carries: the distribution, its network mode, the tools the baseline was built with, whether a custom setup script was used, and which materials are attached — or that none are. Resume does not state a network mode, because it keeps whatever the instance last ran with rather than choosing one.
 - **Reset & Run Clean** deletes that instance's changes and restores it from the Protected Baseline.
 - **Rename Instance**, in the row's **⋯** menu, adds or changes its descriptive label without changing its number, disk, or identity.
 - **Shut Down Instance**, in the row's **⋯** menu, asks the guest to power itself down.
 - **Delete Instance**, also in the row's **⋯** menu, unregisters the stopped instance from UTM, waits for UTM to confirm its removal, and moves its bundle to macOS Trash. It does not change the baseline or other instances.
+
+Every launch writes to the activity log what that instance carries: the distribution, its network mode, the tools the baseline was built with, whether a custom setup script was used, and which materials are attached — or that none are. Resume does not state a network mode, because it keeps whatever the instance last ran with rather than choosing one.
 
 **Shut Down Instance** asks the guest to power itself down, the same as choosing shut down inside the desktop. It waits until the instance has really stopped before reporting success. The instance's disk is untouched, so **Resume** reopens it exactly as it was.
 
@@ -114,7 +114,7 @@ Inside the guest, open **Files** and look for **SANDFORT_MATERIALS** in the side
 | --- | --- | --- |
 | Ubuntu, openSUSE | as a CD in the sidebar | opens |
 | Debian | listed, no sidebar CD | opens |
-| Fedora | listed | opens |
+| Fedora | listed as a CD | opens |
 
 Fedora carries the image on a different drive type, because its kernel does not include the driver the others use. If a distribution ever asks for a password to open the volume, that is the guest password shown in Sandfort, which has a copy button. From a terminal:
 
