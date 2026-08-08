@@ -144,6 +144,10 @@ enum SandboxError: LocalizedError {
     /// Kept distinct from `invalidCloudDisk`, whose text blames a download —
     /// this one is about input the app or the user supplied.
     case invalidISOImage(String)
+    /// Materials could not be read or archived. The user chose the source, so
+    /// the message names it rather than describing a category of failure.
+    case materialsUnreadable(String)
+    case materialsTooLarge(byteCount: Int, limit: Int)
     case alreadyExists
     case sandboxNotCreated
     case setupNotComplete
@@ -178,6 +182,14 @@ enum SandboxError: LocalizedError {
             return "The downloaded cloud disk is invalid: \(reason)"
         case let .invalidISOImage(reason):
             return "That disc image could not be created: \(reason)"
+        case let .materialsUnreadable(reason):
+            return reason
+        case let .materialsTooLarge(byteCount, limit):
+            let formatter = ByteCountFormatter()
+            formatter.countStyle = .file
+            return "That is \(formatter.string(fromByteCount: Int64(byteCount))), and materials are "
+                + "limited to \(formatter.string(fromByteCount: Int64(limit))). "
+                + "For anything larger, run the sandbox with Internet access and download it there."
         case .alreadyExists:
             return "A sandbox already exists. Use Rebuild if you want to replace it."
         case .sandboxNotCreated:
