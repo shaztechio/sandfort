@@ -209,6 +209,30 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         }
     }
 
+    /// Removes a materials image and its drive entry. Idempotent: a bundle with
+    /// no materials is already in the desired state.
+    func detachMaterials(from bundleURL: URL) throws {
+        try ensureBundleNotRunning(at: bundleURL)
+        let configURL = bundleURL.appendingPathComponent("config.plist")
+        if let data = try? Data(contentsOf: configURL),
+           var plist = try PropertyListSerialization.propertyList(from: data, format: nil)
+            as? [String: Any] {
+            var drives = plist["Drive"] as? [[String: Any]] ?? []
+            let before = drives.count
+            drives.removeAll { $0["ImageName"] as? String == Self.materialsImageName }
+            if drives.count != before {
+                plist["Drive"] = drives
+                try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+                    .write(to: configURL, options: .atomic)
+            }
+        }
+        // The file matters as much as the entry: an image with nothing pointing
+        // at it is still the user's file inside a bundle.
+        try removeIfPresent(
+            bundleURL.appendingPathComponent("Data").appendingPathComponent(Self.materialsImageName)
+        )
+    }
+
     func repairBundle(at bundleURL: URL, profile: LinuxGuestProfile, role: VirtualMachineRole) throws {
         let configURL = bundleURL.appendingPathComponent("config.plist")
         guard FileManager.default.fileExists(atPath: configURL.path) else { return }

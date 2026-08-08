@@ -82,23 +82,34 @@ struct SandfortWorkflowEnvironment: Sendable {
 
 actor SandfortWorkflow {
     typealias DeleteUTMRegistration = @Sendable (String) async throws -> Void
+    /// Opening a bundle and starting it. Injectable for the same reason
+    /// `deleteUTMRegistration` is, and for one more: a test that reaches the real
+    /// implementation hands the user's actual UTM a synthetic bundle, which UTM
+    /// then refuses with "Cannot import this VM" — a visible dialog on someone's
+    /// machine, caused by a unit test.
+    typealias LaunchVirtualMachine = @Sendable (URL, String, @escaping @Sendable (String) -> Void) async -> Void
 
     private let downloader = NativeDownloader()
     private let fileManager = FileManager.default
     private let provider: any VirtualMachineProvider
     private let environment: SandfortWorkflowEnvironment
     private let deleteUTMRegistration: DeleteUTMRegistration
+    private let launchVirtualMachine: LaunchVirtualMachine
 
     init(
         environment: SandfortWorkflowEnvironment = .production,
         provider: (any VirtualMachineProvider)? = nil,
         deleteUTMRegistration: @escaping DeleteUTMRegistration = {
             try await UTMRegistryController.deleteVirtualMachine(named: $0)
+        },
+        launchVirtualMachine: @escaping LaunchVirtualMachine = { bundle, name, log in
+            await UTMLauncher.openAndStart(bundle: bundle, name: name, log: log)
         }
     ) {
         self.environment = environment
         self.provider = provider ?? UTMBundleBuilder()
         self.deleteUTMRegistration = deleteUTMRegistration
+        self.launchVirtualMachine = launchVirtualMachine
     }
 
     private var canonicalRootURL: URL {
@@ -304,6 +315,9 @@ actor SandfortWorkflow {
             }
             event(.phase("Removing the app-owned sandbox…"))
             if fileManager.fileExists(atPath: vmURL.path) { try fileManager.removeItem(at: vmURL) }
+            // Removed deliberately rather than left to the root going away: the
+            // root survives a Rebuild, and materials are the user's own files.
+            try removeAllStoredMaterials()
             if fileManager.fileExists(atPath: stateURL.path) { try fileManager.removeItem(at: stateURL) }
         } else if currentState() != nil {
             throw SandboxError.alreadyExists
@@ -344,7 +358,7 @@ actor SandfortWorkflow {
         event(.log("Watch for [Sandfort] status messages in UTM. Setup commonly takes \(profile.setupDurationDescription) and may pause while packages are configured."))
         event(.log("Leave setup running until it verifies every selected tool and powers itself off automatically. Then click Finish Setup."))
         event(.phase("Opening \(profile.distributionName) setup in UTM…"))
-        await UTMLauncher.openAndStart(bundle: setupURL, name: setupName, log: { event(.log($0)) })
+        await launchVirtualMachine(setupURL, setupName, { event(.log($0)) })
         return state
     }
 
@@ -370,6 +384,9 @@ actor SandfortWorkflow {
         }
         event(.phase("Removing the app-owned environment…"))
         if fileManager.fileExists(atPath: vmURL.path) { try fileManager.removeItem(at: vmURL) }
+        // Removed deliberately rather than left to the root going away: the
+        // root survives a Rebuild, and materials are the user's own files.
+        try removeAllStoredMaterials()
         if fileManager.fileExists(atPath: stateURL.path) { try fileManager.removeItem(at: stateURL) }
         if environment.rootURLOverride != nil,
            let contents = try? fileManager.contentsOfDirectory(atPath: rootURL.path),
@@ -406,7 +423,7 @@ actor SandfortWorkflow {
         event(.log("The protected baseline is now clearly labeled in UTM. Do not start or modify it directly."))
         event(.log("Sandbox Instance 1 has its own disk and UEFI state restored from that baseline."))
         event(.phase("Opening Sandbox Instance 1 in UTM…"))
-        await UTMLauncher.openAndStart(bundle: cleanURL, name: cleanName, log: { event(.log($0)) })
+        await launchVirtualMachine(cleanURL, cleanName, { event(.log($0)) })
         return state
     }
 
@@ -442,8 +459,150 @@ actor SandfortWorkflow {
         try save(state)
         event(.log("Sandbox Instance \(number) is independent from the other instances and can run at the same time."))
         event(.phase("Opening Sandbox Instance \(number) in UTM…"))
-        await UTMLauncher.openAndStart(bundle: destination, name: name, log: { event(.log($0)) })
+        await launchVirtualMachine(destination, name, { event(.log($0)) })
         return state
+    }
+
+    /// Re-attaches a stored image after a Reset rebuilt the bundle.
+    ///
+    /// A missing store entry is reported and the metadata cleared rather than
+    /// failing the launch: materials are a convenience, and a convenience that
+    /// has gone missing must not strand an instance the user is trying to run.
+    private func reattachStoredMaterials(
+        to instance: SandboxInstance,
+        at bundle: URL,
+        event: @escaping @Sendable (WorkflowEvent) -> Void
+    ) throws {
+        let stored = materialsImageURL(forInstance: instance.number)
+        guard fileManager.fileExists(atPath: stored.path) else {
+            event(.log(
+                "Instance \(instance.number) recorded materials, but the stored image is missing, "
+                    + "so it starts without them."
+            ))
+            _ = try? removeMaterials(fromInstance: instance.number)
+            return
+        }
+        let image = try MaterialsPackager.stored(
+            at: stored,
+            displayName: instance.materialsDisplayName ?? "materials",
+            sourcePath: instance.materialsSourcePath ?? "",
+            byteCount: instance.materialsByteCount ?? 0,
+            payloadIsArchive: instance.materialsIsArchive ?? false
+        )
+        try provider.attachMaterials(image, to: bundle)
+        event(.log(
+            "Re-attached \(image.displayName) — the image approved earlier, not a fresh copy of its source."
+        ))
+    }
+
+    // MARK: - Materials
+
+    /// Packed images live beside the VMs rather than inside them, so a Reset —
+    /// which deletes and recreates the whole bundle — can put back exactly what
+    /// the user approved.
+    private var materialsRootURL: URL {
+        rootURL.appendingPathComponent("Materials", isDirectory: true)
+    }
+
+    /// Keyed on the permanent instance number, which is never reused, so a
+    /// deleted instance's image cannot be inherited by a later one.
+    private func materialsImageURL(forInstance number: Int) -> URL {
+        materialsRootURL.appendingPathComponent("instance-\(number).iso")
+    }
+
+    /// Packs what the user chose, stores it, and attaches it to one stopped
+    /// instance. Takes effect the next time that instance is launched.
+    func attachMaterials(
+        toInstance number: Int,
+        from source: URL,
+        event: @escaping @Sendable (WorkflowEvent) -> Void
+    ) async throws -> SandboxState {
+        guard var state = currentState() else { throw SandboxError.sandboxNotCreated }
+        guard state.stage == .ready else { throw SandboxError.setupNotComplete }
+        var instances = state.resolvedInstances
+        guard let index = instances.firstIndex(where: { $0.number == number }) else {
+            throw SandboxError.sandboxInstanceNotFound
+        }
+        let bundle = URL(fileURLWithPath: instances[index].bundlePath)
+        guard fileManager.fileExists(atPath: bundle.path) else {
+            throw SandboxError.sandboxInstanceNotFound
+        }
+        // Rewriting a bundle UTM is running would be changing the configuration
+        // under a live VM.
+        try provider.ensureBundleNotRunning(at: bundle)
+
+        event(.phase("Preparing materials for Instance \(number)…"))
+        let image = try MaterialsPackager.pack(contentsOf: source)
+        try fileManager.createDirectory(at: materialsRootURL, withIntermediateDirectories: true)
+        let stored = materialsImageURL(forInstance: number)
+        try image.data.write(to: stored, options: .atomic)
+        try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: stored.path)
+
+        do {
+            try provider.attachMaterials(image, to: bundle)
+        } catch {
+            // Nothing half-attached: a store entry with no drive would be
+            // re-attached by the next Reset, quietly reintroducing materials the
+            // user was told did not go on.
+            try? fileManager.removeItem(at: stored)
+            throw error
+        }
+
+        instances[index].materialsDisplayName = image.displayName
+        instances[index].materialsSourcePath = image.sourcePath
+        instances[index].materialsByteCount = image.byteCount
+        instances[index].materialsPackedAt = Date()
+        instances[index].materialsIsArchive = image.payloadIsArchive
+        state.replaceInstances(instances)
+        try save(state)
+        event(.log(
+            "\(image.displayName) is attached to Instance \(number) as a read-only disc image. "
+                + "The guest reads a copy and cannot reach the original."
+        ))
+        return state
+    }
+
+    /// Forgets materials for one instance: the stored image, the metadata, and
+    /// the drive, which `repairBundle` drops on the next state read once the
+    /// bundle is rewritten by a Reset.
+    func removeMaterials(fromInstance number: Int) throws -> SandboxState {
+        guard var state = currentState() else { throw SandboxError.sandboxNotCreated }
+        var instances = state.resolvedInstances
+        guard let index = instances.firstIndex(where: { $0.number == number }) else {
+            throw SandboxError.sandboxInstanceNotFound
+        }
+        // Clearing the record is not enough: without detaching, the user could
+        // remove materials, resume, and still find their file mounted.
+        let bundle = URL(fileURLWithPath: instances[index].bundlePath)
+        if fileManager.fileExists(atPath: bundle.path) {
+            try provider.detachMaterials(from: bundle)
+        }
+        try removeStoredMaterials(forInstance: number)
+        instances[index].materialsDisplayName = nil
+        instances[index].materialsSourcePath = nil
+        instances[index].materialsByteCount = nil
+        instances[index].materialsPackedAt = nil
+        instances[index].materialsIsArchive = nil
+        state.replaceInstances(instances)
+        try save(state)
+        return state
+    }
+
+    /// Clears the whole store. Rebuild and Delete Environment both invalidate
+    /// every instance, so every stored image is stale — and each is a copy of
+    /// something the user chose, which is not a thing to leave lying around.
+    private func removeAllStoredMaterials() throws {
+        guard fileManager.fileExists(atPath: materialsRootURL.path) else { return }
+        try fileManager.removeItem(at: materialsRootURL)
+    }
+
+    /// Throws if the image is there and will not go — the same reason
+    /// `UTMBundleBuilder` distinguishes absence from failure. Leaving a stored
+    /// image behind means the next Reset re-attaches materials the user removed.
+    private func removeStoredMaterials(forInstance number: Int) throws {
+        let stored = materialsImageURL(forInstance: number)
+        guard fileManager.fileExists(atPath: stored.path) else { return }
+        try fileManager.removeItem(at: stored)
     }
 
     func deleteInstance(
@@ -480,6 +639,10 @@ actor SandfortWorkflow {
             }
             throw error
         }
+        // Only once the removal is recorded. A failed save restores the bundle
+        // from the Trash, and deleting the stored image before that point would
+        // bring the instance back without the materials it still claims to have.
+        try removeStoredMaterials(forInstance: number)
         return state
     }
 
@@ -531,12 +694,14 @@ actor SandfortWorkflow {
             networkMode: networkMode
         )
         event(.log("Instance \(instanceNumber) was restored with a new VM identity, disk, UEFI state, and network configuration."))
+        // The bundle was deleted and rebuilt, so its materials went with it. Put
+        // back the image the user approved — not the current contents of wherever
+        // it came from, which may be something else entirely by now.
+        if instance.hasMaterials {
+            try reattachStoredMaterials(to: instance, at: bundle, event: event)
+        }
         event(.phase("Opening Sandbox Instance \(instanceNumber) in UTM…"))
-        await UTMLauncher.openAndStart(
-            bundle: bundle,
-            name: instance.vmName,
-            log: { event(.log($0)) }
-        )
+        await launchVirtualMachine(bundle, instance.vmName, { event(.log($0)) })
     }
 
     func resumeInstance(instanceNumber: Int) async throws {
@@ -557,7 +722,7 @@ actor SandfortWorkflow {
         // Reasserting here, and failing if it cannot, is the whole guarantee.
         let profile = try guestProfile(for: state)
         try provider.repairBundle(at: bundle, profile: profile, role: .cleanInstance)
-        await UTMLauncher.openAndStart(bundle: bundle, name: instance.vmName)
+        await launchVirtualMachine(bundle, instance.vmName, { _ in })
     }
 
     /// Which VMs in scope are running, by display name.
@@ -663,7 +828,7 @@ actor SandfortWorkflow {
             to: bundleURL.appendingPathComponent("Data/seed.iso"),
             options: .atomic
         )
-        await UTMLauncher.openAndStart(bundle: bundleURL, name: state.setupVMName ?? "Sandfort — Baseline Setup")
+        await launchVirtualMachine(bundleURL, state.setupVMName ?? "Sandfort — Baseline Setup", { _ in })
     }
 
     private func verifiedImage(

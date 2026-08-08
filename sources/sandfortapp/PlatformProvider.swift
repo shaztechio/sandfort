@@ -56,6 +56,13 @@ protocol VirtualMachineProvider: Sendable {
     /// silently ignored materials would tell a user their files are in a sandbox
     /// that does not have them.
     func attachMaterials(_ image: MaterialsImage, to bundleURL: URL) throws
+    /// Removes a materials image from a bundle: the drive entry **and** the file.
+    ///
+    /// The counterpart of `attachMaterials`, and not optional. Clearing the
+    /// record without detaching would let a user remove their file, resume, and
+    /// still find it mounted in the sandbox — the opposite of what removal
+    /// means, and a copy of their file left somewhere they believe is empty.
+    func detachMaterials(from bundleURL: URL) throws
     func setDisplayName(_ name: String, at: URL) throws
     func ensureBundleNotRunning(at: URL) throws
 }
