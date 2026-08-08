@@ -207,6 +207,22 @@ actor SandfortWorkflow {
         let stateDescription = state.map {
             "Sandbox state: \($0.stage.rawValue), \($0.resolvedInstances.count) clean instance(s)."
         } ?? "No sandbox has been created yet."
+        // Which guest revision the baseline was built from, beside the one this
+        // binary would build. Nothing reported either before, so a baseline built
+        // by an older app looked identical to a current one — and the only way to
+        // tell them apart was to rebuild and see whether anything changed.
+        let baselineDescription = state.map { existing -> String in
+            let built = existing.guestProfileRevision
+            let expected = (try? guestProfile(for: existing))?.revision
+                ?? environment.defaultProfile.revision
+            let builtDescription = built.map(String.init) ?? "an unrecorded revision"
+            guard let built, built == expected else {
+                return "\nThis baseline was built from \(existing.guestProfileID ?? "an earlier profile") "
+                    + "revision \(builtDescription); this version of Sandfort builds revision \(expected). "
+                    + "Stop the virtual machine and choose Rebuild to pick up the difference."
+            }
+            return "\nBaseline: \(existing.guestProfileID ?? "unknown") revision \(built), which is current."
+        } ?? ""
         // Reported for the environment's own resolved profile rather than a
         // process-wide default: each workspace supports exactly one.
         let profile = environment.defaultProfile
@@ -226,7 +242,7 @@ actor SandfortWorkflow {
             return "UTM is not installed. Sandfort needs it to run virtual machines. "
                 + "Download it from \(UTMLauncher.downloadPage.absoluteString), then run this check again.\n"
                 + "This Mac is \(architecture).\(accelerationDescription)\n"
-                + "\(resourcesDescription) \(stateDescription)"
+                + "\(resourcesDescription) \(stateDescription)\(baselineDescription)"
         }
         let version = utm.version.map { "UTM \($0)" } ?? "UTM"
         // Which UTM is driven was previously visible nowhere. More than one
@@ -240,7 +256,7 @@ actor SandfortWorkflow {
                 + "\nSandfort uses the one above. Eject or remove the others to be certain."
         return "\(version) is installed at \(utm.applicationURL.path).\(otherCopies)\n"
             + "This Mac is \(architecture).\(accelerationDescription)\n"
-            + "\(resourcesDescription) \(stateDescription)"
+            + "\(resourcesDescription) \(stateDescription)\(baselineDescription)"
     }
 
     private var hostMemoryDescription: String {

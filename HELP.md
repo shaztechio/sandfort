@@ -188,6 +188,26 @@ Before rebuilding:
 
 Sandfort opens UTM automatically if it is closed and waits for its automation interface to become ready. If macOS asks whether Sandfort may control UTM, allow it. Sandfort uses native Apple Events to remove only the recorded Sandfort VMs. It does not use AppleScript or UI automation.
 
+### Why macOS says Sandfort was prevented from modifying apps
+
+A second, different prompt can appear while a baseline is being created, saying
+Sandfort was prevented from modifying apps on your Mac. **Allow it.** Without it
+a baseline cannot be built at all: setup stops with a message about UTM's UEFI
+firmware being missing.
+
+Sandfort does not modify UTM, or any other app. Every virtual machine needs a
+copy of the UEFI variable store that UTM ships inside its own bundle, and
+Sandfort copies that one file **out** of UTM into the new machine, once per
+baseline. macOS guards the inside of an app bundle and asks before another app
+reaches in, even to read.
+
+If you have already declined it, the permission is in **System Settings →
+Privacy & Security → App Management**.
+
+This one is separate from the Automation prompt below, and both are needed: this
+lets Sandfort read UTM's firmware, and Automation lets it ask UTM to start a
+machine.
+
 ### Why macOS asks whether Sandfort may control UTM
 
 macOS shows this once, the first time Sandfort needs to talk to UTM. That is
