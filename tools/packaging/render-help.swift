@@ -55,6 +55,9 @@ func inlineMarkdown(_ value: String) -> String {
     )
     rendered = replacingMatches(in: rendered, pattern: #"`([^`]+)`"#, template: #"<code>$1</code>"#)
     rendered = replacingMatches(in: rendered, pattern: #"\*\*([^*]+)\*\*"#, template: #"<strong>$1</strong>"#)
+    // After bold, so the inner pair of `**text**` is never mistaken for emphasis.
+    // Unhandled, `*before*` reached the reader as literal asterisks.
+    rendered = replacingMatches(in: rendered, pattern: #"\*([^*\s][^*]*)\*"#, template: #"<em>$1</em>"#)
     return rendered
 }
 
@@ -78,6 +81,13 @@ var inCodeBlock = false
 /// text. HELP.md carries its licence header this way: present in the rendered
 /// Help Book, invisible to the reader.
 var inHTMLComment = false
+/// Buffered rows of a GitHub-flavoured Markdown table.
+///
+/// Tables were not handled at all, so every row fell through to the paragraph
+/// branch and the whole table collapsed into one run-on line of literal pipe
+/// characters. HELP.md uses one to say where materials appear on each
+/// distribution, which is exactly the kind of content a table exists for.
+var tableLines: [String] = []
 
 func closeParagraph() {
     guard !paragraph.isEmpty else { return }
@@ -95,6 +105,55 @@ func closeListItem() {
     listItem.removeAll()
 }
 
+/// Splits `| a | b |` into its cells, dropping the empty edges the delimiters
+/// produce. A leading empty header cell is meaningful — HELP.md's table uses one
+/// for its row-label column — so only the outer edges are trimmed.
+func tableCells(_ row: String) -> [String] {
+    var trimmed = Substring(row)
+    if trimmed.hasPrefix("|") { trimmed = trimmed.dropFirst() }
+    if trimmed.hasSuffix("|") { trimmed = trimmed.dropLast() }
+    return trimmed.components(separatedBy: "|").map {
+        $0.trimmingCharacters(in: .whitespaces)
+    }
+}
+
+func isSeparatorRow(_ row: String) -> Bool {
+    let cells = tableCells(row)
+    guard !cells.isEmpty else { return false }
+    return cells.allSatisfy { cell in
+        !cell.isEmpty && cell.allSatisfy { $0 == "-" || $0 == ":" || $0 == " " }
+    }
+}
+
+/// Emits the buffered table. A missing separator row means it was never a table,
+/// so the rows are handed back to the paragraph path rather than silently
+/// rendered as one — better a plain paragraph than a malformed `<table>`.
+func closeTable() {
+    guard !tableLines.isEmpty else { return }
+    let rows = tableLines
+    tableLines.removeAll()
+    guard rows.count >= 2, isSeparatorRow(rows[1]) else {
+        for row in rows { paragraph.append(row) }
+        closeParagraph()
+        return
+    }
+    var html = ["<div class=\"table-wrap\"><table>"]
+    html.append("<thead><tr>")
+    for cell in tableCells(rows[0]) {
+        html.append("<th>\(inlineMarkdown(cell))</th>")
+    }
+    html.append("</tr></thead><tbody>")
+    for row in rows.dropFirst(2) {
+        html.append("<tr>")
+        for cell in tableCells(row) {
+            html.append("<td>\(inlineMarkdown(cell))</td>")
+        }
+        html.append("</tr>")
+    }
+    html.append("</tbody></table></div>")
+    body.append(html.joined())
+}
+
 func closeList() {
     closeListItem()
     guard let currentListKind = listKind else { return }
@@ -104,6 +163,11 @@ func closeList() {
 
 for rawLine in markdown.components(separatedBy: .newlines) {
     let line = rawLine.trimmingCharacters(in: .whitespaces)
+    // Any line that is not another row ends the table. Done once here rather
+    // than in each branch below, all of which `continue`.
+    if !inCodeBlock, !inHTMLComment, !tableLines.isEmpty, !line.hasPrefix("|") {
+        closeTable()
+    }
     if inHTMLComment {
         body.append(rawLine)
         if line.contains("-->") { inHTMLComment = false }
@@ -171,10 +235,17 @@ for rawLine in markdown.components(separatedBy: .newlines) {
         listItem.append(String(line[match.upperBound...]))
         continue
     }
+    if line.hasPrefix("|") {
+        closeParagraph()
+        closeList()
+        tableLines.append(line)
+        continue
+    }
     closeList()
     paragraph.append(line)
 }
 
+closeTable()
 closeParagraph()
 closeList()
 if inCodeBlock {
@@ -201,6 +272,17 @@ let html = """
     li { margin: 5px 0; }
     code { background: color-mix(in srgb, currentColor 10%, transparent); border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 4px; }
     pre { background: color-mix(in srgb, currentColor 8%, transparent); border-radius: 8px; overflow-x: auto; padding: 12px; }
+    /* Inside a block the inline pill is wrong twice over: a rounded background
+       nested in pre's own, and horizontal padding applied per line fragment,
+       which frays the edges of a multi-line command. */
+    pre code { background: none; border-radius: 0; font-size: 13px; padding: 0; white-space: pre; }
+    .table-wrap { margin: 0 0 14px; overflow-x: auto; }
+    table { border-collapse: collapse; font-size: 14px; }
+    th, td { border: 1px solid color-mix(in srgb, currentColor 22%, transparent); padding: 6px 11px; text-align: left; vertical-align: top; }
+    th { background: color-mix(in srgb, currentColor 8%, transparent); font-weight: 600; }
+    /* The first column is a row label, and an empty corner header reads as a
+       missing cell if it carries the header fill. */
+    thead th:empty { background: none; border-left-color: transparent; border-top-color: transparent; }
     a { color: -apple-system-blue; }
   </style>
 </head>
