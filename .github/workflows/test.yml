@@ -21,7 +21,13 @@ name: Tests
 on:
   push:
     branches: [main]
+  # `edited` is not in the default set, and without it the title check can only
+  # ever be cleared by pushing a commit — editing the very thing it is
+  # complaining about does nothing, because the values it reads come from the
+  # event payload. A re-run replays that same stale payload, so that does not
+  # help either.
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 permissions:
@@ -57,6 +63,16 @@ jobs:
           python3 tools/packaging/check-pull-request.py $changed
 
   macos-arm64:
+    # Editing a title or description cannot change what the code does, so the
+    # suite sits out those runs and only the cheap check re-evaluates.
+    #
+    # Retargeting the base is also an `edited` event, and that one changes the
+    # diff entirely — so it must still run. This is not hypothetical: GitHub
+    # retargets a stacked pull request automatically when the branch below it
+    # merges, and nothing else fires for that. `changes.base.ref.from` is
+    # present only on a base change; a missing property compares equal to an
+    # empty string, so a title or body edit falls through to the skip.
+    if: github.event.action != 'edited' || github.event.changes.base.ref.from != ''
     # The same runner the release build uses, so a green suite here means the
     # toolchain that will actually ship it.
     runs-on: macos-15
