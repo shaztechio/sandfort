@@ -1,0 +1,136 @@
+# Materials: getting a file into an offline sandbox
+
+A sandbox has no shared folders, no clipboard, no USB, and no SSH. That is the
+point, and it leaves a real gap: someone doing a coding challenge whose files are
+already on their Mac has no way to hand them over. Before this existed the only
+route was pasting text into the 64 KiB custom setup script and rebuilding the
+baseline — twenty to forty-five minutes, at entirely the wrong granularity.
+
+Materials close that gap in one direction only.
+
+## What happens
+
+The user picks a file or a folder. Sandfort packs it into an ISO 9660 image and
+attaches it to **one clean instance** as read-only optical media. A folder is
+archived first, by `NSFileCoordinator`'s `.forUploading` option — a system API,
+so no archive format is implemented here.
+
+The guest is handed **an image Sandfort built from a copy**, never the user's
+file. That is the whole security argument, and it is worth being precise about
+why: guest-to-host is impossible *by construction*. It does not depend on
+`ReadOnly` reaching QEMU, on a plist key surviving a UTM upgrade, or on any
+promise UTM makes. `ReadOnly: true`, reasserted on every state read, adds that
+the guest cannot write to the copy either.
+
+## Why optical media on USB
+
+The obvious implementation — another VirtIO disk, like the NoCloud seed — makes
+the volume nearly unreachable. `udisks2` decides whether something is removable
+from its bus, and a virtio-blk device has no hotpluggable one, so GNOME classes
+it as an internal system drive: buried under "Other Locations", never
+auto-mounted, and not what anyone would call clicking a file.
+
+`ImageType: "CD"` with `Interface: "USB"` is unambiguously removable media, and
+the desktop offers it in the sidebar.
+
+The seed ISO was deliberately moved *off* USB, because media can appear after
+cloud-init has already searched for NoCloud data. That timing does not apply
+here: materials are wanted when someone is sitting at the desktop, not during
+early boot.
+
+## Limits, and why they are what they are
+
+**512 MB.** The binding constraint is memory, not disk: `ISO9660Writer.make`
+builds the whole image at once while the caller still holds the payload, so peak
+use is roughly twice the limit — on a Mac that is simultaneously running a 4 GiB
+guest. Raising it means streaming the writer to a `FileHandle` first, with its
+own test. Anything much larger is also a sign the user wants an Internet-enabled
+launch and a `git clone`, which this feature does not replace.
+
+**One file on the image.** `ISO9660Writer` writes a flat directory that must fit
+one 2048-byte sector, and its bounds are interdependent — see the note on it in
+`AGENTS.md` before changing any of them.
+
+**Names are bounded at 64 bytes** and reduced to `[A-Za-z0-9._-]`. The Rock Ridge
+name is parsed by the guest kernel and becomes a filename; overlong names are
+truncated rather than refused, because the user picked a legitimate file and its
+name is not a problem they should have to solve.
+
+## The store, and why Reset does not re-read the source
+
+Packed images live at `Materials/instance-<n>.iso`, beside the VMs rather than
+inside them, because **Reset & Run Clean deletes and recreates the whole bundle**.
+Reset re-attaches from that store.
+
+It never re-reads the source path, and that is deliberate. Pick `~/Downloads` in
+March, reset in June, and re-reading would send whatever is there now — a bank
+statement, say — into a sandbox about to run hostile code. Re-packing is
+something the user asks for, through **Replace…**.
+
+A missing stored image is reported and the record cleared rather than failing the
+launch: materials are a convenience, and a convenience that has gone missing must
+not strand an instance someone is trying to run.
+
+Instance numbers are never reused, so a stored image cannot be inherited by a
+later instance.
+
+## Where materials may not go
+
+Clean instances only. Four independent gates:
+
+1. `createSetupBundle` has no materials parameter — the call is inexpressible.
+2. `attachMaterials` is called only for clean instances.
+3. `repairBundle` removes the drive **and the file** for `.setup` and
+   `.protectedBaseline`. This is the enforcement point that matters, because
+   `currentState()` runs it on every state read.
+4. `createCleanBundle` drops an image inherited from the baseline clone, which
+   would otherwise reach every future instance as an orphaned payload.
+
+Removing the file matters as much as removing the entry: an orphaned image with
+nothing pointing at it is still the user's file inside a bundle.
+
+## Using it
+
+The instance must be **fully powered off**, not suspended — attaching rewrites
+its configuration, and a suspended VM still holds its disk lock. Afterwards
+**Resume** is enough; resetting would discard everything else in that instance to
+deliver a file that is already attached.
+
+In the guest the volume appears in the GNOME Files sidebar as
+`SANDFORT_MATERIALS`. From a terminal:
+
+```sh
+lsblk -f
+ls /run/media/$USER/SANDFORT_MATERIALS
+```
+
+and if it is not mounted:
+
+```sh
+sudo mount -o ro /dev/disk/by-label/SANDFORT_MATERIALS /mnt
+```
+
+## What is verified, and what is not
+
+Verified on a live run against **UTM 5.0.4** with **Ubuntu 24.04**: the drive is
+accepted, the guest exposes an ISO 9660 volume labelled `SANDFORT_MATERIALS`, it
+appears as a CD in the GNOME Files sidebar, and **Resume alone picks it up** with
+UTM already running — no quit, no re-import.
+
+Not yet verified, and recorded as such in `utm-version-audit.md` rather than
+assumed:
+
+- Fedora, Debian, and openSUSE. Their desktop stacks differ, and openSUSE's GNOME
+  pattern has already surprised this project twice.
+- Whether the volume auto-mounts or needs the click.
+- That `ReadOnly: true` genuinely reaches QEMU — i.e. that writing to the mounted
+  volume fails. The stronger guarantee, that the user's original is untouchable,
+  does not depend on this.
+
+## Automount is deliberately not implemented
+
+Mounting at a fixed path with no user action would need a guest-side systemd
+mount unit keyed on the volume label. That is a guest change: a profile revision
+bump, a `BREAKING CHANGE:` footer, and every existing user rebuilding a baseline
+— twenty to forty-five minutes each — for convenience. If it is ever done, fold
+it into a revision that is already forcing a rebuild for another reason.

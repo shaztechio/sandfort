@@ -49,6 +49,16 @@ struct MaterialsSheet: View {
                     .foregroundStyle(.secondary)
             }
 
+            if let failure = model.materialsError {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text(failure)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.callout)
+                .foregroundStyle(.red)
+            }
+
             HStack {
                 Button(instance?.hasMaterials == true ? "Replace…" : "Choose File or Folder…") {
                     model.chooseMaterialsForSelectedInstance()

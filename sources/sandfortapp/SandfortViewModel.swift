@@ -156,6 +156,11 @@ final class SandfortViewModel: ObservableObject {
     @Published var revealGuestPassword = false
     @Published var showBaselineTools = false
     @Published var showMaterials = false
+    /// Why the last materials action failed, shown in the sheet.
+    ///
+    /// `perform` reports errors to the activity log, which the sheet covers — so
+    /// a failed attach looked exactly like nothing happening at all.
+    @Published var materialsError: String?
     /// Refreshed on launch, on Check My Mac, and after any operation, so
     /// installing UTM while Sandfort is open is noticed without a relaunch.
     @Published private(set) var utmIsMissing = false
@@ -387,7 +392,17 @@ final class SandfortViewModel: ObservableObject {
     /// since the packer does it with a system API.
     func chooseMaterialsForSelectedInstance() {
         let number = selectedInstanceNumber
-        guard let selection = selectedSelection else { return }
+        // Not a silent return. Every other action in this file can afford one
+        // because the user sees the main window; this one runs behind a sheet,
+        // where doing nothing is indistinguishable from failing.
+        guard let selection = selectedSelection else {
+            materialsError = "No environment is selected, so there is nothing to attach materials to."
+            return
+        }
+        guard instances.contains(where: { $0.number == number }) else {
+            materialsError = "Instance \(number) is no longer listed. Close this sheet and select an instance."
+            return
+        }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
@@ -400,13 +415,22 @@ final class SandfortViewModel: ObservableObject {
         // no security-scoped bookmark is needed; adopting App Sandbox later, per
         // docs/APP-STORE.md, would require
         // com.apple.security.files.user-selected.read-only.
-        guard panel.runModal() == .OK, let source = panel.url else { return }
+        guard panel.runModal() == .OK, let source = panel.url else { return }  // cancelled
+        materialsError = nil
         perform {
-            let state = try await selection.workflow.attachMaterials(
-                toInstance: number,
-                from: source,
-                event: self.eventHandler
-            )
+            let state: SandboxState
+            do {
+                state = try await selection.workflow.attachMaterials(
+                    toInstance: number,
+                    from: source,
+                    event: self.eventHandler
+                )
+            } catch {
+                // Surfaced where the user is looking, then rethrown so the
+                // activity log and status line behave as they do everywhere else.
+                await self.showMaterialsError(error)
+                throw error
+            }
             await self.apply(state, profile: selection.profile)
             await self.update(
                 status: "Materials ready for Instance \(number)",
@@ -416,11 +440,25 @@ final class SandfortViewModel: ObservableObject {
         }
     }
 
+    private func showMaterialsError(_ error: Error) {
+        materialsError = error.localizedDescription
+    }
+
     func removeMaterialsFromSelectedInstance() {
         let number = selectedInstanceNumber
-        guard let selection = selectedSelection else { return }
+        guard let selection = selectedSelection else {
+            materialsError = "No environment is selected."
+            return
+        }
+        materialsError = nil
         perform {
-            let state = try await selection.workflow.removeMaterials(fromInstance: number)
+            let state: SandboxState
+            do {
+                state = try await selection.workflow.removeMaterials(fromInstance: number)
+            } catch {
+                await self.showMaterialsError(error)
+                throw error
+            }
             await self.apply(state, profile: selection.profile)
             await self.update(
                 status: "Materials removed from Instance \(number)",

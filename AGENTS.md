@@ -37,6 +37,16 @@ without weakening the common provisioning policy.
   vendor downloads are checked against the vendor's published SHA-256, and VS
   Code uses the tarball so no third-party repository or key is added to a
   guest.
+- `MaterialsPackager.swift`: packs a user-chosen file or folder into the
+  read-only image a clean instance can be handed. A folder is archived by
+  `NSFileCoordinator`'s `.forUploading`, deliberately rather than by a hand-written
+  archive format. The 512 MiB limit is a memory bound, not a disk one — the ISO
+  is built whole in memory while the caller still holds the payload — so raising
+  it means streaming `ISO9660Writer` to a `FileHandle` first. Materials are
+  attached as `ImageType: "CD"` on `Interface: "USB"`: as a VirtIO disk the
+  desktop classes them as an internal system drive and never offers them.
+  `attachMaterials` and `repairBundle` must write the same drive shape, or repair
+  silently undoes the attach on the next state read. See `docs/materials.md`.
 - `MemorablePasswordWords.swift`: reviewed 2,048-word list behind the generated
   guest password. Its size is an entropy claim documented in
   `docs/password-strength.md` and enforced by tests; do not add, remove, or

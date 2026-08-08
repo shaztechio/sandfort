@@ -458,6 +458,36 @@ terminal launch, and Visual Studio Code launch are verified across all four
 profiles on 5.0.4. The full isolation and lifecycle qualification remains
 verified against 4.7.5 only.**
 
+## 8. The materials drive
+
+Added after the audit's first pass, and the only claim here established by a
+**live run** rather than by reading.
+
+**Verified against UTM 5.0.4, Ubuntu 24.04, on 2026-08-08.** A third `Drive`
+entry with `ImageType: "CD"`, `Interface: "USB"`, `InterfaceVersion: 1`,
+`ReadOnly: true`, and an image inside the bundle:
+
+- UTM accepts the bundle and does not reorder or renumber the existing two drives.
+- The guest exposes an ISO 9660 volume labelled `SANDFORT_MATERIALS`.
+- GNOME Files shows it in the sidebar as a CD.
+- **Resume alone picks it up** with UTM already running — no quit, no
+  re-import, no cache to defeat. This was the open question, and it is closed.
+
+The drive is deliberately not marked external: in UTM that means the image lives
+outside the bundle with a security-scoped bookmark, which is the opposite of what
+materials are.
+
+**Still needs a live run:**
+
+- Fedora, Debian, and openSUSE. Their desktop stacks differ, and openSUSE's GNOME
+  pattern has already shipped two defects of exactly this kind.
+- Whether the volume auto-mounts or requires the click.
+- That `ReadOnly: true` reaches QEMU as a genuinely read-only device — writing to
+  the mounted volume must fail. Note the stronger guarantee, that the user's
+  original file is untouchable, does not depend on this at all: the guest is
+  handed an image built from a copy.
+- UTM 4.7.5. The drive was only ever exercised against 5.0.4.
+
 ## Reproducing this audit
 
 Nothing here needs UTM 5 installed.

@@ -92,9 +92,45 @@ Sandfort asks for a network mode when creating or resetting an instance.
 - **Without Internet** is the default and safest option. The guest cannot reach the Internet or the Mac host.
 - **With Internet** allows outbound access so the guest can download packages or reach websites. Untrusted software can also contact external systems.
 
-Shared host folders, clipboard sharing, automatic USB sharing, bridged networking, incoming port forwarding, and SSH remain disabled in both modes.
+Shared host folders, clipboard sharing, automatic USB sharing, bridged networking, incoming port forwarding, and SSH remain disabled in both modes. Optional **materials** are not an exception to that: Sandfort copies what you choose into a read-only disc image *before* the instance starts, so the guest reads a copy and has no path back to the original or to anything else on your Mac. See **Bring files into a sandbox** below.
 
 Resume does not ask again because it preserves the instance's last explicit network mode. Use **Reset & Run Clean** to choose a different mode and start from the baseline.
+
+## Bring files into a sandbox
+
+A sandbox has no shared folders, clipboard, or USB, so there is otherwise no way to hand it a file that is already on your Mac. **Materials** are the one exception, and they only go one way.
+
+Select an instance, then choose **Materials…** from the environment's actions menu. Pick a file or a folder and Sandfort packs it into a read-only disc image attached to that instance.
+
+The instance must be **fully powered off**, not suspended — attaching rewrites its configuration, and Sandfort will not touch a VM whose disk is in use. Afterwards, **Resume** is enough; you do not need to reset, and resetting would throw away everything else in that instance to deliver a file you have already attached.
+
+Inside the guest, the disc appears in the GNOME Files sidebar as **SANDFORT_MATERIALS**. Click it to open. From a terminal:
+
+```
+lsblk -f                     # look for an iso9660 volume, normally /dev/sr0
+ls /run/media/$USER/SANDFORT_MATERIALS
+```
+
+If it is not mounted, mount it by label:
+
+```
+sudo mkdir -p /mnt/materials
+sudo mount -o ro /dev/disk/by-label/SANDFORT_MATERIALS /mnt/materials
+```
+
+A **folder** is sent as a single `.zip` archive named after it — extract it inside the sandbox. `unzip` is not preinstalled on every distribution; Files' **Extract Here** works on the desktop, and `python3 -m zipfile -e archive.zip .` works in a terminal when Python is selected.
+
+Materials are limited to 512 MB. For anything larger, run the instance with Internet access and download it inside the guest instead.
+
+**Reset & Run Clean re-attaches the image you approved**, not a fresh copy of wherever it came from. If you picked a folder in March and reset in June, the sandbox gets what the folder held in March. Use **Materials… → Replace…** to send in the current contents. **Remove** detaches the image and deletes it.
+
+Materials never reach a Protected Baseline. If one somehow appears there, Sandfort removes it — the drive and the file — the next time it reads its state.
+
+### What read-only does and does not mean
+
+The guest cannot change the image and cannot reach the original file, because it is handed a copy Sandfort built. That much does not depend on any setting.
+
+It does **not** mean the contents are safe. Anything you send into a sandbox is readable by whatever runs there. Send a work file only if you accept that a hostile program in that instance can read it, and never a credential, key, wallet, or secret.
 
 ## Configure development tools
 
@@ -231,7 +267,7 @@ Sandfort will not copy, reset, rename, delete, or rebuild a VM whose disk is in 
 
 - Prefer offline instances for suspicious code.
 - Never sign in to personal or work accounts inside a sandbox.
-- Never copy secrets, SSH keys, password-manager data, wallets, or cloud credentials into a sandbox.
+- Never copy secrets, SSH keys, password-manager data, wallets, or cloud credentials into a sandbox, including as materials.
 - Never enable shared folders, clipboard sharing, USB sharing, bridged networking, or port forwarding in UTM.
 - Never run the Protected Baseline directly.
 - Treat a resumed instance as potentially contaminated.
