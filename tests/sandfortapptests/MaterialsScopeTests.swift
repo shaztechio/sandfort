@@ -59,8 +59,14 @@ final class MaterialsScopeTests: XCTestCase {
     }
 
     private var provider = RecordingProvider()
+    private final class Unregistrations: @unchecked Sendable {
+        var names: [String] = []
+    }
+    private var unregistered = Unregistrations()
 
-    private func makeWorkflow() throws -> (SandfortWorkflow, URL) {
+    private func makeWorkflow(
+        deleteRegistration: (@Sendable (String) async throws -> Void)? = nil
+    ) throws -> (SandfortWorkflow, URL) {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -93,13 +99,15 @@ final class MaterialsScopeTests: XCTestCase {
             .write(to: root.appendingPathComponent("state.plist"))
 
         provider = RecordingProvider()
+        unregistered = Unregistrations()
         let workflow = SandfortWorkflow(
             environment: .productionWorkspace(
                 profile: profile, rootURL: root,
                 cacheURL: root.appendingPathComponent("Cache", isDirectory: true)
             ),
             provider: provider,
-            deleteUTMRegistration: { _ in },
+            deleteUTMRegistration: deleteRegistration
+                ?? { [unregistered] name in unregistered.names.append(name) },
             // Never reach the real launcher. It hands the bundle to UTM, and a
             // synthetic bundle makes UTM show "Cannot import this VM" — a dialog
             // on the developer's machine, from a unit test. It also polled for
@@ -107,6 +115,78 @@ final class MaterialsScopeTests: XCTestCase {
             launchVirtualMachine: { _, _, _ in }
         )
         return (workflow, root)
+    }
+
+    /// UTM caches a VM's configuration. Editing `config.plist` to add a drive is
+    /// invisible to it until the VM is re-imported, so materials could be fully
+    /// attached — image in the bundle, entry in the plist — and simply not exist
+    /// as far as UTM was concerned. That was observed on three of four
+    /// distributions.
+    ///
+    /// `runClean` has always been reliable precisely because it drops the
+    /// registration first. Attaching now does the same thing deliberately.
+    func testAttachingDropsTheRegistrationSoUTMRereadsTheConfiguration() async throws {
+        let (workflow, root) = try makeWorkflow()
+
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("probe.zip", in: root), event: { _ in }
+        )
+
+        // Read the name from state rather than hardcoding it: currentState()
+        // migrates instance names, so a literal here tests the fixture instead
+        // of the behaviour.
+        let current = await workflow.currentState()
+        let expected = try XCTUnwrap(current?.resolvedInstances.first?.vmName)
+        XCTAssertEqual(
+            unregistered.names, [expected],
+            "without this the attach is invisible to UTM until it is quit"
+        )
+    }
+
+    func testRemovingAlsoDropsTheRegistration() async throws {
+        let (workflow, root) = try makeWorkflow()
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("bye.zip", in: root), event: { _ in }
+        )
+        unregistered.names.removeAll()
+
+        _ = try await workflow.removeMaterials(fromInstance: 1)
+
+        let current = await workflow.currentState()
+        let expected = try XCTUnwrap(current?.resolvedInstances.first?.vmName)
+        XCTAssertEqual(
+            unregistered.names, [expected],
+            "a removal UTM has not noticed leaves the disc mounted in the guest"
+        )
+    }
+
+    /// A failure to unregister must not report the whole operation as failed:
+    /// the materials are attached and recorded by then, and only the
+    /// cache-busting did not happen.
+    func testAttachingSucceedsEvenIfUTMWillNotForgetTheRegistration() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let (workflow, workflowRoot) = try makeWorkflowWithFailingUnregistration(at: root)
+
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("stubborn.zip", in: workflowRoot), event: { _ in }
+        )
+
+        let state = await workflow.currentState()
+        XCTAssertTrue(
+            try XCTUnwrap(state?.resolvedInstances.first).hasMaterials,
+            "the attach stands; only the cache hint failed"
+        )
+    }
+
+    private func makeWorkflowWithFailingUnregistration(at root: URL) throws -> (SandfortWorkflow, URL) {
+        let (workflow, workflowRoot) = try makeWorkflow(
+            deleteRegistration: { _ in throw SandboxError.virtualMachineRunning }
+        )
+        _ = root
+        return (workflow, workflowRoot)
     }
 
     private func source(_ name: String, in root: URL) throws -> URL {

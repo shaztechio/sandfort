@@ -479,7 +479,7 @@ actor SandfortWorkflow {
                 "Instance \(instance.number) recorded materials, but the stored image is missing, "
                     + "so it starts without them."
             ))
-            _ = try? removeMaterials(fromInstance: instance.number)
+            try? clearMaterialsRecord(forInstance: instance.number)
             return
         }
         let image = try MaterialsPackager.stored(
@@ -555,6 +555,9 @@ actor SandfortWorkflow {
         instances[index].materialsIsArchive = image.payloadIsArchive
         state.replaceInstances(instances)
         try save(state)
+        await forgetRegistrationSoUTMRereadsTheConfiguration(
+            instance: instances[index], event: event
+        )
         event(.log(
             "\(image.displayName) is attached to Instance \(number) as a read-only disc image. "
                 + "The guest reads a copy and cannot reach the original."
@@ -565,17 +568,32 @@ actor SandfortWorkflow {
     /// Forgets materials for one instance: the stored image, the metadata, and
     /// the drive, which `repairBundle` drops on the next state read once the
     /// bundle is rewritten by a Reset.
-    func removeMaterials(fromInstance number: Int) throws -> SandboxState {
+    func removeMaterials(fromInstance number: Int) async throws -> SandboxState {
+        guard let existing = currentState()?.resolvedInstances.first(where: { $0.number == number })
+        else { throw SandboxError.sandboxInstanceNotFound }
+        // Clearing the record is not enough: without detaching, the user could
+        // remove materials, resume, and still find their file mounted.
+        let bundle = URL(fileURLWithPath: existing.bundlePath)
+        if fileManager.fileExists(atPath: bundle.path) {
+            try provider.detachMaterials(from: bundle)
+        }
+        let state = try clearMaterialsRecord(forInstance: number)
+        await forgetRegistrationSoUTMRereadsTheConfiguration(instance: existing, event: { _ in })
+        return state
+    }
+
+    /// Forgets the stored image and the metadata, and nothing else.
+    ///
+    /// Separate from `removeMaterials` because `runClean` needs exactly this and
+    /// none of the rest: it has already dropped the UTM registration and just
+    /// rebuilt the bundle, so detaching and unregistering again would be
+    /// redundant — and unregistering can poll for fifteen seconds.
+    @discardableResult
+    private func clearMaterialsRecord(forInstance number: Int) throws -> SandboxState {
         guard var state = currentState() else { throw SandboxError.sandboxNotCreated }
         var instances = state.resolvedInstances
         guard let index = instances.firstIndex(where: { $0.number == number }) else {
             throw SandboxError.sandboxInstanceNotFound
-        }
-        // Clearing the record is not enough: without detaching, the user could
-        // remove materials, resume, and still find their file mounted.
-        let bundle = URL(fileURLWithPath: instances[index].bundlePath)
-        if fileManager.fileExists(atPath: bundle.path) {
-            try provider.detachMaterials(from: bundle)
         }
         try removeStoredMaterials(forInstance: number)
         instances[index].materialsDisplayName = nil
@@ -586,6 +604,37 @@ actor SandfortWorkflow {
         state.replaceInstances(instances)
         try save(state)
         return state
+    }
+
+    /// Drops the instance's UTM registration so the next launch re-imports the
+    /// bundle and reads the drive list again.
+    ///
+    /// UTM caches a VM's configuration. Adding or removing a drive by editing
+    /// `config.plist` is invisible to it until the VM is re-imported or the app
+    /// is relaunched, so attaching materials appeared to do nothing at all — the
+    /// image was in the bundle, the drive entry was in the plist, and UTM's own
+    /// settings still listed the old set. Observed on three of four
+    /// distributions before this existed.
+    ///
+    /// `runClean` has always been reliable for exactly this reason: it drops the
+    /// registration before rebuilding. This is the same move, made deliberate.
+    ///
+    /// Deliberately not fatal. The materials are attached and recorded by the
+    /// time this runs; failing here would report the whole operation as failed
+    /// when only the cache-busting did not happen. The user is told what to do
+    /// instead.
+    private func forgetRegistrationSoUTMRereadsTheConfiguration(
+        instance: SandboxInstance,
+        event: @escaping @Sendable (WorkflowEvent) -> Void
+    ) async {
+        do {
+            try await deleteUTMRegistration(instance.vmName)
+        } catch {
+            event(.log(
+                "UTM kept its saved copy of Instance \(instance.number)'s configuration. "
+                    + "If the disc does not appear, quit UTM and launch the instance again."
+            ))
+        }
     }
 
     /// Clears the whole store. Rebuild and Delete Environment both invalidate
