@@ -72,9 +72,16 @@ enum OpenSUSECloudInit {
             // removable media at all — the drive is present and the desktop
             // never offers it. Checking for the file is what makes a fifth
             // missing piece fail here rather than after a 45-minute rebuild.
-            "test -x /usr/libexec/gvfs-udisks2-volume-monitor "
-                + "|| test -x /usr/lib/gvfs/gvfs-udisks2-volume-monitor "
-                + "|| test -x /usr/lib64/gvfs/gvfs-udisks2-volume-monitor",
+            //
+            // Search for it rather than naming where it lives. The first version
+            // of this check listed three plausible paths and Leap uses a fourth,
+            // /usr/libexec/gvfs/ — so a baseline with every package correctly
+            // installed failed verification and threw away the rebuild. A check
+            // that can fail on a working guest is worse than the gap it closes,
+            // and the layout is not the thing being verified.
+            "find /usr/lib /usr/lib64 /usr/libexec -maxdepth 3 "
+                + "-name gvfs-udisks2-volume-monitor -type f -perm -u+x "
+                + "2>/dev/null | grep -q .",
             "test -x /usr/sbin/gdm"
         ]
         if tools.python {

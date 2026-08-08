@@ -80,9 +80,9 @@ final class GuestArchitectureTests: XCTestCase {
             // Leap's GNOME pattern provides none of them. Revision 6 added the
             // first three and was still not enough — core gvfs does not carry
             // the udisks2 volume monitor, so Files showed no removable media.
-            "recommended": "2174f5eb76c96fd6f7feca7e6a7bbb9b2ee86d265c19e0cf941f17002aa52a03",
-            "bare": "03c08205360a81f415020ee4515202469e7a20891116ae53312c6a8089c5d0d9",
-            "custom": "2907fdca77935a8d16e51a9e566dc39cffd0b89c7c45135720ebb070edca09b0"
+            "recommended": "93a5dc078de2463fcfde835043bf4c819904721f384046d45bf84c78700452d9",
+            "bare": "c8c1811367826663f1ee6b1c220fb7c47b478cc5bd9aefd30859066582dee454",
+            "custom": "f41962f89bef56b1633402dfabbb97be12a4ba3ae8a5b6b82e0d9753bd572716"
         ]
     ]
 
