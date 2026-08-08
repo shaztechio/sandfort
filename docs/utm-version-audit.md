@@ -554,14 +554,36 @@ All four now reach the image. Two findings are not about the drive at all:
 
 **Still needs a live run:**
 
-- Fedora, Debian, and openSUSE. Their desktop stacks differ, and openSUSE's GNOME
-  pattern has already shipped two defects of exactly this kind.
 - Whether the volume auto-mounts or requires the click.
 - That `ReadOnly: true` reaches QEMU as a genuinely read-only device — writing to
   the mounted volume must fail. Note the stronger guarantee, that the user's
   original file is untouchable, does not depend on this at all: the guest is
   handed an image built from a copy.
 - UTM 4.7.5. The drive was only ever exercised against 5.0.4.
+
+Fedora, Debian, and openSUSE were on this list and have since had live runs; the
+results are in the table above. openSUSE took three attempts, and none of the
+three failures were the drive — they were the guest's desktop packaging.
+
+## 9. The distribution icon
+
+`Information.Icon` names one of the 69 icons UTM ships in
+`Contents/Resources/Icons`, as a **bare resource name with no extension** —
+`"ubuntu"`, not `"ubuntu.png"`. UTM resolves it with
+`Bundle.main.url(forResource:withExtension:"png",subdirectory:"Icons")`, and
+`IconCustom: false` says it is one of UTM's rather than a file in the bundle.
+
+**Read in UTM 5.0.4's source and confirmed present on disk**, which is the same
+evidence class as §1: the four files `ubuntu.png`, `fedora.png`, `debian.png`,
+and `opensuse.png` all exist in the installed app.
+
+**Still needs a live look:** that UTM actually renders each icon in its library
+list. Tests can only prove the key is written. The failure mode is a VM showing
+the generic icon, which is exactly the state this replaced, so nothing breaks if
+a name is wrong — an unknown name degrades to the default rather than failing.
+
+Both spellings of the openSUSE icon exist (`SUSE.png` and `opensuse.png`); the
+lowercase one is used, matching the other three.
 
 ## Reproducing this audit
 

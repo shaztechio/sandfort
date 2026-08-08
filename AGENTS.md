@@ -23,7 +23,10 @@ without weakening the common provisioning policy.
   and `linuxArchiveArchitecture` — which the provisioners and firmware lookup
   are handed rather than hardcoding. `linuxArchiveArchitecture` is the *vendor's*
   spelling, not the architecture's: Node.js and VS Code both publish `x64`, and
-  neither uses `x86_64` or `amd64`.
+  neither uses `x86_64` or `amd64`. `utmIconName` sits on the profile rather than
+  on `Hardware` — it is distribution identity, not machine shape — and names a
+  **built-in UTM icon with no extension**, so Sandfort ships no distribution logo
+  and takes on no trademark question.
 - `HostArchitecture.swift`: what the Mac is, detected at run time including
   Rosetta, and which UTM guest architecture it can hardware-accelerate. A
   compile-time `#if arch(arm64)` describes the running slice instead, which made
