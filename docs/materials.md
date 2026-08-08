@@ -107,8 +107,11 @@ its configuration, and a suspended VM still holds its disk lock. Afterwards
 **Resume** is enough; resetting would discard everything else in that instance to
 deliver a file that is already attached.
 
-In the guest the volume appears in the GNOME Files sidebar as
-`SANDFORT_MATERIALS`. From a terminal:
+In the guest, open Files and look for `SANDFORT_MATERIALS`. Ubuntu lists it as a
+CD in the sidebar; Debian shows it in Files but not as a sidebar CD, which is a
+difference between Ubuntu's patched GNOME and stock upstream rather than anything
+about the drive — both guests enumerate the same device from the same
+configuration. From a terminal:
 
 ```sh
 lsblk -f
@@ -137,8 +140,11 @@ against stale state.
 Not yet verified, and recorded as such in `utm-version-audit.md` rather than
 assumed:
 
-- Fedora, Debian, and openSUSE. Their desktop stacks differ, and openSUSE's GNOME
-  pattern has already surprised this project twice.
+- Fedora and openSUSE. Debian is confirmed: UTM lists the SCSI CD, the guest
+  enumerates `sr0`, and the volume is reachable in Files — though not as a
+  sidebar CD, so the wording above avoids promising one.
+- openSUSE's GNOME pattern has already surprised this project twice, so it is
+  worth checking rather than assuming it follows Debian.
 - Whether the volume auto-mounts or needs the click.
 - That `ReadOnly: true` genuinely reaches QEMU — i.e. that writing to the mounted
   volume fails. The stronger guarantee, that the user's original is untouchable,
