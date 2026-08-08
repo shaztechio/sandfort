@@ -144,6 +144,17 @@ enum SandboxError: LocalizedError {
     /// Kept distinct from `invalidCloudDisk`, whose text blames a download —
     /// this one is about input the app or the user supplied.
     case invalidISOImage(String)
+    /// Materials could not be read or archived. The user chose the source, so
+    /// the message names it rather than describing a category of failure.
+    case materialsUnreadable(String)
+    case materialsTooLarge(byteCount: Int, limit: Int)
+    /// A folder whose contents are too large to be worth archiving at all.
+    /// Distinct from `materialsTooLarge` because the two numbers measure
+    /// different things: this one compares *unarchived* content against the
+    /// point where packing stops being worth attempting, while the limit that
+    /// finally applies is on the archive. Reporting one as the other would tell
+    /// a user their 3 GB folder is fine.
+    case materialsSourceTooLargeToArchive(byteCount: Int, packedLimit: Int)
     case alreadyExists
     case sandboxNotCreated
     case setupNotComplete
@@ -178,6 +189,21 @@ enum SandboxError: LocalizedError {
             return "The downloaded cloud disk is invalid: \(reason)"
         case let .invalidISOImage(reason):
             return "That disc image could not be created: \(reason)"
+        case let .materialsUnreadable(reason):
+            return reason
+        case let .materialsTooLarge(byteCount, limit):
+            let formatter = ByteCountFormatter()
+            formatter.countStyle = .file
+            return "That is \(formatter.string(fromByteCount: Int64(byteCount))), and materials are "
+                + "limited to \(formatter.string(fromByteCount: Int64(limit))). "
+                + "For anything larger, run the sandbox with Internet access and download it there."
+        case let .materialsSourceTooLargeToArchive(byteCount, packedLimit):
+            let formatter = ByteCountFormatter()
+            formatter.countStyle = .file
+            return "That folder holds \(formatter.string(fromByteCount: Int64(byteCount))) before "
+                + "archiving, which is too much to pack. Materials are limited to "
+                + "\(formatter.string(fromByteCount: Int64(packedLimit))) once archived. "
+                + "For anything this size, run the sandbox with Internet access and download it there."
         case .alreadyExists:
             return "A sandbox already exists. Use Rebuild if you want to replace it."
         case .sandboxNotCreated:
