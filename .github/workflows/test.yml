@@ -64,8 +64,15 @@ jobs:
 
   macos-arm64:
     # Editing a title or description cannot change what the code does, so the
-    # suite sits out those runs. Only the cheap check re-evaluates.
-    if: github.event.action != 'edited'
+    # suite sits out those runs and only the cheap check re-evaluates.
+    #
+    # Retargeting the base is also an `edited` event, and that one changes the
+    # diff entirely — so it must still run. This is not hypothetical: GitHub
+    # retargets a stacked pull request automatically when the branch below it
+    # merges, and nothing else fires for that. `changes.base.ref.from` is
+    # present only on a base change; a missing property compares equal to an
+    # empty string, so a title or body edit falls through to the skip.
+    if: github.event.action != 'edited' || github.event.changes.base.ref.from != ''
     # The same runner the release build uses, so a green suite here means the
     # toolchain that will actually ship it.
     runs-on: macos-15
