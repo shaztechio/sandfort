@@ -496,11 +496,20 @@ either. The interface is now `SCSI`, which keeps the drive as removable optical
 media while using the transport these kernels already use for the root disk.
 **Re-run against SCSI on Ubuntu 24.04, after quitting UTM:** the drive is listed
 as SCSI in UTM's own settings, the guest exposes it, and GNOME Files shows it as
-a CD with the expected contents. **Debian, with SCSI, after quitting UTM:** UTM lists
-the drive, the guest enumerates `sr0`, and the volume is reachable in Files —
-though it does not appear as a sidebar CD the way it does on Ubuntu. That is a
-desktop presentation difference, not a drive one: both guests enumerate the same
-device from an identical configuration. openSUSE with SCSI is still outstanding.
+a CD with the expected contents. **Debian 13, with SCSI, after quitting UTM:** UTM lists
+the drive, the guest enumerates `sr0`, the volume appears in Files, and its
+contents are correct. It does **not** get a sidebar icon the way Ubuntu does.
+That is a desktop presentation difference, not a drive one: both guests enumerate
+the same device from an identical configuration.
+
+Observed, per distribution:
+
+| | Drive | Sidebar icon | In Files | Contents |
+| --- | --- | --- | --- | --- |
+| Ubuntu 24.04 | SCSI CD | yes | yes | correct |
+| Debian 13 | SCSI CD | no | yes | correct |
+
+Fedora and openSUSE with SCSI are still outstanding.
 
 **Still needs a live run:**
 

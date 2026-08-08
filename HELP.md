@@ -104,7 +104,7 @@ Select an instance, then choose **Materials…** from the environment's actions 
 
 The instance must be **fully powered off**, not suspended — attaching rewrites its configuration, and Sandfort will not touch a VM whose disk is in use. Afterwards, **Resume** is enough; you do not need to reset, and resetting would throw away everything else in that instance to deliver a file you have already attached.
 
-Inside the guest, open **Files** and look for **SANDFORT_MATERIALS**. Where it appears depends on the distribution: Ubuntu lists it as a CD in the sidebar, while others show it under **Other Locations**. Click it to open. From a terminal:
+Inside the guest, open **Files** and look for **SANDFORT_MATERIALS**. Ubuntu also shows it as a CD in the sidebar; on other distributions it appears in Files without a sidebar entry. Click it to open. From a terminal:
 
 ```
 lsblk -f                     # look for an iso9660 volume, normally /dev/sr0

@@ -141,8 +141,8 @@ Not yet verified, and recorded as such in `utm-version-audit.md` rather than
 assumed:
 
 - Fedora and openSUSE. Debian is confirmed: UTM lists the SCSI CD, the guest
-  enumerates `sr0`, and the volume is reachable in Files — though not as a
-  sidebar CD, so the wording above avoids promising one.
+  enumerates `sr0`, the volume appears in Files, and its contents are correct —
+  but it gets no sidebar icon, so the wording above avoids promising one.
 - openSUSE's GNOME pattern has already surprised this project twice, so it is
   worth checking rather than assuming it follows Debian.
 - Whether the volume auto-mounts or needs the click.
