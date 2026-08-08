@@ -93,11 +93,10 @@ final class MaterialsAttachmentTests: XCTestCase {
         let all = try drives(in: instance)
         XCTAssertEqual(all.count, 3, "the disk, the seed, and materials")
         let materialsDrive = try XCTUnwrap(all.first { $0["ImageName"] as? String == "materials.iso" })
-        // Optical media on USB, so udisks2 treats it as removable and GNOME
-        // Files shows it. A VirtIO disk has no hotpluggable bus, so it is
-        // classed as an internal system drive and is not offered.
+        // Optical media so udisks2 treats it as removable, on SCSI because USB
+        // was not enumerated at all on Debian — measured, not assumed.
         XCTAssertEqual(materialsDrive["ImageType"] as? String, "CD")
-        XCTAssertEqual(materialsDrive["Interface"] as? String, "USB")
+        XCTAssertEqual(materialsDrive["Interface"] as? String, "SCSI")
         XCTAssertEqual(materialsDrive["InterfaceVersion"] as? Int, 1)
         XCTAssertEqual(materialsDrive["ReadOnly"] as? Bool, true, "the guest must not write to it")
         XCTAssertNil(materialsDrive["Removable"], "not ejectable from inside the guest")
@@ -199,7 +198,7 @@ final class MaterialsAttachmentTests: XCTestCase {
         XCTAssertEqual(repaired["ReadOnly"] as? Bool, true, "read-only is restored")
         XCTAssertEqual(repaired["ImageType"] as? String, "CD",
                        "repair must reassert what attach wrote, or it undoes it")
-        XCTAssertEqual(repaired["Interface"] as? String, "USB")
+        XCTAssertEqual(repaired["Interface"] as? String, "SCSI")
         XCTAssertNil(repaired["Removable"])
     }
 

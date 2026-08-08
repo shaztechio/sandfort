@@ -22,7 +22,7 @@ why: guest-to-host is impossible *by construction*. It does not depend on
 promise UTM makes. `ReadOnly: true`, reasserted on every state read, adds that
 the guest cannot write to the copy either.
 
-## Why optical media on USB
+## Why optical media on SCSI
 
 The obvious implementation — another VirtIO disk, like the NoCloud seed — makes
 the volume nearly unreachable. `udisks2` decides whether something is removable
@@ -30,13 +30,24 @@ from its bus, and a virtio-blk device has no hotpluggable one, so GNOME classes
 it as an internal system drive: buried under "Other Locations", never
 auto-mounted, and not what anyone would call clicking a file.
 
-`ImageType: "CD"` with `Interface: "USB"` is unambiguously removable media, and
-the desktop offers it in the sidebar.
+`ImageType: "CD"` is unambiguously removable media, and the desktop offers it in
+the sidebar.
 
-The seed ISO was deliberately moved *off* USB, because media can appear after
-cloud-init has already searched for NoCloud data. That timing does not apply
-here: materials are wanted when someone is sitting at the desktop, not during
-early boot.
+**The interface was measured, not chosen.** USB was tried first and worked on
+Ubuntu — but on Debian the device was never enumerated at all: `lsblk -f` showed
+the VirtIO seed as `vdb iso9660 CIDATA` and no optical device whatsoever. Two of
+the four guests could not have seen materials however their desktop was
+configured. A virtio-scsi CD-ROM is still genuine removable optical media, and it
+rides the transport every one of these cloud kernels already uses for its root
+disk.
+
+That failure was nearly misdiagnosed. openSUSE failed first, and its package list
+lacks `gvfs` — exactly the shape of the two defects that profile has already
+shipped, where `patterns-gnome-gnome` omitted a browser and then a terminal. The
+fix would have been a guest-side package addition costing every openSUSE user a
+rebuild. Debian failing too is what ruled it out, since `task-gnome-desktop`
+brings complete desktop plumbing: two profiles failing where one has `gvfs`
+cannot be about `gvfs`.
 
 ## Limits, and why they are what they are
 
@@ -113,9 +124,15 @@ sudo mount -o ro /dev/disk/by-label/SANDFORT_MATERIALS /mnt
 ## What is verified, and what is not
 
 Verified on a live run against **UTM 5.0.4** with **Ubuntu 24.04**: the drive is
-accepted, the guest exposes an ISO 9660 volume labelled `SANDFORT_MATERIALS`, it
-appears as a CD in the GNOME Files sidebar, and **Resume alone picks it up** with
-UTM already running — no quit, no re-import.
+accepted as a SCSI CD, the guest exposes an ISO 9660 volume labelled
+`SANDFORT_MATERIALS`, and it appears as a CD in the GNOME Files sidebar with the
+expected contents.
+
+**Attaching** materials to a stopped instance needs only a Resume — UTM picks up
+a newly added drive. **Changing how an existing drive is attached** does not:
+UTM caches a VM's configuration, and an interface change is invisible to it until
+the app is quit and relaunched. That distinction cost an afternoon of measuring
+against stale state.
 
 Not yet verified, and recorded as such in `utm-version-audit.md` rather than
 assumed:

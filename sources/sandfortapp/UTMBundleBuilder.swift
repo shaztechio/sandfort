@@ -191,20 +191,21 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             drives.append([
                 "Identifier": UUID().uuidString.uppercased(),
                 "ImageName": Self.materialsImageName,
-                // Optical media on a USB bus, not a plain VirtIO disk, and the
-                // difference is the whole user experience. udisks2 decides
-                // "removable" from the bus, and a virtio-blk device has no
-                // hotpluggable one — so it is classed as an internal system
-                // drive, which GNOME Files buries under "Other Locations" and
-                // never auto-mounts. A USB CD-ROM is unambiguously removable
-                // media, which is what makes it appear and be clickable.
+                // Optical media, not a plain disk: udisks2 decides "removable"
+                // from the bus, and a virtio-blk device has no hotpluggable one,
+                // so it is classed as an internal system drive that GNOME Files
+                // buries under "Other Locations" and never offers.
                 //
-                // The seed ISO was deliberately moved *off* USB because media
-                // can appear after cloud-init has already searched for NoCloud
-                // data. That timing does not apply here: materials are wanted
-                // when someone is sitting at the desktop, not during early boot.
+                // SCSI rather than USB, and that was measured rather than
+                // chosen. On USB the drive reached Ubuntu but was never
+                // enumerated at all on Debian — `lsblk -f` showed the VirtIO
+                // seed and no optical device — so two of the four guests could
+                // not see materials however the desktop was configured. A
+                // virtio-scsi CD-ROM is still genuine removable optical media,
+                // and it uses the transport every one of these cloud kernels
+                // already relies on for its root disk.
                 "ImageType": "CD",
-                "Interface": "USB",
+                "Interface": "SCSI",
                 "InterfaceVersion": 1,
                 "ReadOnly": true
             ])
@@ -297,7 +298,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
                     // next state read, since `currentState()` repairs every
                     // instance every time it runs.
                     drives[index]["ImageType"] = "CD"
-                    drives[index]["Interface"] = "USB"
+                    drives[index]["Interface"] = "SCSI"
                     drives[index]["InterfaceVersion"] = 1
                     drives[index]["ReadOnly"] = true
                 }

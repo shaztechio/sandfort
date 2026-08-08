@@ -463,19 +463,41 @@ verified against 4.7.5 only.**
 Added after the audit's first pass, and the only claim here established by a
 **live run** rather than by reading.
 
-**Verified against UTM 5.0.4, Ubuntu 24.04, on 2026-08-08.** A third `Drive`
-entry with `ImageType: "CD"`, `Interface: "USB"`, `InterfaceVersion: 1`,
-`ReadOnly: true`, and an image inside the bundle:
+**Verified against UTM 5.0.4, Ubuntu 24.04, on 2026-08-08**, with
+`Interface: "USB"`. A third `Drive` entry with `ImageType: "CD"`,
+`InterfaceVersion: 1`, `ReadOnly: true`, and an image inside the bundle:
 
 - UTM accepts the bundle and does not reorder or renumber the existing two drives.
 - The guest exposes an ISO 9660 volume labelled `SANDFORT_MATERIALS`.
 - GNOME Files shows it in the sidebar as a CD.
-- **Resume alone picks it up** with UTM already running — no quit, no
-  re-import, no cache to defeat. This was the open question, and it is closed.
+- A **newly attached** drive is picked up by Resume with UTM already running —
+  no quit, no re-import.
+
+**But UTM does cache a VM's configuration, and the distinction matters.** Resume
+reads a drive that has just been *added* to a stopped VM. It does **not** pick up
+an in-place *edit* of a drive UTM already knows about: changing this entry's
+interface from `USB` to `SCSI` left UTM's own settings still reporting
+`CD/DVD (ISO) Image (USB)` until the app was quit and relaunched. Anything
+measured in between was measured against stale state.
+
+So: adding materials needs only a Resume; changing how an existing drive is
+attached needs UTM restarted. An earlier version of this section claimed the
+stronger "no cache to defeat", generalised from the first case to both. It was
+wrong.
 
 The drive is deliberately not marked external: in UTM that means the image lives
 outside the bundle with a security-scoped bookmark, which is the opposite of what
 materials are.
+
+**USB does not work on every guest, and the interface changed because of it.**
+On Debian the drive was never enumerated: `lsblk -f` reported the VirtIO seed as
+`vdb iso9660 CIDATA` and no optical device at all. openSUSE showed nothing
+either. The interface is now `SCSI`, which keeps the drive as removable optical
+media while using the transport these kernels already use for the root disk.
+**Re-run against SCSI on Ubuntu 24.04, after quitting UTM:** the drive is listed
+as SCSI in UTM's own settings, the guest exposes it, and GNOME Files shows it as
+a CD with the expected contents. Debian and openSUSE with SCSI are still
+outstanding.
 
 **Still needs a live run:**
 
