@@ -43,7 +43,13 @@ are not equivalent, and the cloud images are trimmed differently:
 | `VirtIO` | `virtio-blk-pci`, `media=cdrom` | `virtio_blk` | present everywhere — it is the root disk — but a read-only block device, not a disc |
 
 So Ubuntu, Debian, and openSUSE use `SCSI` and get a disc the desktop offers.
-Fedora uses `VirtIO`: `lspci` in a Fedora guest showed the LSI controller present
+Fedora uses `VirtIO`, and pays for it: `udisks2` classes a virtio-blk device as
+an internal system drive, so mounting it needs polkit authorisation and the
+desktop asks for the sandbox password. Removable media does not. That is the
+trade — a volume that opens with one prompt, against one that could not be
+reached at all.
+
+Fedora uses `VirtIO` because: `lspci` in a Fedora guest showed the LSI controller present
 at `00:06.0` with nothing bound to it, and `modprobe sym53c8xx` reported the
 module missing outright. On SCSI the image was attached and **unreachable** —
 worse than absent, because everything Sandfort owns looked correct.

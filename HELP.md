@@ -104,7 +104,15 @@ Select an instance, then choose **Materials…** from the environment's actions 
 
 The instance must be **fully powered off**, not suspended — attaching rewrites its configuration, and Sandfort will not touch a VM whose disk is in use. Afterwards, **Resume** is enough; you do not need to reset, and resetting would throw away everything else in that instance to deliver a file you have already attached.
 
-Inside the guest, open **Files** and look for **SANDFORT_MATERIALS**. Ubuntu also shows it as a CD in the sidebar; on other distributions it appears in Files without a sidebar entry. Click it to open. From a terminal:
+Inside the guest, open **Files** and look for **SANDFORT_MATERIALS**, then click it to open. Where it appears, and whether opening it asks for anything, depends on the distribution:
+
+| | In Files | Opening it |
+| --- | --- | --- |
+| Ubuntu | as a CD in the sidebar | opens |
+| Debian, openSUSE | listed, no sidebar CD | opens |
+| Fedora | listed as a disk | asks for the sandbox password |
+
+Fedora asks because its image is carried on a different drive type — the one its kernel supports — which the desktop treats as an internal disk rather than removable media. The password is the guest password shown in Sandfort, which has a copy button. From a terminal:
 
 ```
 lsblk -f                     # look for an iso9660 volume, normally /dev/sr0
