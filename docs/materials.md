@@ -136,11 +136,11 @@ its configuration, and a suspended VM still holds its disk lock. Afterwards
 **Resume** is enough; resetting would discard everything else in that instance to
 deliver a file that is already attached.
 
-In the guest, open Files and look for `SANDFORT_MATERIALS`. Ubuntu lists it as a
-CD in the sidebar; Debian shows it in Files but not as a sidebar CD, which is a
-difference between Ubuntu's patched GNOME and stock upstream rather than anything
-about the drive — both guests enumerate the same device from the same
-configuration. From a terminal:
+In the guest, open Files and look for `SANDFORT_MATERIALS`. Ubuntu and openSUSE
+list it as a CD in the sidebar; Debian shows it in Files but not as a sidebar CD,
+which is a difference between Ubuntu's patched GNOME and stock upstream rather
+than anything about the drive — both guests enumerate the same device from the
+same configuration. From a terminal:
 
 ```sh
 lsblk -f
@@ -155,16 +155,27 @@ sudo mount -o ro /dev/disk/by-label/SANDFORT_MATERIALS /mnt
 
 ## What is verified, and what is not
 
-Verified on a live run against **UTM 5.0.4** with **Ubuntu 24.04**: the drive is
-accepted as a SCSI CD, the guest exposes an ISO 9660 volume labelled
-`SANDFORT_MATERIALS`, and it appears as a CD in the GNOME Files sidebar with the
-expected contents.
+Verified on live runs against **UTM 5.0.4** on all four profiles: the drive is
+accepted, the guest exposes an ISO 9660 volume labelled `SANDFORT_MATERIALS`, and
+the contents are readable. Presentation differs — Ubuntu and openSUSE show a CD
+in the GNOME Files sidebar, Debian lists it in Files without a sidebar entry, and
+Fedora carries it on USB because its kernel omits `sym53c8xx`.
+
+openSUSE needed `gvfs-backends` installed explicitly before Files would offer it
+at all: core `gvfs` does not carry the udisks2 volume monitor, so the disc was
+enumerated as `/dev/sr0` and the desktop showed nothing.
 
 **Attaching** materials to a stopped instance needs only a Resume — UTM picks up
 a newly added drive. **Changing how an existing drive is attached** does not:
 UTM caches a VM's configuration, and an interface change is invisible to it until
 the app is quit and relaunched. That distinction cost an afternoon of measuring
 against stale state.
+
+One openSUSE resume, taken immediately after a rebuild, started without the
+drive, and a second resume of the same instance showed it. The instance's state
+straddled the rebuild, so this is not evidence against the rule above; it is
+recorded because the failure is silent, and **Reset & Run Clean** always picks
+the drive up if a resume ever does not.
 
 Not yet verified, and recorded as such in `utm-version-audit.md` rather than
 assumed:

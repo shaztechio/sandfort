@@ -463,9 +463,24 @@ verified against 4.7.5 only.**
 Added after the audit's first pass, and the only claim here established by a
 **live run** rather than by reading.
 
-**Verified against UTM 5.0.4, Ubuntu 24.04, on 2026-08-08**, with
-`Interface: "USB"`. A third `Drive` entry with `ImageType: "CD"`,
-`InterfaceVersion: 1`, `ReadOnly: true`, and an image inside the bundle:
+**Verified against UTM 5.0.4 on all four profiles, 2026-08-08 and 2026-08-09.**
+A third `Drive` entry with `ImageType: "CD"`, `InterfaceVersion: 1`,
+`ReadOnly: true`, and an image inside the bundle is accepted everywhere, and the
+contents are readable in every guest. Presentation and transport differ:
+
+| Profile | Interface | In GNOME Files |
+| --- | --- | --- |
+| Ubuntu 24.04 | `SCSI` | CD in the sidebar |
+| openSUSE Leap 16 | `SCSI` | CD in the sidebar |
+| Debian 13 | `SCSI` | listed, no sidebar CD |
+| Fedora 44 | `USB` | listed as a CD |
+
+openSUSE additionally needed `gvfs-backends` installed explicitly. Without it the
+disc enumerated as `/dev/sr0` and the desktop offered nothing at all, because
+core `gvfs` does not carry the udisks2 volume monitor. That is a guest packaging
+gap, not a UTM behaviour.
+
+The Ubuntu run below was the original, taken with `Interface: "USB"`:
 
 - UTM accepts the bundle and does not reorder or renumber the existing two drives.
 - The guest exposes an ISO 9660 volume labelled `SANDFORT_MATERIALS`.
