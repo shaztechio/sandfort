@@ -65,9 +65,13 @@ enum ISO9660Writer {
             throw SandboxError.invalidISOImage(reason)
         }
 
-        let volume = volumeName.uppercased()
-        guard (1...maximumVolumeNameBytes).contains(volume.utf8.count),
-              volume.allSatisfy(isDCharacter) else {
+        // Validated as given, not as uppercased. Checking the uppercased form
+        // lets non-ASCII through whenever uppercasing happens to produce
+        // d-characters — "ß" becomes "SS", which passes a check the original
+        // would fail. The writer still uppercases when it encodes; this decides
+        // what a caller is allowed to hand over.
+        guard (1...maximumVolumeNameBytes).contains(volumeName.utf8.count),
+              volumeName.allSatisfy(isVolumeNameCharacter) else {
             try fail("the volume name must be 1 to \(maximumVolumeNameBytes) characters of A–Z, 0–9, or _")
         }
         guard !entries.isEmpty else { try fail("an image needs at least one file") }
@@ -170,6 +174,14 @@ enum ISO9660Writer {
         return 33 + identifierBytes + padding + systemUse
     }
 
+    /// What a caller may put in a volume name: ASCII letters in either case,
+    /// digits, and underscore. The writer uppercases when it encodes, so a
+    /// lowercase name is accepted — `cidata` is one — but a character that is
+    /// only ASCII *after* uppercasing is not.
+    private static func isVolumeNameCharacter(_ character: Character) -> Bool {
+        character.isASCII && (character.isLetter || character.isNumber || character == "_")
+    }
+
     /// ISO 9660 d-characters, the only ones valid in a volume identifier.
     private static func isDCharacter(_ character: Character) -> Bool {
         character.isASCII && (character.isUppercase || character.isNumber || character == "_")
@@ -183,7 +195,12 @@ enum ISO9660Writer {
         guard parts.count <= 2 else { return false }
         guard (1...8).contains(parts[0].count), parts[0].allSatisfy(isDCharacter) else { return false }
         if parts.count == 2 {
-            guard parts[1].count <= 3, parts[1].allSatisfy(isDCharacter) else { return false }
+            // A dot with nothing after it — "NAME.;1" — is not an extension.
+            // `allSatisfy` is vacuously true on the empty string, so the count
+            // has to be checked from both ends.
+            guard (1...3).contains(parts[1].count), parts[1].allSatisfy(isDCharacter) else {
+                return false
+            }
         }
         return true
     }

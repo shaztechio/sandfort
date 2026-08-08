@@ -125,7 +125,9 @@ final class ISO9660WriterHardeningTests: XCTestCase {
     }
 
     func testMalformedIdentifiersAreRejected() {
-        for bad in ["lowercase;1", "NOVERSION", "TOOLONGIDENT;1", "SPACE D;1", ";1", "OK;2"] {
+        // "NAME.;1" is the subtle one: `allSatisfy` is vacuously true on an
+        // empty extension, so a trailing dot used to pass.
+        for bad in ["lowercase;1", "NOVERSION", "TOOLONGIDENT;1", "SPACE D;1", ";1", "OK;2", "NAME.;1"] {
             assertRejects(entries: [entry(identifier: bad)], "\(bad) is not a valid identifier")
         }
     }
@@ -145,7 +147,9 @@ final class ISO9660WriterHardeningTests: XCTestCase {
     }
 
     func testAMalformedVolumeNameIsRejected() {
-        for bad in ["", String(repeating: "V", count: 33), "has space", "lower🎉"] {
+        // "ß" is the subtle one: it uppercases to "SS", so validating the
+        // uppercased form would have accepted a character that is not ASCII.
+        for bad in ["", String(repeating: "V", count: 33), "has space", "lower🎉", "ß", "café"] {
             assertRejects(bad, entries: [entry()], "\(bad.debugDescription) is not a valid volume name")
         }
     }
