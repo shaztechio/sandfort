@@ -474,6 +474,9 @@ actor SandfortWorkflow {
         state.replaceInstances(instances + [instance])
         try save(state)
         event(.log("Sandbox Instance \(number) is independent from the other instances and can run at the same time."))
+        describeLaunch(
+            of: instance, state: state, profile: profile, network: .chosen(networkMode), event: event
+        )
         event(.phase("Opening Sandbox Instance \(number) in UTM…"))
         await launchVirtualMachine(destination, name, { event(.log($0)) })
         return state
@@ -746,11 +749,21 @@ actor SandfortWorkflow {
         if instance.hasMaterials {
             try reattachStoredMaterials(to: instance, at: bundle, profile: profile, event: event)
         }
+        // Read the instance back: re-attaching may have cleared a materials
+        // record whose stored image had gone missing, and the summary must
+        // describe what is actually about to run.
+        let described = currentState()?.resolvedInstances.first { $0.number == instanceNumber } ?? instance
+        describeLaunch(
+            of: described, state: state, profile: profile, network: .chosen(networkMode), event: event
+        )
         event(.phase("Opening Sandbox Instance \(instanceNumber) in UTM…"))
         await launchVirtualMachine(bundle, instance.vmName, { event(.log($0)) })
     }
 
-    func resumeInstance(instanceNumber: Int) async throws {
+    func resumeInstance(
+        instanceNumber: Int,
+        event: @escaping @Sendable (WorkflowEvent) -> Void = { _ in }
+    ) async throws {
         guard let state = currentState() else { throw SandboxError.sandboxNotCreated }
         guard state.stage == .ready else { throw SandboxError.setupNotComplete }
         guard let instance = state.resolvedInstances.first(where: { $0.number == instanceNumber }) else {
@@ -768,7 +781,24 @@ actor SandfortWorkflow {
         // Reasserting here, and failing if it cannot, is the whole guarantee.
         let profile = try guestProfile(for: state)
         try provider.repairBundle(at: bundle, profile: profile, role: .cleanInstance)
-        await launchVirtualMachine(bundle, instance.vmName, { _ in })
+        describeLaunch(of: instance, state: state, profile: profile, network: .preserved, event: event)
+        event(.phase("Opening \(instance.displayTitle) in UTM…"))
+        await launchVirtualMachine(bundle, instance.vmName, { event(.log($0)) })
+    }
+
+    /// Says what the instance carries, on every path that starts one.
+    private func describeLaunch(
+        of instance: SandboxInstance,
+        state: SandboxState,
+        profile: LinuxGuestProfile,
+        network: InstanceLaunchSummary.Network,
+        event: @escaping @Sendable (WorkflowEvent) -> Void
+    ) {
+        for line in InstanceLaunchSummary.lines(
+            instance: instance, profile: profile, tools: state.tools, network: network
+        ) {
+            event(.log(line))
+        }
     }
 
     /// Which VMs in scope are running, by display name.

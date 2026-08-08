@@ -364,7 +364,10 @@ final class SandfortViewModel: ObservableObject {
         let number = selectedInstanceNumber
         guard let selection = selectedSelection else { return }
         perform {
-            try await selection.workflow.resumeInstance(instanceNumber: number)
+            try await selection.workflow.resumeInstance(
+                instanceNumber: number,
+                event: self.eventHandler
+            )
             await self.update(
                 status: "Resuming Sandbox Instance \(number)",
                 message: "UTM is reopening Instance \(number) without restoring the baseline. Its previous files, processes, and network configuration remain in place."
