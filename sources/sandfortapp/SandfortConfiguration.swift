@@ -140,6 +140,10 @@ enum SandboxError: LocalizedError {
     /// underneath the app, which is a different thing to tell a user.
     case imageChangedBeforeUse(expected: String, actual: String)
     case invalidCloudDisk(String)
+    /// A NoCloud or materials image could not be built from what it was given.
+    /// Kept distinct from `invalidCloudDisk`, whose text blames a download —
+    /// this one is about input the app or the user supplied.
+    case invalidISOImage(String)
     case alreadyExists
     case sandboxNotCreated
     case setupNotComplete
@@ -172,6 +176,8 @@ enum SandboxError: LocalizedError {
             return "The verified Linux image changed before it could be used (expected SHA-256 \(expected), found \(actual)). No virtual machine was created. Another program on this Mac may be modifying Sandfort's image cache; if this repeats, treat the Mac as compromised rather than retrying."
         case let .invalidCloudDisk(reason):
             return "The downloaded cloud disk is invalid: \(reason)"
+        case let .invalidISOImage(reason):
+            return "That disc image could not be created: \(reason)"
         case .alreadyExists:
             return "A sandbox already exists. Use Rebuild if you want to replace it."
         case .sandboxNotCreated:

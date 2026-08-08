@@ -312,8 +312,11 @@ enum OpenSUSECloudInit {
         local-hostname: sandfort
         """
         return try ISO9660Writer.make(volumeName: "cidata", files: [
-            ("user-data", Data(userData.utf8)),
-            ("meta-data", Data(metaData.utf8))
+            // Identifiers are supplied rather than assigned by position; these
+            // are the exact two the previous index-based code produced, so the
+            // seed image's bytes are unchanged.
+            .init(isoIdentifier: "USER_DAT;1", name: "user-data", data: Data(userData.utf8)),
+            .init(isoIdentifier: "META_DAT;1", name: "meta-data", data: Data(metaData.utf8))
         ])
     }
 }
