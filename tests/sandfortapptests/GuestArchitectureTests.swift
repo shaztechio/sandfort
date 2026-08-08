@@ -194,6 +194,7 @@ final class GuestArchitectureTests: XCTestCase {
             utmFirmwareVarsName: "edk2-i386-vars.fd",
             serialConsoleDevice: "ttyS0",
             linuxArchiveArchitecture: "x64",
+                materialsInterface: "SCSI",
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64
@@ -271,6 +272,7 @@ final class GuestArchitectureTests: XCTestCase {
                 utmFirmwareVarsName: "edk2-i386-vars.fd",
                 serialConsoleDevice: "ttyS0",
                 linuxArchiveArchitecture: "x64",
+                materialsInterface: "SCSI",
                 memoryMiB: 4096,
                 cpuCount: 4,
                 diskSizeGiB: 64
@@ -367,6 +369,7 @@ final class GuestArchitectureTests: XCTestCase {
                 utmFirmwareVarsName: "edk2-arm-vars.fd",
                 serialConsoleDevice: "ttyS0",
                 linuxArchiveArchitecture: "x64",
+                materialsInterface: "SCSI",
                 memoryMiB: 4096,
                 cpuCount: 4,
                 diskSizeGiB: 64

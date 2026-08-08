@@ -471,6 +471,7 @@ actor SandfortWorkflow {
     private func reattachStoredMaterials(
         to instance: SandboxInstance,
         at bundle: URL,
+        profile: LinuxGuestProfile,
         event: @escaping @Sendable (WorkflowEvent) -> Void
     ) throws {
         let stored = materialsImageURL(forInstance: instance.number)
@@ -489,7 +490,7 @@ actor SandfortWorkflow {
             byteCount: instance.materialsByteCount ?? 0,
             payloadIsArchive: instance.materialsIsArchive ?? false
         )
-        try provider.attachMaterials(image, to: bundle)
+        try provider.attachMaterials(image, to: bundle, profile: profile)
         event(.log(
             "Re-attached \(image.displayName) — the image approved earlier, not a fresh copy of its source."
         ))
@@ -531,6 +532,9 @@ actor SandfortWorkflow {
         // under a live VM.
         try provider.ensureBundleNotRunning(at: bundle)
 
+        // The interface the image is attached on comes from the profile, so it
+        // has to be the resolved one rather than a process-wide default.
+        let profile = try guestProfile(for: state)
         event(.phase("Preparing materials for Instance \(number)…"))
         let image = try MaterialsPackager.pack(contentsOf: source)
         try fileManager.createDirectory(at: materialsRootURL, withIntermediateDirectories: true)
@@ -539,7 +543,7 @@ actor SandfortWorkflow {
         try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: stored.path)
 
         do {
-            try provider.attachMaterials(image, to: bundle)
+            try provider.attachMaterials(image, to: bundle, profile: profile)
         } catch {
             // Nothing half-attached: a store entry with no drive would be
             // re-attached by the next Reset, quietly reintroducing materials the
@@ -747,7 +751,7 @@ actor SandfortWorkflow {
         // back the image the user approved — not the current contents of wherever
         // it came from, which may be something else entirely by now.
         if instance.hasMaterials {
-            try reattachStoredMaterials(to: instance, at: bundle, event: event)
+            try reattachStoredMaterials(to: instance, at: bundle, profile: profile, event: event)
         }
         event(.phase("Opening Sandbox Instance \(instanceNumber) in UTM…"))
         await launchVirtualMachine(bundle, instance.vmName, { event(.log($0)) })

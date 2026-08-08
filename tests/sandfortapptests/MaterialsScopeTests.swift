@@ -47,7 +47,8 @@ final class MaterialsScopeTests: XCTestCase {
         ) throws {}
         func setDisplayName(_ name: String, at bundleURL: URL) throws {}
         func repairBundle(at bundleURL: URL, profile: LinuxGuestProfile, role: VirtualMachineRole) throws {}
-        func attachMaterials(_ image: MaterialsImage, to bundleURL: URL) throws {
+        func attachMaterials(_ image: MaterialsImage, to bundleURL: URL,
+                             profile: LinuxGuestProfile) throws {
             if attachShouldFail { throw CocoaError(.fileWriteNoPermission) }
             attached.append((image.displayName, bundleURL.lastPathComponent))
         }

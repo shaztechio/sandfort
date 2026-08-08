@@ -46,6 +46,22 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
         /// and a wrong one fails inside the guest half an hour into a baseline
         /// build rather than at compile time.
         let linuxArchiveArchitecture: String
+
+        /// Which UTM drive interface carries the materials image.
+        ///
+        /// Per distribution because the cloud images are trimmed differently and
+        /// UTM's interfaces are not equivalent. `SCSI` emits an LSI 53c895a
+        /// controller and a `scsi-cd`, which is genuine optical media the desktop
+        /// offers — but it needs `sym53c8xx`, which Fedora Cloud Base does not
+        /// ship at all. `VirtIO` emits `virtio-blk-pci` with `media=cdrom`,
+        /// which every one of these guests can read because it is how their root
+        /// disk works, at the cost of being a read-only block device rather than
+        /// a disc.
+        ///
+        /// Measured, not assumed: `lspci` in a Fedora guest showed the LSI
+        /// controller present at 00:06.0 with nothing bound to it, and
+        /// `modprobe sym53c8xx` reported the module missing.
+        let materialsInterface: String
         let memoryMiB: Int
         let cpuCount: Int
         let diskSizeGiB: UInt64
@@ -157,6 +173,7 @@ enum LinuxGuestCatalog {
             utmFirmwareVarsName: "edk2-arm-vars.fd",
             serialConsoleDevice: "ttyAMA0",
             linuxArchiveArchitecture: "arm64",
+            materialsInterface: "SCSI",
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64
@@ -183,6 +200,7 @@ enum LinuxGuestCatalog {
             utmFirmwareVarsName: "edk2-arm-vars.fd",
             serialConsoleDevice: "ttyAMA0",
             linuxArchiveArchitecture: "arm64",
+            materialsInterface: "VirtIO",  // no sym53c8xx in Fedora Cloud Base
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64
@@ -209,6 +227,7 @@ enum LinuxGuestCatalog {
             utmFirmwareVarsName: "edk2-arm-vars.fd",
             serialConsoleDevice: "ttyAMA0",
             linuxArchiveArchitecture: "arm64",
+            materialsInterface: "SCSI",
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64
@@ -235,6 +254,7 @@ enum LinuxGuestCatalog {
             utmFirmwareVarsName: "edk2-arm-vars.fd",
             serialConsoleDevice: "ttyAMA0",
             linuxArchiveArchitecture: "arm64",
+            materialsInterface: "SCSI",
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64

@@ -22,7 +22,7 @@ why: guest-to-host is impossible *by construction*. It does not depend on
 promise UTM makes. `ReadOnly: true`, reasserted on every state read, adds that
 the guest cannot write to the copy either.
 
-## Why optical media on SCSI
+## Why optical media, and why the interface differs per distribution
 
 The obvious implementation — another VirtIO disk, like the NoCloud seed — makes
 the volume nearly unreachable. `udisks2` decides whether something is removable
@@ -33,7 +33,22 @@ auto-mounted, and not what anyone would call clicking a file.
 `ImageType: "CD"` is unambiguously removable media, and the desktop offers it in
 the sidebar.
 
-**The interface was measured, not chosen.** USB was tried first and worked on
+**The interface is per profile, and every value was measured.** UTM's interfaces
+are not equivalent, and the cloud images are trimmed differently:
+
+| UTM interface | QEMU emits | Needs | Result |
+| --- | --- | --- | --- |
+| `SCSI` | `lsi53c895a` + `scsi-cd` | `sym53c8xx` | real optical media; **absent in Fedora Cloud Base** |
+| `USB` | `usb-storage` | `usb_storage` | not enumerated on Debian |
+| `VirtIO` | `virtio-blk-pci`, `media=cdrom` | `virtio_blk` | present everywhere — it is the root disk — but a read-only block device, not a disc |
+
+So Ubuntu, Debian, and openSUSE use `SCSI` and get a disc the desktop offers.
+Fedora uses `VirtIO`: `lspci` in a Fedora guest showed the LSI controller present
+at `00:06.0` with nothing bound to it, and `modprobe sym53c8xx` reported the
+module missing outright. On SCSI the image was attached and **unreachable** —
+worse than absent, because everything Sandfort owns looked correct.
+
+**The earlier reasoning, kept because the reversal is the point.** USB was tried first and worked on
 Ubuntu — but on Debian the device was never enumerated at all: `lsblk -f` showed
 the VirtIO seed as `vdb iso9660 CIDATA` and no optical device whatsoever. Two of
 the four guests could not have seen materials however their desktop was

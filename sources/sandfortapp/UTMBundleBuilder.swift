@@ -160,7 +160,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
     /// would leave the guest reading whichever UTM enumerated first, which is
     /// not a thing to leave to chance when the user has just chosen what should
     /// be there.
-    func attachMaterials(_ image: MaterialsImage, to bundleURL: URL) throws {
+    func attachMaterials(_ image: MaterialsImage, to bundleURL: URL, profile: LinuxGuestProfile) throws {
         try ensureBundleNotRunning(at: bundleURL)
         let configURL = bundleURL.appendingPathComponent("config.plist")
         let data = try Data(contentsOf: configURL)
@@ -196,16 +196,16 @@ struct UTMBundleBuilder: VirtualMachineProvider {
                 // so it is classed as an internal system drive that GNOME Files
                 // buries under "Other Locations" and never offers.
                 //
-                // SCSI rather than USB, and that was measured rather than
-                // chosen. On USB the drive reached Ubuntu but was never
-                // enumerated at all on Debian — `lsblk -f` showed the VirtIO
-                // seed and no optical device — so two of the four guests could
-                // not see materials however the desktop was configured. A
-                // virtio-scsi CD-ROM is still genuine removable optical media,
-                // and it uses the transport every one of these cloud kernels
-                // already relies on for its root disk.
+                // The interface comes from the profile because the guests are
+                // not equivalent, and each value here was measured. UTM's SCSI
+                // emits an LSI 53c895a with a scsi-cd — real optical media the
+                // desktop offers — but Fedora Cloud Base ships no sym53c8xx, so
+                // the controller sits on the bus with nothing bound to it and no
+                // device node ever appears. Its VirtIO emits virtio-blk-pci with
+                // media=cdrom, which every one of these guests can read because
+                // it is how their root disk works.
                 "ImageType": "CD",
-                "Interface": "SCSI",
+                "Interface": profile.hardware.materialsInterface,
                 "InterfaceVersion": 1,
                 "ReadOnly": true
             ])
@@ -298,7 +298,9 @@ struct UTMBundleBuilder: VirtualMachineProvider {
                     // next state read, since `currentState()` repairs every
                     // instance every time it runs.
                     drives[index]["ImageType"] = "CD"
-                    drives[index]["Interface"] = "SCSI"
+                    // Must match what `attachMaterials` wrote, or repair undoes
+                    // the attach on the next state read.
+                    drives[index]["Interface"] = profile.hardware.materialsInterface
                     drives[index]["InterfaceVersion"] = 1
                     drives[index]["ReadOnly"] = true
                 }

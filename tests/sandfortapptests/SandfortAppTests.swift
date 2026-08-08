@@ -1265,6 +1265,7 @@ final class SandfortAppTests: XCTestCase {
                 utmFirmwareVarsName: "test-vars.fd",
                 serialConsoleDevice: "ttyTEST0",
                 linuxArchiveArchitecture: "test-arm64",
+                materialsInterface: "SCSI",
                 memoryMiB: 3072,
                 cpuCount: 2,
                 diskSizeGiB: 72

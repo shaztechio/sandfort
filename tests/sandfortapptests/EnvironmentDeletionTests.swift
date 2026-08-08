@@ -51,7 +51,8 @@ final class EnvironmentDeletionTests: XCTestCase {
             at bundleURL: URL, profile: LinuxGuestProfile, role: VirtualMachineRole
         ) throws {}
         /// Materials are a clean-instance concern; nothing here exercises them.
-        func attachMaterials(_ image: MaterialsImage, to bundleURL: URL) throws {}
+        func attachMaterials(_ image: MaterialsImage, to bundleURL: URL,
+                             profile: LinuxGuestProfile) throws {}
         func detachMaterials(from bundleURL: URL) throws {}
         func ensureBundleNotRunning(at bundleURL: URL) throws {}
     }
