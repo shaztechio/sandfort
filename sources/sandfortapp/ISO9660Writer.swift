@@ -17,13 +17,122 @@ import Foundation
 enum ISO9660Writer {
     private static let blockSize = 2048
 
-    static func make(volumeName: String, files: [(name: String, data: Data)]) throws -> Data {
-        precondition(!files.isEmpty)
+    /// Bounds are stated rather than emergent. Every one of them was previously
+    /// a trap or a silent overwrite reachable from a caller's input, which was
+    /// tolerable only while the sole inputs were cloud-init's two constants.
+    static let maximumEntries = 8
+    static let maximumNameBytes = 64
+    static let maximumVolumeNameBytes = 32
+    /// The size field is a `UInt32` in both endiannesses.
+    static let maximumFileBytes = Int(UInt32.max)
+
+    /// One file destined for the image.
+    ///
+    /// `isoIdentifier` is supplied rather than derived. It used to be assigned by
+    /// position — entry 0 got `USER_DAT;1` and everything else got `META_DAT;1` —
+    /// so a third file silently produced a duplicate identifier.
+    struct File {
+        let isoIdentifier: String
+        let name: String
+        let data: Data
+
+        init(isoIdentifier: String, name: String, data: Data) {
+            self.isoIdentifier = isoIdentifier
+            self.name = name
+            self.data = data
+        }
+    }
+
+    /// What `validate` needs: sizes are declared rather than held, so a bound can
+    /// be checked without allocating the payload it describes.
+    struct Entry {
+        let identifier: String
+        let name: String
+        let byteCount: Int
+
+        init(identifier: String, name: String, byteCount: Int) {
+            self.identifier = identifier
+            self.name = name
+            self.byteCount = byteCount
+        }
+    }
+
+    /// Rejects anything `make` could not encode. Separate from `make` because the
+    /// 4 GiB size bound is otherwise untestable: proving it through `make` would
+    /// mean allocating four gigabytes.
+    static func validate(volumeName: String, entries: [Entry]) throws {
+        func fail(_ reason: String) throws -> Never {
+            throw SandboxError.invalidISOImage(reason)
+        }
+
+        // Validated as given, not as uppercased. Checking the uppercased form
+        // lets non-ASCII through whenever uppercasing happens to produce
+        // d-characters — "ß" becomes "SS", which passes a check the original
+        // would fail. The writer still uppercases when it encodes; this decides
+        // what a caller is allowed to hand over.
+        guard (1...maximumVolumeNameBytes).contains(volumeName.utf8.count),
+              volumeName.allSatisfy(isVolumeNameCharacter) else {
+            try fail("the volume name must be 1 to \(maximumVolumeNameBytes) characters of A–Z, 0–9, or _")
+        }
+        guard !entries.isEmpty else { try fail("an image needs at least one file") }
+        guard entries.count <= maximumEntries else {
+            try fail("an image holds at most \(maximumEntries) files")
+        }
+
+        var seen = Set<String>()
+        for entry in entries {
+            guard isValidIdentifier(entry.identifier) else {
+                try fail("\"\(entry.identifier)\" is not a valid ISO 9660 identifier")
+            }
+            guard seen.insert(entry.identifier).inserted else {
+                try fail("two files share the identifier \"\(entry.identifier)\"")
+            }
+            let nameBytes = entry.name.utf8.count
+            guard (1...maximumNameBytes).contains(nameBytes), isValidName(entry.name) else {
+                try fail("\"\(entry.name)\" is not a usable file name")
+            }
+            guard (0...maximumFileBytes).contains(entry.byteCount) else {
+                try fail("\"\(entry.name)\" is too large for an ISO 9660 image")
+            }
+        }
+
+        // The root directory is declared as exactly one sector, and the writer
+        // does not bounds-check against it — overflowing it used to overwrite the
+        // first file's data with no trap and no error.
+        //
+        // The entry-count and name-length bounds above already make that
+        // unreachable: the largest directory they permit is about half a sector.
+        // This stays as the backstop for whoever raises one of those constants,
+        // and `testTheBoundsMakeADirectoryOverflowUnreachable` is what tells them
+        // the relationship existed.
+        let directoryBytes = directoryRecordLength(identifierBytes: 1, includeSUSP: true)
+            + directoryRecordLength(identifierBytes: 1)
+            + entries.reduce(0) {
+                $0 + directoryRecordLength(
+                    identifierBytes: $1.identifier.utf8.count,
+                    rockRidgeNameBytes: $1.name.utf8.count
+                )
+            }
+        guard directoryBytes <= blockSize else {
+            try fail("those file names do not fit in this image's directory")
+        }
+
+        let totalBlocks = entries.reduce(21) { $0 + max(1, blocks(for: $1.byteCount)) }
+        guard totalBlocks <= Int(UInt32.max) else { try fail("the image is too large") }
+    }
+
+    static func make(volumeName: String, files: [File]) throws -> Data {
+        try validate(
+            volumeName: volumeName,
+            entries: files.map {
+                Entry(identifier: $0.isoIdentifier, name: $0.name, byteCount: $0.data.count)
+            }
+        )
         let rootBlock = 20
         var nextBlock = rootBlock + 1
-        let entries = files.map { file -> (String, Data, Int) in
+        let entries = files.map { file -> (File, Int) in
             defer { nextBlock += max(1, blocks(for: file.data.count)) }
-            return (file.name, file.data, nextBlock)
+            return (file, nextBlock)
         }
         let totalBlocks = nextBlock
         var image = Data(repeating: 0, count: totalBlocks * blockSize)
@@ -36,20 +145,75 @@ enum ISO9660Writer {
         var directory = Data()
         directory.append(directoryRecord(identifier: Data([0]), extent: rootBlock, size: blockSize, isDirectory: true, includeSUSP: true))
         directory.append(directoryRecord(identifier: Data([1]), extent: rootBlock, size: blockSize, isDirectory: true))
-        for (index, entry) in entries.enumerated() {
+        for (file, extent) in entries {
             directory.append(directoryRecord(
-                identifier: Data((index == 0 ? "USER_DAT;1" : "META_DAT;1").utf8),
-                extent: entry.2,
-                size: entry.1.count,
+                identifier: Data(file.isoIdentifier.utf8),
+                extent: extent,
+                size: file.data.count,
                 isDirectory: false,
-                rockRidgeName: entry.0
+                rockRidgeName: file.name
             ))
         }
         replace(&image, at: rootBlock * blockSize, with: directory)
-        for entry in entries {
-            replace(&image, at: entry.2 * blockSize, with: entry.1)
+        for (file, extent) in entries {
+            replace(&image, at: extent * blockSize, with: file.data)
         }
         return image
+    }
+
+    /// The one place a record's length is computed, used by both `validate` and
+    /// the writer so the bound and the bytes cannot drift apart.
+    private static func directoryRecordLength(
+        identifierBytes: Int,
+        rockRidgeNameBytes: Int? = nil,
+        includeSUSP: Bool = false
+    ) -> Int {
+        var systemUse = includeSUSP ? 7 : 0
+        if let rockRidgeNameBytes { systemUse += 10 + rockRidgeNameBytes }
+        let padding = identifierBytes.isMultiple(of: 2) ? 1 : 0
+        return 33 + identifierBytes + padding + systemUse
+    }
+
+    /// What a caller may put in a volume name: ASCII letters in either case,
+    /// digits, and underscore. The writer uppercases when it encodes, so a
+    /// lowercase name is accepted — `cidata` is one — but a character that is
+    /// only ASCII *after* uppercasing is not.
+    private static func isVolumeNameCharacter(_ character: Character) -> Bool {
+        character.isASCII && (character.isLetter || character.isNumber || character == "_")
+    }
+
+    /// ISO 9660 d-characters, the only ones valid in a volume identifier.
+    private static func isDCharacter(_ character: Character) -> Bool {
+        character.isASCII && (character.isUppercase || character.isNumber || character == "_")
+    }
+
+    /// `NAME;1`, or `NAME.EXT;1` — 8.3 with a version suffix.
+    private static func isValidIdentifier(_ identifier: String) -> Bool {
+        guard identifier.hasSuffix(";1") else { return false }
+        let stem = identifier.dropLast(2)
+        let parts = stem.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count <= 2 else { return false }
+        guard (1...8).contains(parts[0].count), parts[0].allSatisfy(isDCharacter) else { return false }
+        if parts.count == 2 {
+            // A dot with nothing after it — "NAME.;1" — is not an extension.
+            // `allSatisfy` is vacuously true on the empty string, so the count
+            // has to be checked from both ends.
+            guard (1...3).contains(parts[1].count), parts[1].allSatisfy(isDCharacter) else {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// The Rock Ridge NM value is parsed by the guest kernel and becomes a
+    /// filename, so it is bounded hard rather than passed through. A separator or
+    /// a relative path in it is not a filename.
+    private static func isValidName(_ name: String) -> Bool {
+        guard name != ".", name != ".." else { return false }
+        return name.allSatisfy { character in
+            character.isASCII
+                && (character.isLetter || character.isNumber || character == "." || character == "_" || character == "-")
+        }
     }
 
     private static func writePrimaryDescriptor(

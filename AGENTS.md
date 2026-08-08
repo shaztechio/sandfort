@@ -70,6 +70,14 @@ without weakening the common provisioning policy.
   Leap revision 5 is production-supported.
 - `NativeDownloader.swift`, `DiskUtilities.swift`, `ISO9660Writer.swift`: native
   download, verification, disk manipulation, and NoCloud ISO generation.
+  `ISO9660Writer` validates before it writes, and every limit it states is load
+  bearing: a name is bounded at 64 bytes because two length fields are `UInt8`
+  and used to **trap**, a file at 4 GiB because the size field is `UInt32`, and
+  the entry count at 8 because together with the name bound it keeps the root
+  directory inside one sector — overflowing it silently overwrote the first
+  file's data. Raising any of those needs the others rechecked, not just the
+  constant edited. Identifiers are supplied by callers and must be unique;
+  assigning them by position is what let a third file collide with the second.
 - `OpenPGPSignatureVerifier.swift`: **security-critical.** Minimal OpenPGP
   detached-signature verifier used during profile intake, so a pinned checksum
   can be confirmed as a value the distribution actually signed without
