@@ -61,7 +61,11 @@ instances through Sandfort, and never run a Protected Baseline directly in UTM.
 
 Every instance creation and clean launch asks whether the guest gets Internet
 access. Offline is the default, and an Internet run still keeps shared folders,
-clipboard, USB sharing, and inbound port forwarding disabled. Rebuild, rename,
+clipboard, USB sharing, and inbound port forwarding disabled. To get a file that
+is already on your Mac into an offline sandbox, **Materials…** packs a file or
+folder into a read-only disc image attached to one instance; the guest reads a
+copy and cannot reach the original. The walkthrough is in the
+[Help guide](HELP.md). Rebuild, rename,
 and delete act only on the selected environment. Sign-in credentials, the
 permission macOS asks for the first time Sandfort drives UTM, and the rest of
 the day-to-day detail are in the [Help guide](HELP.md); the guarantees

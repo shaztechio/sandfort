@@ -155,6 +155,12 @@ final class SandfortViewModel: ObservableObject {
     /// app people demo and screenshot, and revealing it should be a decision.
     @Published var revealGuestPassword = false
     @Published var showBaselineTools = false
+    @Published var showMaterials = false
+    /// Why the last materials action failed, shown in the sheet.
+    ///
+    /// `perform` reports errors to the activity log, which the sheet covers — so
+    /// a failed attach looked exactly like nothing happening at all.
+    @Published var materialsError: String?
     /// Refreshed on launch, on Check My Mac, and after any operation, so
     /// installing UTM while Sandfort is open is noticed without a relaunch.
     @Published private(set) var utmIsMissing = false
@@ -362,6 +368,101 @@ final class SandfortViewModel: ObservableObject {
             await self.update(
                 status: "Resuming Sandbox Instance \(number)",
                 message: "UTM is reopening Instance \(number) without restoring the baseline. Its previous files, processes, and network configuration remain in place."
+            )
+        }
+    }
+
+    // MARK: - Materials
+
+    /// The selected instance, for the materials sheet to describe.
+    var selectedInstance: SandboxInstance? {
+        instances.first { $0.number == selectedInstanceNumber }
+    }
+
+    /// Materials are per instance and take effect on its next launch, so the
+    /// sheet is only meaningful when there is an instance to attach them to.
+    var canChooseMaterials: Bool {
+        stage == .ready && selectedInstance != nil && !isRunning
+    }
+
+    /// Opens a picker and attaches whatever is chosen to the selected instance.
+    ///
+    /// The panel accepts a file or a folder: a challenge arrives as either, and
+    /// making the user compress a folder first would be friction for no gain
+    /// since the packer does it with a system API.
+    func chooseMaterialsForSelectedInstance() {
+        let number = selectedInstanceNumber
+        // Not a silent return. Every other action in this file can afford one
+        // because the user sees the main window; this one runs behind a sheet,
+        // where doing nothing is indistinguishable from failing.
+        guard let selection = selectedSelection else {
+            materialsError = "No environment is selected, so there is nothing to attach materials to."
+            return
+        }
+        guard instances.contains(where: { $0.number == number }) else {
+            materialsError = "Instance \(number) is no longer listed. Close this sheet and select an instance."
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+        panel.prompt = "Send In"
+        panel.message = "Choose a file or folder to send into Sandbox Instance \(number). "
+            + "It is copied into a read-only disc image; the guest cannot change it or reach the original."
+        // This is the app's first file picker. Sandfort is not App Sandboxed, so
+        // no security-scoped bookmark is needed; adopting App Sandbox later, per
+        // docs/APP-STORE.md, would require
+        // com.apple.security.files.user-selected.read-only.
+        guard panel.runModal() == .OK, let source = panel.url else { return }  // cancelled
+        materialsError = nil
+        perform {
+            let state: SandboxState
+            do {
+                state = try await selection.workflow.attachMaterials(
+                    toInstance: number,
+                    from: source,
+                    event: self.eventHandler
+                )
+            } catch {
+                // Surfaced where the user is looking, then rethrown so the
+                // activity log and status line behave as they do everywhere else.
+                await self.showMaterialsError(error)
+                throw error
+            }
+            await self.apply(state, profile: selection.profile)
+            await self.update(
+                status: "Materials ready for Instance \(number)",
+                message: "\(source.lastPathComponent) is attached to Instance \(number) as a read-only disc image. "
+                    + "Launch or reset that instance to see it."
+            )
+        }
+    }
+
+    private func showMaterialsError(_ error: Error) {
+        materialsError = error.localizedDescription
+    }
+
+    func removeMaterialsFromSelectedInstance() {
+        let number = selectedInstanceNumber
+        guard let selection = selectedSelection else {
+            materialsError = "No environment is selected."
+            return
+        }
+        materialsError = nil
+        perform {
+            let state: SandboxState
+            do {
+                state = try await selection.workflow.removeMaterials(fromInstance: number)
+            } catch {
+                await self.showMaterialsError(error)
+                throw error
+            }
+            await self.apply(state, profile: selection.profile)
+            await self.update(
+                status: "Materials removed from Instance \(number)",
+                message: "The disc image was detached and deleted. Instance \(number) no longer has access to it."
             )
         }
     }
@@ -717,6 +818,12 @@ final class SandfortViewModel: ObservableObject {
         beginAddEnvironment(nextProfile)
     }
 
+    /// Test seam for `apply`, which is private and is where the header's
+    /// identity is decided.
+    func applyForTesting(_ state: SandboxState?, profile: LinuxGuestProfile) {
+        apply(state, profile: profile)
+    }
+
     private func apply(_ state: SandboxState?, profile fallbackProfile: LinuxGuestProfile) {
         if let state,
            let profile = try? SandfortWorkflow.resolveGuestProfile(
@@ -729,7 +836,16 @@ final class SandfortViewModel: ObservableObject {
            ) {
             guestProfile = profile
             selectedBaselineProfile = profile
-        } else if state == nil {
+        } else {
+            // Also when a state exists that this build cannot resolve — a
+            // baseline whose revision is no longer supported. That used to
+            // assign nothing, so the header kept the *previously selected*
+            // environment's name: openSUSE selected, Fedora on screen. The
+            // moment a user most needs to know which environment they are
+            // looking at is exactly when its baseline is out of date.
+            //
+            // The selection is always the right answer here, because the user
+            // just made it.
             guestProfile = fallbackProfile
             selectedBaselineProfile = fallbackProfile
         }

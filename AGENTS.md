@@ -37,6 +37,18 @@ without weakening the common provisioning policy.
   vendor downloads are checked against the vendor's published SHA-256, and VS
   Code uses the tarball so no third-party repository or key is added to a
   guest.
+- `MaterialsPackager.swift`: packs a user-chosen file or folder into the
+  read-only image a clean instance can be handed. A folder is archived by
+  `NSFileCoordinator`'s `.forUploading`, deliberately rather than by a hand-written
+  archive format. The 512 MiB limit is a memory bound, not a disk one — the ISO
+  is built whole in memory while the caller still holds the payload — so raising
+  it means streaming `ISO9660Writer` to a `FileHandle` first. Materials are
+  attached as `ImageType: "CD"` on the profile's `hardware.materialsInterface` —
+  `SCSI` for Ubuntu, Debian, and openSUSE, `USB` for Fedora, whose kernel omits
+  `sym53c8xx`. Never VirtIO: as a VirtIO disk the desktop classes them as an
+  internal system drive and never offers them.
+  `attachMaterials` and `repairBundle` must write the same drive shape, or repair
+  silently undoes the attach on the next state read. See `docs/materials.md`.
 - `MemorablePasswordWords.swift`: reviewed 2,048-word list behind the generated
   guest password. Its size is an entropy claim documented in
   `docs/password-strength.md` and enforced by tests; do not add, remove, or
@@ -67,7 +79,7 @@ without weakening the common provisioning policy.
   NetworkManager, firewalld, SELinux, security-patch timer, and completion
   policy. Leap's GNOME pattern pulls in neither a browser nor a terminal, unlike
   the other three desktop metapackages, so the profile installs both explicitly.
-  Leap revision 5 is production-supported.
+  Leap revision 8 is production-supported.
 - `NativeDownloader.swift`, `DiskUtilities.swift`, `ISO9660Writer.swift`: native
   download, verification, disk manipulation, and NoCloud ISO generation.
   `ISO9660Writer` validates before it writes, and every limit it states is load
@@ -225,9 +237,35 @@ All four profiles now verify that a terminal and a browser exist, through
   succeed while nothing usable is installed.
 - Keep the alternatives. Distributions disagree: Fedora ships Ptyxis, GNOME
   ships Console, the others ship Terminal.
-- openSUSE installs `gnome-terminal` and `MozillaFirefox` explicitly, because
-  its pattern provides neither. The other three inherit both from their desktop
-  metapackage and only verify them.
+- openSUSE installs `gnome-terminal`, `MozillaFirefox`, `nautilus`, `gvfs`,
+  `gvfs-backends`, and `udisks2` explicitly, because its pattern provides none of
+  them. Note `gvfs-backends` specifically: core `gvfs` does not carry the udisks2
+  volume monitor, so a desktop with `gvfs` and `nautilus` still shows **no
+  removable media at all**. Verify the capability rather than the package,
+  because a package name proves nothing about whether the thing a user needs is
+  present. The other three inherit them all from their desktop metapackage and
+  only verify them. This is now three separate revisions spent on the same
+  discovery — a browser, then a terminal, then a file manager — so assume
+  nothing arrives transitively on Leap and verify anything a user is expected to
+  click.
+
+**Search for a binary; never assert where it lives.** Revision 7's volume-monitor
+check named three plausible directories and Leap 16 uses a fourth,
+`/usr/libexec/gvfs/`. Every package installed correctly, the desktop was
+complete, and setup failed anyway after 143 seconds of work — the verification
+destroyed a good baseline and cost a 20–45 minute rebuild. **A check that can
+fail on a working guest is worse than the gap it closes.** Revision 8 uses
+`find … -type f -perm -u+x | grep -q .`, and `OpenSUSEVolumeMonitorCheckTests`
+executes the generated command against temporary trees in every known layout,
+including the one that broke, plus a missing and a non-executable case so
+loosening the check cannot quietly turn it into one that always passes.
+
+A failed setup is diagnosable from the host without booting the guest: the
+script's `set -x` trace lands in `/var/log/sandfort-setup.log` on disk, and
+`strings -a Data/sandfort.qcow2 | grep -a '\[Sandfort\]'` recovers it. Prefer
+that to a guest login — cloud-init's `runcmd` is once-per-instance, so a reboot
+leaves the console showing nothing at all, and the cloud image's GRUB has no
+timeout to interrupt.
 
 ### Deferred: remaining clean-instance boot time
 
@@ -455,6 +493,14 @@ Treat these as requirements, not optional defaults:
   did exactly this, and naming an instance "Baseline Setup" cleared
   `IsolateFromHost`. Roles are passed in by the caller, which always knows. Renaming must preserve
   the permanent number, bundle path, UUID, MAC address, disk, and UEFI state.
+- **UTM's `delete` command destroys data, not just a registration.** Its own
+  dictionary says "All data will be deleted, there is no confirmation!" — so it
+  removes the bundle from disk whenever UTM has that VM registered. `runClean`
+  may call it because it recreates the bundle immediately afterwards. Nothing
+  else may. Using it to make UTM re-read a configuration deleted a user's
+  instance during an attach, and the state record survived, so the app reported a
+  sandbox that no longer existed. If UTM's configuration cache needs busting,
+  quitting UTM is the remedy — losing an instance is never the smaller problem.
 - Keep instance deletion app-owned, recoverable through macOS Trash, and guarded
   by a disk-lock check. Never expose baseline deletion outside Rebuild, and never
   reuse a deleted instance number.

@@ -165,6 +165,29 @@ keychain profile:
 xcrun notarytool store-credentials sandfort --apple-id you@example.com --team-id TEAMID
 ```
 
+## Two permissions gate a first launch, not one
+
+The Apple Events entitlement below is the one that breaks a build silently, so it
+gets the long section. There is a second, and it is worth knowing before a
+release goes out.
+
+**App Management.** Creating a baseline copies UTM's UEFI variable store —
+`Contents/Resources/qemu/edk2-arm-vars.fd` — out of `/Applications/UTM.app` into
+the new VM bundle. macOS guards the inside of an app bundle, so it asks whether
+Sandfort may modify apps, even though this is a read and Sandfort writes nothing
+into UTM. Declining it does not degrade anything: `createSetupBundle` fails and
+no baseline is built.
+
+Unlike Apple Events, this needs no entitlement and cannot be pre-granted by
+signing. It is a user prompt either way. What signing changes is how *often* it
+appears: an ad-hoc `make app` build has no stable code identity, so macOS
+re-evaluates it on every rebuild and can ask again. A Developer ID build asks
+once.
+
+Worth checking on a clean Mac before announcing a release, because a user who
+declines sees a firmware error with no obvious connection to the dialog they
+dismissed.
+
 ## The Apple Events entitlement is load-bearing
 
 Notarization requires the hardened runtime, and the hardened runtime refuses to

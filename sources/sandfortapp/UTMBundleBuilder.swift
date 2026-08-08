@@ -160,7 +160,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
     /// would leave the guest reading whichever UTM enumerated first, which is
     /// not a thing to leave to chance when the user has just chosen what should
     /// be there.
-    func attachMaterials(_ image: MaterialsImage, to bundleURL: URL) throws {
+    func attachMaterials(_ image: MaterialsImage, to bundleURL: URL, profile: LinuxGuestProfile) throws {
         try ensureBundleNotRunning(at: bundleURL)
         let configURL = bundleURL.appendingPathComponent("config.plist")
         let data = try Data(contentsOf: configURL)
@@ -191,8 +191,25 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             drives.append([
                 "Identifier": UUID().uuidString.uppercased(),
                 "ImageName": Self.materialsImageName,
-                "ImageType": "Disk",
-                "Interface": "VirtIO",
+                // Optical media, not a plain disk: udisks2 decides "removable"
+                // from the bus, and a virtio-blk device has no hotpluggable one,
+                // so it is classed as an internal system drive that GNOME Files
+                // buries under "Other Locations" and never offers.
+                //
+                // The interface comes from the profile because the guests are
+                // not equivalent, and every value here was measured in a booted
+                // VM. SCSI emits an LSI 53c895a with a scsi-cd — real optical
+                // media the desktop offers — but Fedora Cloud Base ships no
+                // sym53c8xx, so the controller sits on the bus with nothing bound
+                // to it and no device node appears at all. USB emits usb-storage
+                // with removable=true, which is also removable media, so it
+                // mounts without polkit authorisation. VirtIO emits
+                // virtio-blk-pci with media=cdrom and works everywhere, but it is
+                // an internal system drive, so mounting it prompts for a
+                // password — which is why it is the fallback rather than the
+                // default.
+                "ImageType": "CD",
+                "Interface": profile.hardware.materialsInterface,
                 "InterfaceVersion": 1,
                 "ReadOnly": true
             ])
@@ -280,8 +297,14 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             for index in drives.indices {
                 drives[index].removeValue(forKey: "Removable")
                 if drives[index]["ImageName"] as? String == Self.materialsImageName {
-                    drives[index]["ImageType"] = "Disk"
-                    drives[index]["Interface"] = "VirtIO"
+                    // Must match what `attachMaterials` writes. Reasserting a
+                    // different shape here would silently undo the attach on the
+                    // next state read, since `currentState()` repairs every
+                    // instance every time it runs.
+                    drives[index]["ImageType"] = "CD"
+                    // Must match what `attachMaterials` wrote, or repair undoes
+                    // the attach on the next state read.
+                    drives[index]["Interface"] = profile.hardware.materialsInterface
                     drives[index]["InterfaceVersion"] = 1
                     drives[index]["ReadOnly"] = true
                 }

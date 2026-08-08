@@ -88,13 +88,15 @@ final class MaterialsAttachmentTests: XCTestCase {
         let root = try workspace()
         let instance = try bundle(in: root)
 
-        try builder.attachMaterials(try materials(), to: instance)
+        try builder.attachMaterials(try materials(), to: instance, profile: profile)
 
         let all = try drives(in: instance)
         XCTAssertEqual(all.count, 3, "the disk, the seed, and materials")
         let materialsDrive = try XCTUnwrap(all.first { $0["ImageName"] as? String == "materials.iso" })
-        XCTAssertEqual(materialsDrive["ImageType"] as? String, "Disk")
-        XCTAssertEqual(materialsDrive["Interface"] as? String, "VirtIO")
+        // Optical media so udisks2 treats it as removable, on SCSI because USB
+        // was not enumerated at all on Debian — measured, not assumed.
+        XCTAssertEqual(materialsDrive["ImageType"] as? String, "CD")
+        XCTAssertEqual(materialsDrive["Interface"] as? String, "SCSI")
         XCTAssertEqual(materialsDrive["InterfaceVersion"] as? Int, 1)
         XCTAssertEqual(materialsDrive["ReadOnly"] as? Bool, true, "the guest must not write to it")
         XCTAssertNil(materialsDrive["Removable"], "not ejectable from inside the guest")
@@ -115,8 +117,8 @@ final class MaterialsAttachmentTests: XCTestCase {
         let root = try workspace()
         let instance = try bundle(in: root)
 
-        try builder.attachMaterials(try materials(named: "first.zip"), to: instance)
-        try builder.attachMaterials(try materials(named: "second.zip"), to: instance)
+        try builder.attachMaterials(try materials(named: "first.zip"), to: instance, profile: profile)
+        try builder.attachMaterials(try materials(named: "second.zip"), to: instance, profile: profile)
 
         let all = try drives(in: instance)
         XCTAssertEqual(all.count, 3, "still one materials drive, not two")
@@ -157,11 +159,50 @@ final class MaterialsAttachmentTests: XCTestCase {
             )
         }
 
-        XCTAssertThrowsError(try self.builder.attachMaterials(try self.materials(), to: instance))
+        XCTAssertThrowsError(try self.builder.attachMaterials(try self.materials(), to: instance, profile: self.profile))
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: imageURL.path),
             "a failed attach must not leave the user's file in the bundle"
         )
+    }
+
+    /// The interface is per profile because the guests are not equivalent, and
+    /// getting it wrong is invisible until someone boots that distribution.
+    ///
+    /// Fedora Cloud Base ships no `sym53c8xx`, so UTM's SCSI interface leaves an
+    /// LSI controller on the bus with nothing bound to it and no device node ever
+    /// appears — the image is attached and unreachable. VirtIO rides the driver
+    /// every one of these guests uses for its root disk.
+    func testTheMaterialsInterfaceComesFromTheProfile() throws {
+        let root = try workspace()
+        for candidate in LinuxGuestCatalog.supportedProfiles {
+            let instance = try bundle(in: root, named: "\(candidate.id).utm")
+            try builder.attachMaterials(try materials(), to: instance, profile: candidate)
+            let drive = try XCTUnwrap(
+                try drives(in: instance).first { $0["ImageName"] as? String == "materials.iso" }
+            )
+            XCTAssertEqual(drive["ImageType"] as? String, "CD")
+            XCTAssertEqual(
+                drive["Interface"] as? String, candidate.hardware.materialsInterface,
+                "\(candidate.id) must get the interface its profile declares"
+            )
+        }
+    }
+
+    /// Fedora is the reason this field exists; pin it so a tidy-up cannot quietly
+    /// unify the four back to one value.
+    func testFedoraDoesNotUseTheSCSIInterface() {
+        let fedora = try? XCTUnwrap(
+            LinuxGuestCatalog.supportedProfiles.first { $0.id.contains("fedora") }
+        )
+        XCTAssertEqual(
+            fedora?.hardware.materialsInterface, "USB",
+            "SCSI needs sym53c8xx, which Fedora Cloud Base does not ship; USB keeps the "
+                + "drive removable, so mounting it needs no polkit authorisation"
+        )
+        for other in LinuxGuestCatalog.supportedProfiles where !other.id.contains("fedora") {
+            XCTAssertEqual(other.hardware.materialsInterface, "SCSI", "\(other.id)")
+        }
     }
 
     // MARK: - The drift that repairBundle exists to undo
@@ -172,7 +213,7 @@ final class MaterialsAttachmentTests: XCTestCase {
     func testRepairReassertsReadOnlyOnAnInstance() throws {
         let root = try workspace()
         let instance = try bundle(in: root)
-        try builder.attachMaterials(try materials(), to: instance)
+        try builder.attachMaterials(try materials(), to: instance, profile: profile)
 
         let configURL = instance.appendingPathComponent("config.plist")
         var plist = try XCTUnwrap(
@@ -194,6 +235,9 @@ final class MaterialsAttachmentTests: XCTestCase {
             try drives(in: instance).first { $0["ImageName"] as? String == "materials.iso" }
         )
         XCTAssertEqual(repaired["ReadOnly"] as? Bool, true, "read-only is restored")
+        XCTAssertEqual(repaired["ImageType"] as? String, "CD",
+                       "repair must reassert what attach wrote, or it undoes it")
+        XCTAssertEqual(repaired["Interface"] as? String, "SCSI")
         XCTAssertNil(repaired["Removable"])
     }
 
@@ -203,7 +247,7 @@ final class MaterialsAttachmentTests: XCTestCase {
         for role in [VirtualMachineRole.protectedBaseline, .setup] {
             let root = try workspace()
             let baseline = try bundle(in: root, named: "Baseline.utm")
-            try builder.attachMaterials(try materials(), to: baseline)
+            try builder.attachMaterials(try materials(), to: baseline, profile: profile)
 
             try builder.repairBundle(at: baseline, profile: profile, role: role)
 

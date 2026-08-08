@@ -55,7 +55,7 @@ protocol VirtualMachineProvider: Sendable {
     /// and deliberately without a default implementation: a provider that
     /// silently ignored materials would tell a user their files are in a sandbox
     /// that does not have them.
-    func attachMaterials(_ image: MaterialsImage, to bundleURL: URL) throws
+    func attachMaterials(_ image: MaterialsImage, to bundleURL: URL, profile: LinuxGuestProfile) throws
     /// Removes a materials image from a bundle: the drive entry **and** the file.
     ///
     /// The counterpart of `attachMaterials`, and not optional. Clearing the

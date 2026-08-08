@@ -41,10 +41,16 @@ enum OpenSUSECloudInit {
         // in. GNOME Terminal is requested explicitly so the desktop is usable.
         var packages = [
             "ca-certificates", "curl", "firewalld", "gdm", "git-core", "gnome-shell",
-            "gnome-terminal", "jq", "MozillaFirefox",
+            "gnome-terminal", "gvfs", "gvfs-backends", "jq", "MozillaFirefox",
             "MozillaFirefox-branding-openSUSE",
-            "NetworkManager", "patterns-gnome-gnome", "policycoreutils",
-            "qemu-guest-agent", "spice-vdagent"
+            // Leap's GNOME pattern declares no recommends, so a desktop built
+            // from it has no file manager — the third omission of that shape
+            // after the browser and the terminal. Without one there is no way to
+            // open anything from the desktop, materials included. gvfs and
+            // udisks2 are named explicitly for the same reason: nothing here can
+            // be assumed to arrive transitively.
+            "NetworkManager", "nautilus", "patterns-gnome-gnome", "policycoreutils",
+            "qemu-guest-agent", "spice-vdagent", "udisks2"
         ]
         if tools.python { packages += ["python313", "python313-pip"] }
         if tools.nodeJS { packages += ["xz"] }
@@ -59,6 +65,23 @@ enum OpenSUSECloudInit {
             "rpm -q spice-vdagent", "rpm -q firewalld",
             "rpm -q MozillaFirefox", "command -v firefox",
             "rpm -q gnome-terminal",
+            "rpm -q nautilus", "command -v nautilus",
+            "rpm -q gvfs", "rpm -q gvfs-backends", "rpm -q udisks2",
+            // The capability, not just the package. Core gvfs does not carry the
+            // udisks2 volume monitor, and without that binary Files shows no
+            // removable media at all — the drive is present and the desktop
+            // never offers it. Checking for the file is what makes a fifth
+            // missing piece fail here rather than after a 45-minute rebuild.
+            //
+            // Search for it rather than naming where it lives. The first version
+            // of this check listed three plausible paths and Leap uses a fourth,
+            // /usr/libexec/gvfs/ — so a baseline with every package correctly
+            // installed failed verification and threw away the rebuild. A check
+            // that can fail on a working guest is worse than the gap it closes,
+            // and the layout is not the thing being verified.
+            "find /usr/lib /usr/lib64 /usr/libexec -maxdepth 3 "
+                + "-name gvfs-udisks2-volume-monitor -type f -perm -u+x "
+                + "2>/dev/null | grep -q .",
             "test -x /usr/sbin/gdm"
         ]
         if tools.python {

@@ -85,6 +85,10 @@ struct EnvironmentDetailView: View {
             Menu {
                 Button("Development Tools…") { model.showBaselineTools = true }
                     .disabled(model.stage == .provisioning)
+                // Materials belong to the selected instance and take effect on
+                // its next launch, so this is only offered once there is one.
+                Button("Materials…") { model.showMaterials = true }
+                    .disabled(model.stage != .ready || model.selectedInstance == nil)
                 if model.stage != nil {
                     Divider()
                     Button("Rebuild \(model.guestProfile.distributionName)…") {
