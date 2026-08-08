@@ -132,6 +132,35 @@ enum MaterialsPackager {
         )
     }
 
+    /// Reconstitutes an image that is already in the materials store.
+    ///
+    /// This is what Reset re-attaches: the bytes the user looked at and
+    /// approved, not the current contents of the folder they came from. Those
+    /// are different things, and the difference is the whole reason a store
+    /// exists — pick `~/Downloads` in March, reset in June, and re-reading would
+    /// send a bank statement into a sandbox about to run hostile code.
+    static func stored(
+        at url: URL,
+        displayName: String,
+        sourcePath: String,
+        byteCount: Int,
+        payloadIsArchive: Bool
+    ) throws -> MaterialsImage {
+        do {
+            return MaterialsImage(
+                data: try Data(contentsOf: url, options: .mappedIfSafe),
+                displayName: displayName,
+                sourcePath: sourcePath,
+                byteCount: byteCount,
+                payloadIsArchive: payloadIsArchive
+            )
+        } catch {
+            throw SandboxError.materialsUnreadable(
+                "The stored materials image could not be read: \(error.localizedDescription)"
+            )
+        }
+    }
+
     // MARK: - Reading
 
     /// Checked from the file's reported size, before a byte is read. Reading

@@ -56,6 +56,25 @@ struct SandboxInstance: Codable, Identifiable, Sendable, Equatable {
     var vmName: String
     var label: String? = nil
 
+    /// What the user chose to send in, as display metadata.
+    ///
+    /// Optional so state written before materials existed still decodes, the
+    /// same pattern as `SandboxToolSelection.vsCode`. `materialsSourcePath` puts
+    /// a host path in `state.plist`; that file already holds the guest password,
+    /// so it is not a new exposure class, but it is worth saying out loud.
+    ///
+    /// None of this is ever used to rebuild an image. The packed image in the
+    /// materials store is the artifact of record, because re-reading a folder
+    /// months later would send in whatever is there now rather than what the
+    /// user approved.
+    var materialsDisplayName: String? = nil
+    var materialsSourcePath: String? = nil
+    var materialsByteCount: Int? = nil
+    var materialsPackedAt: Date? = nil
+    var materialsIsArchive: Bool? = nil
+
+    var hasMaterials: Bool { materialsDisplayName != nil }
+
     var displayTitle: String {
         guard let label, !label.isEmpty else { return "Sandbox Instance \(number)" }
         return "Sandbox Instance \(number) — \(label)"
