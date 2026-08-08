@@ -575,12 +575,21 @@ actor SandfortWorkflow {
         instances[index].materialsIsArchive = image.payloadIsArchive
         state.replaceInstances(instances)
         try save(state)
-        await forgetRegistrationSoUTMRereadsTheConfiguration(
-            instance: instances[index], event: event
-        )
         event(.log(
             "\(image.displayName) is attached to Instance \(number) as a read-only disc image. "
                 + "The guest reads a copy and cannot reach the original."
+        ))
+        // UTM caches a VM's configuration, so a newly attached drive may not
+        // appear until it re-reads the bundle. Quitting UTM is the remedy.
+        //
+        // It must NOT be UTM's `delete` command, which is what this used to do:
+        // that command is documented as "All data will be deleted, there is no
+        // confirmation!", and when UTM happened to have the instance registered
+        // it destroyed the bundle. `runClean` can call it safely only because it
+        // rebuilds the bundle immediately afterwards. There is no equivalent
+        // here, and losing an instance is far worse than a stale drive list.
+        event(.log(
+            "If the disc does not appear in the guest, quit UTM and launch this instance again."
         ))
         return state
     }
@@ -598,7 +607,6 @@ actor SandfortWorkflow {
             try provider.detachMaterials(from: bundle)
         }
         let state = try clearMaterialsRecord(forInstance: number)
-        await forgetRegistrationSoUTMRereadsTheConfiguration(instance: existing, event: { _ in })
         return state
     }
 
@@ -624,37 +632,6 @@ actor SandfortWorkflow {
         state.replaceInstances(instances)
         try save(state)
         return state
-    }
-
-    /// Drops the instance's UTM registration so the next launch re-imports the
-    /// bundle and reads the drive list again.
-    ///
-    /// UTM caches a VM's configuration. Adding or removing a drive by editing
-    /// `config.plist` is invisible to it until the VM is re-imported or the app
-    /// is relaunched, so attaching materials appeared to do nothing at all — the
-    /// image was in the bundle, the drive entry was in the plist, and UTM's own
-    /// settings still listed the old set. Observed on three of four
-    /// distributions before this existed.
-    ///
-    /// `runClean` has always been reliable for exactly this reason: it drops the
-    /// registration before rebuilding. This is the same move, made deliberate.
-    ///
-    /// Deliberately not fatal. The materials are attached and recorded by the
-    /// time this runs; failing here would report the whole operation as failed
-    /// when only the cache-busting did not happen. The user is told what to do
-    /// instead.
-    private func forgetRegistrationSoUTMRereadsTheConfiguration(
-        instance: SandboxInstance,
-        event: @escaping @Sendable (WorkflowEvent) -> Void
-    ) async {
-        do {
-            try await deleteUTMRegistration(instance.vmName)
-        } catch {
-            event(.log(
-                "UTM kept its saved copy of Instance \(instance.number)'s configuration. "
-                    + "If the disc does not appear, quit UTM and launch the instance again."
-            ))
-        }
     }
 
     /// Clears the whole store. Rebuild and Delete Environment both invalidate

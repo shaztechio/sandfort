@@ -118,33 +118,33 @@ final class MaterialsScopeTests: XCTestCase {
         return (workflow, root)
     }
 
-    /// UTM caches a VM's configuration. Editing `config.plist` to add a drive is
-    /// invisible to it until the VM is re-imported, so materials could be fully
-    /// attached — image in the bundle, entry in the plist — and simply not exist
-    /// as far as UTM was concerned. That was observed on three of four
-    /// distributions.
+    /// Attaching must **never** ask UTM to forget the instance.
     ///
-    /// `runClean` has always been reliable precisely because it drops the
-    /// registration first. Attaching now does the same thing deliberately.
-    func testAttachingDropsTheRegistrationSoUTMRereadsTheConfiguration() async throws {
+    /// This once did, to bust UTM's configuration cache — and UTM's `delete`
+    /// command is documented as "Delete a virtual machine. All data will be
+    /// deleted, there is no confirmation!". When UTM happened to have the
+    /// instance registered, attaching a file to it destroyed the bundle: the
+    /// record survived, the disk did not, and Resume then reported an instance
+    /// that did not exist. It cost a real openSUSE instance minutes after that
+    /// baseline finished a 45-minute rebuild.
+    ///
+    /// `runClean` can call it safely only because it recreates the bundle
+    /// immediately afterwards. Nothing else may, and a stale drive list is a far
+    /// smaller problem than a deleted sandbox.
+    func testAttachingNeverAsksUTMToDeleteTheInstance() async throws {
         let (workflow, root) = try makeWorkflow()
 
         _ = try await workflow.attachMaterials(
             toInstance: 1, from: try source("probe.zip", in: root), event: { _ in }
         )
 
-        // Read the name from state rather than hardcoding it: currentState()
-        // migrates instance names, so a literal here tests the fixture instead
-        // of the behaviour.
-        let current = await workflow.currentState()
-        let expected = try XCTUnwrap(current?.resolvedInstances.first?.vmName)
-        XCTAssertEqual(
-            unregistered.names, [expected],
-            "without this the attach is invisible to UTM until it is quit"
+        XCTAssertTrue(
+            unregistered.names.isEmpty,
+            "UTM's delete command destroys the VM's data; attaching a file must not invoke it"
         )
     }
 
-    func testRemovingAlsoDropsTheRegistration() async throws {
+    func testRemovingNeverAsksUTMToDeleteTheInstance() async throws {
         let (workflow, root) = try makeWorkflow()
         _ = try await workflow.attachMaterials(
             toInstance: 1, from: try source("bye.zip", in: root), event: { _ in }
@@ -153,41 +153,23 @@ final class MaterialsScopeTests: XCTestCase {
 
         _ = try await workflow.removeMaterials(fromInstance: 1)
 
-        let current = await workflow.currentState()
-        let expected = try XCTUnwrap(current?.resolvedInstances.first?.vmName)
-        XCTAssertEqual(
-            unregistered.names, [expected],
-            "a removal UTM has not noticed leaves the disc mounted in the guest"
-        )
+        XCTAssertTrue(unregistered.names.isEmpty, "same hazard, same rule")
     }
 
-    /// A failure to unregister must not report the whole operation as failed:
-    /// the materials are attached and recorded by then, and only the
-    /// cache-busting did not happen.
-    func testAttachingSucceedsEvenIfUTMWillNotForgetTheRegistration() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let (workflow, workflowRoot) = try makeWorkflowWithFailingUnregistration(at: root)
+    /// And the bundle it was attached to still exists afterwards, which is the
+    /// property the user actually cares about.
+    func testTheInstanceBundleSurvivesAnAttach() async throws {
+        let (workflow, root) = try makeWorkflow()
+        let bundle = root.appendingPathComponent("Virtual Machines/Instance1.utm")
 
         _ = try await workflow.attachMaterials(
-            toInstance: 1, from: try source("stubborn.zip", in: workflowRoot), event: { _ in }
+            toInstance: 1, from: try source("keep.zip", in: root), event: { _ in }
         )
 
-        let state = await workflow.currentState()
         XCTAssertTrue(
-            try XCTUnwrap(state?.resolvedInstances.first).hasMaterials,
-            "the attach stands; only the cache hint failed"
+            FileManager.default.fileExists(atPath: bundle.path),
+            "attaching a file must not remove the sandbox it was attached to"
         )
-    }
-
-    private func makeWorkflowWithFailingUnregistration(at root: URL) throws -> (SandfortWorkflow, URL) {
-        let (workflow, workflowRoot) = try makeWorkflow(
-            deleteRegistration: { _ in throw SandboxError.virtualMachineRunning }
-        )
-        _ = root
-        return (workflow, workflowRoot)
     }
 
     private func source(_ name: String, in root: URL) throws -> URL {

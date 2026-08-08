@@ -132,6 +132,10 @@ Materials are limited to 512 MB. For anything larger, run the instance with Inte
 
 **Reset & Run Clean re-attaches the image you approved**, not a fresh copy of wherever it came from. If you picked a folder in March and reset in June, the sandbox gets what the folder held in March. Use **Materials… → Replace…** to send in the current contents. **Remove** detaches the image and deletes it.
 
+If the disc does not appear in the guest after attaching, quit UTM and launch the
+instance again: UTM keeps its own copy of a machine's configuration and does not
+always notice a new drive until it re-reads the bundle.
+
 Materials never reach a Protected Baseline. If one somehow appears there, Sandfort removes it — the drive and the file — the next time it reads its state.
 
 ### What read-only does and does not mean

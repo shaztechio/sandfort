@@ -468,6 +468,14 @@ Treat these as requirements, not optional defaults:
   did exactly this, and naming an instance "Baseline Setup" cleared
   `IsolateFromHost`. Roles are passed in by the caller, which always knows. Renaming must preserve
   the permanent number, bundle path, UUID, MAC address, disk, and UEFI state.
+- **UTM's `delete` command destroys data, not just a registration.** Its own
+  dictionary says "All data will be deleted, there is no confirmation!" — so it
+  removes the bundle from disk whenever UTM has that VM registered. `runClean`
+  may call it because it recreates the bundle immediately afterwards. Nothing
+  else may. Using it to make UTM re-read a configuration deleted a user's
+  instance during an attach, and the state record survived, so the app reported a
+  sandbox that no longer existed. If UTM's configuration cache needs busting,
+  quitting UTM is the remedy — losing an instance is never the smaller problem.
 - Keep instance deletion app-owned, recoverable through macOS Trash, and guarded
   by a disk-lock check. Never expose baseline deletion outside Rebuild, and never
   reuse a deleted instance number.
