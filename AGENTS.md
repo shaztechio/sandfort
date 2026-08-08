@@ -466,6 +466,14 @@ Treat these as requirements, not optional defaults:
   every network mode and future provider.
 - Keep SSH disabled, unsolicited inbound traffic denied, and security updates
   enabled in the guest policy.
+- Materials reach clean instances only. `attachMaterials` is never called for a
+  setup VM or a protected baseline, and `repairBundle` removes an image from
+  those roles — the file as well as the drive entry, since an orphaned payload is
+  still the user's file sitting in a bundle. `createCleanBundle` drops one
+  inherited from the baseline clone. The guest is always handed an image built
+  from a **copy**, never the user's file, so guest-to-host is impossible by
+  construction rather than by configuration; `ReadOnly` is reasserted on every
+  repair on top of that.
 - Custom setup text runs as root during trusted baseline creation. Preserve its
   size limit, safe embedding, and UI warning; never execute it on the host.
 - Credentials must be generated locally and shown to the user. Do not log or

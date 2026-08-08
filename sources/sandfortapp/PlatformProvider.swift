@@ -43,6 +43,19 @@ protocol VirtualMachineProvider: Sendable {
     func createCleanBundle(from: URL, at: URL, name: String, profile: LinuxGuestProfile, networkMode: SandboxNetworkMode) throws
     func resetCleanBundle(from: URL, at: URL, profile: LinuxGuestProfile, networkMode: SandboxNetworkMode) throws
     func repairBundle(at: URL, profile: LinuxGuestProfile, role: VirtualMachineRole) throws
+    /// Places a materials image in a clean instance's bundle and attaches it
+    /// read-only.
+    ///
+    /// Never called for a setup VM or a protected baseline, and `repairBundle`
+    /// removes one from those roles if it somehow arrives. The guest is handed
+    /// an image Sandfort built from a copy, never the user's file, so there is
+    /// no path back to the original whatever the hypervisor does with the drive.
+    ///
+    /// Deliberately a requirement rather than a parameter on `createCleanBundle`,
+    /// and deliberately without a default implementation: a provider that
+    /// silently ignored materials would tell a user their files are in a sandbox
+    /// that does not have them.
+    func attachMaterials(_ image: MaterialsImage, to bundleURL: URL) throws
     func setDisplayName(_ name: String, at: URL) throws
     func ensureBundleNotRunning(at: URL) throws
 }

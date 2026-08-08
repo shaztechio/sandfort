@@ -93,6 +93,13 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         let fileManager = FileManager.default
         try DiskUtilities.ensureNotInUse(try diskURL(in: setupURL))
         try fileManager.copyItem(at: setupURL, to: destinationURL)
+        // The clone copies the whole baseline bundle. A materials image left
+        // there would reach every instance ever made from it, with no drive
+        // entry pointing at it once the plist is rewritten below — an orphaned
+        // copy of the user's file in a place nobody would think to look.
+        try? fileManager.removeItem(
+            at: destinationURL.appendingPathComponent("Data/\(Self.materialsImageName)")
+        )
         let diskName = try diskName(in: destinationURL)
         try writeConfiguration(
             at: destinationURL,
@@ -122,6 +129,48 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         }
         try repairBundle(at: destinationURL, profile: profile, role: .cleanInstance)
         try setCleanNetworkMode(networkMode, at: destinationURL)
+    }
+
+    /// The image the guest reads, and the only file in a bundle that came from
+    /// somewhere the user chose.
+    static let materialsImageName = "materials.iso"
+
+    /// Writes a materials image into a clean instance and attaches it read-only.
+    ///
+    /// Replaces rather than appends. Two drives claiming the same image name
+    /// would leave the guest reading whichever UTM enumerated first, which is
+    /// not a thing to leave to chance when the user has just chosen what should
+    /// be there.
+    func attachMaterials(_ image: MaterialsImage, to bundleURL: URL) throws {
+        try ensureBundleNotRunning(at: bundleURL)
+        let configURL = bundleURL.appendingPathComponent("config.plist")
+        let data = try Data(contentsOf: configURL)
+        guard var plist = try PropertyListSerialization.propertyList(from: data, format: nil)
+            as? [String: Any] else {
+            throw SandboxError.invalidCloudDisk("the UTM configuration is not a property-list dictionary")
+        }
+
+        let imageURL = bundleURL
+            .appendingPathComponent("Data", isDirectory: true)
+            .appendingPathComponent(Self.materialsImageName)
+        try image.data.write(to: imageURL, options: .atomic)
+        // Same mode the restored disk gets: readable by the user who owns the
+        // app, and by nothing else on a shared Mac.
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: imageURL.path)
+
+        var drives = plist["Drive"] as? [[String: Any]] ?? []
+        drives.removeAll { $0["ImageName"] as? String == Self.materialsImageName }
+        drives.append([
+            "Identifier": UUID().uuidString.uppercased(),
+            "ImageName": Self.materialsImageName,
+            "ImageType": "Disk",
+            "Interface": "VirtIO",
+            "InterfaceVersion": 1,
+            "ReadOnly": true
+        ])
+        plist["Drive"] = drives
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: configURL, options: .atomic)
     }
 
     func repairBundle(at bundleURL: URL, profile: LinuxGuestProfile, role: VirtualMachineRole) throws {
@@ -158,8 +207,24 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             plist["Network"] = networks
         }
         if var drives = plist["Drive"] as? [[String: Any]] {
+            // Materials belong to a clean instance and nowhere else. This is the
+            // enforcement point rather than the creation path, because it is the
+            // one that runs on every state read — the same reason the sharing
+            // keys are reasserted here.
+            if role != .cleanInstance {
+                drives.removeAll { $0["ImageName"] as? String == Self.materialsImageName }
+                try? FileManager.default.removeItem(
+                    at: bundleURL.appendingPathComponent("Data/\(Self.materialsImageName)")
+                )
+            }
             for index in drives.indices {
                 drives[index].removeValue(forKey: "Removable")
+                if drives[index]["ImageName"] as? String == Self.materialsImageName {
+                    drives[index]["ImageType"] = "Disk"
+                    drives[index]["Interface"] = "VirtIO"
+                    drives[index]["InterfaceVersion"] = 1
+                    drives[index]["ReadOnly"] = true
+                }
                 if drives[index]["ImageName"] as? String == "seed.iso" {
                     // USB media may appear after cloud-init searches for NoCloud data.
                     // VirtIO exposes this CIDATA ISO as a block device during early boot.
