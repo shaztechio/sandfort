@@ -41,10 +41,16 @@ enum OpenSUSECloudInit {
         // in. GNOME Terminal is requested explicitly so the desktop is usable.
         var packages = [
             "ca-certificates", "curl", "firewalld", "gdm", "git-core", "gnome-shell",
-            "gnome-terminal", "jq", "MozillaFirefox",
+            "gnome-terminal", "gvfs", "jq", "MozillaFirefox",
             "MozillaFirefox-branding-openSUSE",
-            "NetworkManager", "patterns-gnome-gnome", "policycoreutils",
-            "qemu-guest-agent", "spice-vdagent"
+            // Leap's GNOME pattern declares no recommends, so a desktop built
+            // from it has no file manager — the third omission of that shape
+            // after the browser and the terminal. Without one there is no way to
+            // open anything from the desktop, materials included. gvfs and
+            // udisks2 are named explicitly for the same reason: nothing here can
+            // be assumed to arrive transitively.
+            "NetworkManager", "nautilus", "patterns-gnome-gnome", "policycoreutils",
+            "qemu-guest-agent", "spice-vdagent", "udisks2"
         ]
         if tools.python { packages += ["python313", "python313-pip"] }
         if tools.nodeJS { packages += ["xz"] }
@@ -59,6 +65,8 @@ enum OpenSUSECloudInit {
             "rpm -q spice-vdagent", "rpm -q firewalld",
             "rpm -q MozillaFirefox", "command -v firefox",
             "rpm -q gnome-terminal",
+            "rpm -q nautilus", "command -v nautilus",
+            "rpm -q gvfs", "rpm -q udisks2",
             "test -x /usr/sbin/gdm"
         ]
         if tools.python {

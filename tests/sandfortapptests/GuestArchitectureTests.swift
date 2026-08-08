@@ -76,9 +76,12 @@ final class GuestArchitectureTests: XCTestCase {
             "custom": "a17a9994419c5895754cdc21a6d028d946f60da120e61fe440777ee286d14e3d"
         ],
         "opensuse-leap-16.0-arm64": [
-            "recommended": "e2c1c79efc4b1c521f8c637a77c540f562621f7afd7b037cc14ee6691ac49e99",
-            "bare": "f62412f505f254cc6cd970bb8474832ed7306a57eda1796e8163d52e236cff87",
-            "custom": "b861aecedeb1a910e94eb4e8ba417b45398985d505a8795eac1f137550ad571f"
+            // Revision 6: a file manager, gvfs, and udisks2. Leap's GNOME
+            // pattern provides none of them, so a desktop built from it could
+            // not open anything at all.
+            "recommended": "5457276902cea3c0026403b9037ee406c3fffc9a5dff206b742c66e4ac3128b5",
+            "bare": "e0f2c5169bdd84ee6b1eb684d9b3a82759713a57609fc338ee910c532aebba7a",
+            "custom": "32f5dbefca96a14a2ff65e05f7d8efa8b60abe39dc471823fb511e53ffc27bbf"
         ]
     ]
 

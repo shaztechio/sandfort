@@ -235,9 +235,12 @@ All four profiles now verify that a terminal and a browser exist, through
   succeed while nothing usable is installed.
 - Keep the alternatives. Distributions disagree: Fedora ships Ptyxis, GNOME
   ships Console, the others ship Terminal.
-- openSUSE installs `gnome-terminal` and `MozillaFirefox` explicitly, because
-  its pattern provides neither. The other three inherit both from their desktop
-  metapackage and only verify them.
+- openSUSE installs `gnome-terminal`, `MozillaFirefox`, `nautilus`, `gvfs`, and
+  `udisks2` explicitly, because its pattern provides none of them. The other
+  three inherit them all from their desktop metapackage and only verify them.
+  This is now three separate revisions spent on the same discovery — a browser,
+  then a terminal, then a file manager — so assume nothing arrives transitively
+  on Leap and verify anything a user is expected to click.
 
 ### Deferred: remaining clean-instance boot time
 

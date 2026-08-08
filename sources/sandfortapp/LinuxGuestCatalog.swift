@@ -237,7 +237,7 @@ enum LinuxGuestCatalog {
 
     static let opensuseLeap16ARM64 = LinuxGuestProfile(
         id: "opensuse-leap-16.0-arm64",
-        revision: 5,
+        revision: 6,
         displayName: "openSUSE Leap 16.0",
         distributionName: "openSUSE",
         setupDurationDescription: "20-45 minutes",

@@ -508,14 +508,16 @@ Observed, per distribution:
 | --- | --- | --- | --- | --- |
 | Ubuntu 24.04 | SCSI | yes | yes | opens |
 | Debian 13 | SCSI | no | yes | opens |
-| openSUSE Leap 16 | SCSI | no | **no Files app installed** | terminal only |
+| openSUSE Leap 16 | SCSI | no | *pending revision 6* | *pending revision 6* |
 | Fedora 44 | USB | no | yes, as a CD | opens |
 
 All four now reach the image. Two findings are not about the drive at all:
 
-- **openSUSE ships no file manager.** `patterns-gnome-gnome` declares no
-  recommends, and this is the third omission of that shape after the browser and
-  the terminal. `sr0` is present there; there is simply nothing to click with.
+- **openSUSE shipped no file manager.** `patterns-gnome-gnome` declares no
+  recommends, and this was the third omission of that shape after the browser and
+  the terminal. `sr0` was present; there was simply nothing to click with.
+  Revision 6 installs `nautilus`, `gvfs`, and `udisks2`, and needs a live boot to
+  confirm — existing baselines must be rebuilt to get it.
 - **Fedora took three interfaces to place.** SCSI leaves the controller unbound
   (no `sym53c8xx`). VirtIO works but is an internal system drive, so mounting
   prompts for the sandbox password. USB emits `usb-storage` with

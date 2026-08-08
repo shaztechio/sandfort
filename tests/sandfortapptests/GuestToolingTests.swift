@@ -232,6 +232,6 @@ final class GuestToolingTests: XCTestCase {
         XCTAssertEqual(LinuxGuestCatalog.ubuntu2404ARM64.revision, 4)
         XCTAssertEqual(LinuxGuestCatalog.fedora44ARM64.revision, 4)
         XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.revision, 7)
-        XCTAssertEqual(LinuxGuestCatalog.opensuseLeap16ARM64.revision, 5)
+        XCTAssertEqual(LinuxGuestCatalog.opensuseLeap16ARM64.revision, 6)
     }
 }
