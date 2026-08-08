@@ -818,6 +818,12 @@ final class SandfortViewModel: ObservableObject {
         beginAddEnvironment(nextProfile)
     }
 
+    /// Test seam for `apply`, which is private and is where the header's
+    /// identity is decided.
+    func applyForTesting(_ state: SandboxState?, profile: LinuxGuestProfile) {
+        apply(state, profile: profile)
+    }
+
     private func apply(_ state: SandboxState?, profile fallbackProfile: LinuxGuestProfile) {
         if let state,
            let profile = try? SandfortWorkflow.resolveGuestProfile(
@@ -830,7 +836,16 @@ final class SandfortViewModel: ObservableObject {
            ) {
             guestProfile = profile
             selectedBaselineProfile = profile
-        } else if state == nil {
+        } else {
+            // Also when a state exists that this build cannot resolve — a
+            // baseline whose revision is no longer supported. That used to
+            // assign nothing, so the header kept the *previously selected*
+            // environment's name: openSUSE selected, Fedora on screen. The
+            // moment a user most needs to know which environment they are
+            // looking at is exactly when its baseline is out of date.
+            //
+            // The selection is always the right answer here, because the user
+            // just made it.
             guestProfile = fallbackProfile
             selectedBaselineProfile = fallbackProfile
         }
