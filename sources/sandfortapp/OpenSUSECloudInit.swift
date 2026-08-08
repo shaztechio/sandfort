@@ -41,7 +41,7 @@ enum OpenSUSECloudInit {
         // in. GNOME Terminal is requested explicitly so the desktop is usable.
         var packages = [
             "ca-certificates", "curl", "firewalld", "gdm", "git-core", "gnome-shell",
-            "gnome-terminal", "gvfs", "jq", "MozillaFirefox",
+            "gnome-terminal", "gvfs", "gvfs-backends", "jq", "MozillaFirefox",
             "MozillaFirefox-branding-openSUSE",
             // Leap's GNOME pattern declares no recommends, so a desktop built
             // from it has no file manager — the third omission of that shape
@@ -66,7 +66,15 @@ enum OpenSUSECloudInit {
             "rpm -q MozillaFirefox", "command -v firefox",
             "rpm -q gnome-terminal",
             "rpm -q nautilus", "command -v nautilus",
-            "rpm -q gvfs", "rpm -q udisks2",
+            "rpm -q gvfs", "rpm -q gvfs-backends", "rpm -q udisks2",
+            // The capability, not just the package. Core gvfs does not carry the
+            // udisks2 volume monitor, and without that binary Files shows no
+            // removable media at all — the drive is present and the desktop
+            // never offers it. Checking for the file is what makes a fifth
+            // missing piece fail here rather than after a 45-minute rebuild.
+            "test -x /usr/libexec/gvfs-udisks2-volume-monitor "
+                + "|| test -x /usr/lib/gvfs/gvfs-udisks2-volume-monitor "
+                + "|| test -x /usr/lib64/gvfs/gvfs-udisks2-volume-monitor",
             "test -x /usr/sbin/gdm"
         ]
         if tools.python {

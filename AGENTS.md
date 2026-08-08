@@ -235,8 +235,13 @@ All four profiles now verify that a terminal and a browser exist, through
   succeed while nothing usable is installed.
 - Keep the alternatives. Distributions disagree: Fedora ships Ptyxis, GNOME
   ships Console, the others ship Terminal.
-- openSUSE installs `gnome-terminal`, `MozillaFirefox`, `nautilus`, `gvfs`, and
-  `udisks2` explicitly, because its pattern provides none of them. The other
+- openSUSE installs `gnome-terminal`, `MozillaFirefox`, `nautilus`, `gvfs`,
+  `gvfs-backends`, and `udisks2` explicitly, because its pattern provides none of
+  them. Note `gvfs-backends` specifically: core `gvfs` does not carry the udisks2
+  volume monitor, so a desktop with `gvfs` and `nautilus` still shows **no
+  removable media at all**. Verify the capability rather than the package —
+  `test -x .../gvfs-udisks2-volume-monitor` — because a package name proves
+  nothing about whether the thing a user needs is present. The other
   three inherit them all from their desktop metapackage and only verify them.
   This is now three separate revisions spent on the same discovery — a browser,
   then a terminal, then a file manager — so assume nothing arrives transitively

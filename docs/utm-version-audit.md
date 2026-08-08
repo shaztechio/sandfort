@@ -516,8 +516,18 @@ All four now reach the image. Two findings are not about the drive at all:
 - **openSUSE shipped no file manager.** `patterns-gnome-gnome` declares no
   recommends, and this was the third omission of that shape after the browser and
   the terminal. `sr0` was present; there was simply nothing to click with.
-  Revision 6 installs `nautilus`, `gvfs`, and `udisks2`, and needs a live boot to
-  confirm — existing baselines must be rebuilt to get it.
+  Revision 6 installed `nautilus`, `gvfs`, and `udisks2`, and was **still not
+  enough**: Files opened but showed no removable media, because core `gvfs` does
+  not carry the udisks2 volume monitor. Revision 7 adds `gvfs-backends`.
+
+  Four separate omissions from one pattern — browser, terminal, file manager,
+  volume monitor — each found only by a user looking for something that was not
+  there. The setup verification now checks for the monitor binary rather than the
+  package name, so a fifth fails during setup instead of after a rebuild.
+
+  Note also that GNOME 45 removed "Other Locations" from Files, so guidance
+  written against older GNOME sends people looking for a menu that no longer
+  exists; volumes appear directly in the sidebar.
 - **Fedora took three interfaces to place.** SCSI leaves the controller unbound
   (no `sym53c8xx`). VirtIO works but is an internal system drive, so mounting
   prompts for the sandbox password. USB emits `usb-storage` with
