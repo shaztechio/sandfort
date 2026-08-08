@@ -200,7 +200,7 @@ enum LinuxGuestCatalog {
             utmFirmwareVarsName: "edk2-arm-vars.fd",
             serialConsoleDevice: "ttyAMA0",
             linuxArchiveArchitecture: "arm64",
-            materialsInterface: "VirtIO",  // no sym53c8xx in Fedora Cloud Base
+            materialsInterface: "USB",  // no sym53c8xx; usb_storage is present
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64

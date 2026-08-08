@@ -197,13 +197,17 @@ struct UTMBundleBuilder: VirtualMachineProvider {
                 // buries under "Other Locations" and never offers.
                 //
                 // The interface comes from the profile because the guests are
-                // not equivalent, and each value here was measured. UTM's SCSI
-                // emits an LSI 53c895a with a scsi-cd — real optical media the
-                // desktop offers — but Fedora Cloud Base ships no sym53c8xx, so
-                // the controller sits on the bus with nothing bound to it and no
-                // device node ever appears. Its VirtIO emits virtio-blk-pci with
-                // media=cdrom, which every one of these guests can read because
-                // it is how their root disk works.
+                // not equivalent, and every value here was measured in a booted
+                // VM. SCSI emits an LSI 53c895a with a scsi-cd — real optical
+                // media the desktop offers — but Fedora Cloud Base ships no
+                // sym53c8xx, so the controller sits on the bus with nothing bound
+                // to it and no device node appears at all. USB emits usb-storage
+                // with removable=true, which is also removable media, so it
+                // mounts without polkit authorisation. VirtIO emits
+                // virtio-blk-pci with media=cdrom and works everywhere, but it is
+                // an internal system drive, so mounting it prompts for a
+                // password — which is why it is the fallback rather than the
+                // default.
                 "ImageType": "CD",
                 "Interface": profile.hardware.materialsInterface,
                 "InterfaceVersion": 1,

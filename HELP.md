@@ -110,9 +110,9 @@ Inside the guest, open **Files** and look for **SANDFORT_MATERIALS**, then click
 | --- | --- | --- |
 | Ubuntu | as a CD in the sidebar | opens |
 | Debian, openSUSE | listed, no sidebar CD | opens |
-| Fedora | listed as a disk | asks for the sandbox password |
+| Fedora | listed | opens |
 
-Fedora asks because its image is carried on a different drive type — the one its kernel supports — which the desktop treats as an internal disk rather than removable media. The password is the guest password shown in Sandfort, which has a copy button. From a terminal:
+Fedora carries the image on a different drive type, because its kernel does not include the driver the others use. If a distribution ever asks for a password to open the volume, that is the guest password shown in Sandfort, which has a copy button. From a terminal:
 
 ```
 lsblk -f                     # look for an iso9660 volume, normally /dev/sr0

@@ -43,13 +43,21 @@ are not equivalent, and the cloud images are trimmed differently:
 | `VirtIO` | `virtio-blk-pci`, `media=cdrom` | `virtio_blk` | present everywhere — it is the root disk — but a read-only block device, not a disc |
 
 So Ubuntu, Debian, and openSUSE use `SCSI` and get a disc the desktop offers.
-Fedora uses `VirtIO`, and pays for it: `udisks2` classes a virtio-blk device as
-an internal system drive, so mounting it needs polkit authorisation and the
-desktop asks for the sandbox password. Removable media does not. That is the
-trade — a volume that opens with one prompt, against one that could not be
-reached at all.
+Fedora uses `USB`. `usb-storage` is removable media like a disc, so it mounts
+without polkit authorisation, and Fedora Cloud Base ships `usb_storage` even
+though it ships no `sym53c8xx`.
 
-Fedora uses `VirtIO` because: `lspci` in a Fedora guest showed the LSI controller present
+`VirtIO` was tried first and works, but it is the wrong answer: a virtio-blk
+device is an internal system drive to `udisks2`, so mounting it prompts for the
+sandbox password. On USB the same image mounts as a CD with no prompt. VirtIO
+remains the fallback for a guest that has neither of the other two.
+
+Fedora was nearly left on VirtIO because USB had been ruled out from **Debian's**
+failure without ever being tried on Fedora — the switch to SCSI happened before
+Fedora's first attach. One `modinfo usb_storage` would have settled it at any
+point.
+
+Fedora cannot use `SCSI` because: `lspci` in a Fedora guest showed the LSI controller present
 at `00:06.0` with nothing bound to it, and `modprobe sym53c8xx` reported the
 module missing outright. On SCSI the image was attached and **unreachable** —
 worse than absent, because everything Sandfort owns looked correct.

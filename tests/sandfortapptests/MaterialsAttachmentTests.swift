@@ -195,7 +195,11 @@ final class MaterialsAttachmentTests: XCTestCase {
         let fedora = try? XCTUnwrap(
             LinuxGuestCatalog.supportedProfiles.first { $0.id.contains("fedora") }
         )
-        XCTAssertEqual(fedora?.hardware.materialsInterface, "VirtIO")
+        XCTAssertEqual(
+            fedora?.hardware.materialsInterface, "USB",
+            "SCSI needs sym53c8xx, which Fedora Cloud Base does not ship; USB keeps the "
+                + "drive removable, so mounting it needs no polkit authorisation"
+        )
         for other in LinuxGuestCatalog.supportedProfiles where !other.id.contains("fedora") {
             XCTAssertEqual(other.hardware.materialsInterface, "SCSI", "\(other.id)")
         }

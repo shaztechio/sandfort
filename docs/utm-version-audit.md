@@ -509,16 +509,21 @@ Observed, per distribution:
 | Ubuntu 24.04 | SCSI | yes | yes | opens |
 | Debian 13 | SCSI | no | yes | opens |
 | openSUSE Leap 16 | SCSI | no | **no Files app installed** | terminal only |
-| Fedora 44 | VirtIO | no | yes | asks for the sandbox password |
+| Fedora 44 | USB | no | yes, as a CD | opens |
 
 All four now reach the image. Two findings are not about the drive at all:
 
 - **openSUSE ships no file manager.** `patterns-gnome-gnome` declares no
   recommends, and this is the third omission of that shape after the browser and
   the terminal. `sr0` is present there; there is simply nothing to click with.
-- **Fedora needs a password** because a virtio-blk device is an internal system
-  drive to `udisks2`, so mounting takes polkit authorisation. SCSI would avoid
-  that, and Fedora Cloud Base cannot use SCSI.
+- **Fedora took three interfaces to place.** SCSI leaves the controller unbound
+  (no `sym53c8xx`). VirtIO works but is an internal system drive, so mounting
+  prompts for the sandbox password. USB emits `usb-storage` with
+  `removable=true` and `usb_storage` *is* present. Confirmed in a booted VM: the
+  image mounts in Files as a CD, without the polkit prompt VirtIO required.
+- Fedora was never tried on USB during the original round: the switch to SCSI
+  happened before its materials were first attached, and USB was ruled out from
+  Debian's failure alone.
 
 **Still needs a live run:**
 
