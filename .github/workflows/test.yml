@@ -33,9 +33,23 @@ on:
 permissions:
   contents: read
 
-# A new push supersedes the previous run for the same branch.
+# A new push supersedes the previous run for the same branch — but an edit must
+# never supersede a run that is testing code.
+#
+# Both halves of that were previously in one group, and together they could
+# report a pull request green having tested nothing: editing a title while the
+# suite was running cancelled it, and the replacement run skips `macos-arm64`
+# because an edit cannot change what the code does. Neither rule is wrong alone.
+# Observed on #51, where the merged commit was never tested.
+#
+# So runs that will execute the suite share a group and still supersede each
+# other, and title-or-body edits get their own. Note the condition must match
+# `macos-arm64`'s `if` below: a base retarget is an `edited` event that *does*
+# run the suite, so it belongs with the code runs and not with the metadata
+# ones. Keying on the head SHA instead would not have helped — an edit carries
+# the same head SHA as the push it would cancel.
 concurrency:
-  group: test-${{ github.ref }}
+  group: test-${{ github.ref }}-${{ (github.event.action == 'edited' && github.event.changes.base.ref.from == '') && 'metadata' || 'code' }}
   cancel-in-progress: true
 
 jobs:
