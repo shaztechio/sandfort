@@ -207,6 +207,22 @@ actor SandfortWorkflow {
         let stateDescription = state.map {
             "Sandbox state: \($0.stage.rawValue), \($0.resolvedInstances.count) clean instance(s)."
         } ?? "No sandbox has been created yet."
+        // Which guest revision the baseline was built from, beside the one this
+        // binary would build. Nothing reported either before, so a baseline built
+        // by an older app looked identical to a current one — and the only way to
+        // tell them apart was to rebuild and see whether anything changed.
+        let baselineDescription = state.map { existing -> String in
+            let built = existing.guestProfileRevision
+            let expected = (try? guestProfile(for: existing))?.revision
+                ?? environment.defaultProfile.revision
+            let builtDescription = built.map(String.init) ?? "an unrecorded revision"
+            guard let built, built == expected else {
+                return "\nThis baseline was built from \(existing.guestProfileID ?? "an earlier profile") "
+                    + "revision \(builtDescription); this version of Sandfort builds revision \(expected). "
+                    + "Stop the virtual machine and choose Rebuild to pick up the difference."
+            }
+            return "\nBaseline: \(existing.guestProfileID ?? "unknown") revision \(built), which is current."
+        } ?? ""
         // Reported for the environment's own resolved profile rather than a
         // process-wide default: each workspace supports exactly one.
         let profile = environment.defaultProfile
@@ -226,7 +242,7 @@ actor SandfortWorkflow {
             return "UTM is not installed. Sandfort needs it to run virtual machines. "
                 + "Download it from \(UTMLauncher.downloadPage.absoluteString), then run this check again.\n"
                 + "This Mac is \(architecture).\(accelerationDescription)\n"
-                + "\(resourcesDescription) \(stateDescription)"
+                + "\(resourcesDescription) \(stateDescription)\(baselineDescription)"
         }
         let version = utm.version.map { "UTM \($0)" } ?? "UTM"
         // Which UTM is driven was previously visible nowhere. More than one
@@ -240,7 +256,7 @@ actor SandfortWorkflow {
                 + "\nSandfort uses the one above. Eject or remove the others to be certain."
         return "\(version) is installed at \(utm.applicationURL.path).\(otherCopies)\n"
             + "This Mac is \(architecture).\(accelerationDescription)\n"
-            + "\(resourcesDescription) \(stateDescription)"
+            + "\(resourcesDescription) \(stateDescription)\(baselineDescription)"
     }
 
     private var hostMemoryDescription: String {
@@ -471,6 +487,7 @@ actor SandfortWorkflow {
     private func reattachStoredMaterials(
         to instance: SandboxInstance,
         at bundle: URL,
+        profile: LinuxGuestProfile,
         event: @escaping @Sendable (WorkflowEvent) -> Void
     ) throws {
         let stored = materialsImageURL(forInstance: instance.number)
@@ -479,7 +496,7 @@ actor SandfortWorkflow {
                 "Instance \(instance.number) recorded materials, but the stored image is missing, "
                     + "so it starts without them."
             ))
-            _ = try? removeMaterials(fromInstance: instance.number)
+            try? clearMaterialsRecord(forInstance: instance.number)
             return
         }
         let image = try MaterialsPackager.stored(
@@ -489,7 +506,7 @@ actor SandfortWorkflow {
             byteCount: instance.materialsByteCount ?? 0,
             payloadIsArchive: instance.materialsIsArchive ?? false
         )
-        try provider.attachMaterials(image, to: bundle)
+        try provider.attachMaterials(image, to: bundle, profile: profile)
         event(.log(
             "Re-attached \(image.displayName) — the image approved earlier, not a fresh copy of its source."
         ))
@@ -531,6 +548,9 @@ actor SandfortWorkflow {
         // under a live VM.
         try provider.ensureBundleNotRunning(at: bundle)
 
+        // The interface the image is attached on comes from the profile, so it
+        // has to be the resolved one rather than a process-wide default.
+        let profile = try guestProfile(for: state)
         event(.phase("Preparing materials for Instance \(number)…"))
         let image = try MaterialsPackager.pack(contentsOf: source)
         try fileManager.createDirectory(at: materialsRootURL, withIntermediateDirectories: true)
@@ -539,7 +559,7 @@ actor SandfortWorkflow {
         try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: stored.path)
 
         do {
-            try provider.attachMaterials(image, to: bundle)
+            try provider.attachMaterials(image, to: bundle, profile: profile)
         } catch {
             // Nothing half-attached: a store entry with no drive would be
             // re-attached by the next Reset, quietly reintroducing materials the
@@ -559,23 +579,49 @@ actor SandfortWorkflow {
             "\(image.displayName) is attached to Instance \(number) as a read-only disc image. "
                 + "The guest reads a copy and cannot reach the original."
         ))
+        // UTM caches a VM's configuration, so a newly attached drive may not
+        // appear until it re-reads the bundle. Quitting UTM is the remedy.
+        //
+        // It must NOT be UTM's `delete` command, which is what this used to do:
+        // that command is documented as "All data will be deleted, there is no
+        // confirmation!", and when UTM happened to have the instance registered
+        // it destroyed the bundle. `runClean` can call it safely only because it
+        // rebuilds the bundle immediately afterwards. There is no equivalent
+        // here, and losing an instance is far worse than a stale drive list.
+        event(.log(
+            "If the disc does not appear in the guest, quit UTM and launch this instance again."
+        ))
         return state
     }
 
     /// Forgets materials for one instance: the stored image, the metadata, and
     /// the drive, which `repairBundle` drops on the next state read once the
     /// bundle is rewritten by a Reset.
-    func removeMaterials(fromInstance number: Int) throws -> SandboxState {
+    func removeMaterials(fromInstance number: Int) async throws -> SandboxState {
+        guard let existing = currentState()?.resolvedInstances.first(where: { $0.number == number })
+        else { throw SandboxError.sandboxInstanceNotFound }
+        // Clearing the record is not enough: without detaching, the user could
+        // remove materials, resume, and still find their file mounted.
+        let bundle = URL(fileURLWithPath: existing.bundlePath)
+        if fileManager.fileExists(atPath: bundle.path) {
+            try provider.detachMaterials(from: bundle)
+        }
+        let state = try clearMaterialsRecord(forInstance: number)
+        return state
+    }
+
+    /// Forgets the stored image and the metadata, and nothing else.
+    ///
+    /// Separate from `removeMaterials` because `runClean` needs exactly this and
+    /// none of the rest: it has already dropped the UTM registration and just
+    /// rebuilt the bundle, so detaching and unregistering again would be
+    /// redundant — and unregistering can poll for fifteen seconds.
+    @discardableResult
+    private func clearMaterialsRecord(forInstance number: Int) throws -> SandboxState {
         guard var state = currentState() else { throw SandboxError.sandboxNotCreated }
         var instances = state.resolvedInstances
         guard let index = instances.firstIndex(where: { $0.number == number }) else {
             throw SandboxError.sandboxInstanceNotFound
-        }
-        // Clearing the record is not enough: without detaching, the user could
-        // remove materials, resume, and still find their file mounted.
-        let bundle = URL(fileURLWithPath: instances[index].bundlePath)
-        if fileManager.fileExists(atPath: bundle.path) {
-            try provider.detachMaterials(from: bundle)
         }
         try removeStoredMaterials(forInstance: number)
         instances[index].materialsDisplayName = nil
@@ -698,7 +744,7 @@ actor SandfortWorkflow {
         // back the image the user approved — not the current contents of wherever
         // it came from, which may be something else entirely by now.
         if instance.hasMaterials {
-            try reattachStoredMaterials(to: instance, at: bundle, event: event)
+            try reattachStoredMaterials(to: instance, at: bundle, profile: profile, event: event)
         }
         event(.phase("Opening Sandbox Instance \(instanceNumber) in UTM…"))
         await launchVirtualMachine(bundle, instance.vmName, { event(.log($0)) })

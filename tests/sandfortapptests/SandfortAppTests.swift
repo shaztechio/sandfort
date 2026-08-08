@@ -314,7 +314,7 @@ final class SandfortAppTests: XCTestCase {
     func testOpenSUSELeap16ProductionProfileHasImmutableVerifiedMetadata() throws {
         let opensuse = LinuxGuestCatalog.opensuseLeap16ARM64
         XCTAssertEqual(opensuse.id, "opensuse-leap-16.0-arm64")
-        XCTAssertEqual(opensuse.revision, 5)
+        XCTAssertEqual(opensuse.revision, 8)
         XCTAssertEqual(opensuse.displayName, "openSUSE Leap 16.0")
         XCTAssertEqual(opensuse.distributionName, "openSUSE")
         XCTAssertEqual(opensuse.setupDurationDescription, "20-45 minutes")
@@ -1265,6 +1265,7 @@ final class SandfortAppTests: XCTestCase {
                 utmFirmwareVarsName: "test-vars.fd",
                 serialConsoleDevice: "ttyTEST0",
                 linuxArchiveArchitecture: "test-arm64",
+                materialsInterface: "SCSI",
                 memoryMiB: 3072,
                 cpuCount: 2,
                 diskSizeGiB: 72

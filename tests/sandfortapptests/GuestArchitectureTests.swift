@@ -76,9 +76,13 @@ final class GuestArchitectureTests: XCTestCase {
             "custom": "a17a9994419c5895754cdc21a6d028d946f60da120e61fe440777ee286d14e3d"
         ],
         "opensuse-leap-16.0-arm64": [
-            "recommended": "e2c1c79efc4b1c521f8c637a77c540f562621f7afd7b037cc14ee6691ac49e99",
-            "bare": "f62412f505f254cc6cd970bb8474832ed7306a57eda1796e8163d52e236cff87",
-            "custom": "b861aecedeb1a910e94eb4e8ba417b45398985d505a8795eac1f137550ad571f"
+            // Revision 7: a file manager, gvfs, gvfs-backends, and udisks2.
+            // Leap's GNOME pattern provides none of them. Revision 6 added the
+            // first three and was still not enough — core gvfs does not carry
+            // the udisks2 volume monitor, so Files showed no removable media.
+            "recommended": "93a5dc078de2463fcfde835043bf4c819904721f384046d45bf84c78700452d9",
+            "bare": "c8c1811367826663f1ee6b1c220fb7c47b478cc5bd9aefd30859066582dee454",
+            "custom": "f41962f89bef56b1633402dfabbb97be12a4ba3ae8a5b6b82e0d9753bd572716"
         ]
     ]
 
@@ -194,6 +198,7 @@ final class GuestArchitectureTests: XCTestCase {
             utmFirmwareVarsName: "edk2-i386-vars.fd",
             serialConsoleDevice: "ttyS0",
             linuxArchiveArchitecture: "x64",
+                materialsInterface: "SCSI",
             memoryMiB: 4096,
             cpuCount: 4,
             diskSizeGiB: 64
@@ -271,6 +276,7 @@ final class GuestArchitectureTests: XCTestCase {
                 utmFirmwareVarsName: "edk2-i386-vars.fd",
                 serialConsoleDevice: "ttyS0",
                 linuxArchiveArchitecture: "x64",
+                materialsInterface: "SCSI",
                 memoryMiB: 4096,
                 cpuCount: 4,
                 diskSizeGiB: 64
@@ -367,6 +373,7 @@ final class GuestArchitectureTests: XCTestCase {
                 utmFirmwareVarsName: "edk2-arm-vars.fd",
                 serialConsoleDevice: "ttyS0",
                 linuxArchiveArchitecture: "x64",
+                materialsInterface: "SCSI",
                 memoryMiB: 4096,
                 cpuCount: 4,
                 diskSizeGiB: 64

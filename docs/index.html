@@ -675,6 +675,7 @@ footer { border-top: 1px solid var(--border); padding: 44px 0 56px; background: 
         <ul>
           <li><strong>Offline by default.</strong> Clean instances start isolated from both the host and the Internet. Outbound access is an explicit, per-launch choice.</li>
           <li><strong>No shared surfaces.</strong> No shared folders, no synchronized clipboard, no automatic USB passthrough, no bridged networking, no inbound port forwarding.</li>
+          <li><strong>Materials are a one-way copy.</strong> To get a file into an offline sandbox, Sandfort packs what you choose into a read-only disc image before the instance starts. The guest reads a copy it cannot change and cannot trace back — not a shared folder. Anything you send in is still readable by whatever runs in that sandbox.</li>
           <li><strong>Verified images only.</strong> Official immutable cloud images with pinned SHA-256 values. A mismatch is never silently accepted.</li>
           <li><strong>Signed checksums.</strong> Ubuntu, Fedora, and openSUSE checksums are verified against the distribution's OpenPGP signature using bundled, fingerprint-pinned keys.</li>
           <li><strong>Hardened guests.</strong> SSH disabled, unsolicited inbound traffic denied, security updates enabled, SELinux or AppArmor active.</li>

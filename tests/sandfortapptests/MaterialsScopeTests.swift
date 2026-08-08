@@ -47,7 +47,8 @@ final class MaterialsScopeTests: XCTestCase {
         ) throws {}
         func setDisplayName(_ name: String, at bundleURL: URL) throws {}
         func repairBundle(at bundleURL: URL, profile: LinuxGuestProfile, role: VirtualMachineRole) throws {}
-        func attachMaterials(_ image: MaterialsImage, to bundleURL: URL) throws {
+        func attachMaterials(_ image: MaterialsImage, to bundleURL: URL,
+                             profile: LinuxGuestProfile) throws {
             if attachShouldFail { throw CocoaError(.fileWriteNoPermission) }
             attached.append((image.displayName, bundleURL.lastPathComponent))
         }
@@ -59,8 +60,14 @@ final class MaterialsScopeTests: XCTestCase {
     }
 
     private var provider = RecordingProvider()
+    private final class Unregistrations: @unchecked Sendable {
+        var names: [String] = []
+    }
+    private var unregistered = Unregistrations()
 
-    private func makeWorkflow() throws -> (SandfortWorkflow, URL) {
+    private func makeWorkflow(
+        deleteRegistration: (@Sendable (String) async throws -> Void)? = nil
+    ) throws -> (SandfortWorkflow, URL) {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -93,13 +100,15 @@ final class MaterialsScopeTests: XCTestCase {
             .write(to: root.appendingPathComponent("state.plist"))
 
         provider = RecordingProvider()
+        unregistered = Unregistrations()
         let workflow = SandfortWorkflow(
             environment: .productionWorkspace(
                 profile: profile, rootURL: root,
                 cacheURL: root.appendingPathComponent("Cache", isDirectory: true)
             ),
             provider: provider,
-            deleteUTMRegistration: { _ in },
+            deleteUTMRegistration: deleteRegistration
+                ?? { [unregistered] name in unregistered.names.append(name) },
             // Never reach the real launcher. It hands the bundle to UTM, and a
             // synthetic bundle makes UTM show "Cannot import this VM" — a dialog
             // on the developer's machine, from a unit test. It also polled for
@@ -107,6 +116,60 @@ final class MaterialsScopeTests: XCTestCase {
             launchVirtualMachine: { _, _, _ in }
         )
         return (workflow, root)
+    }
+
+    /// Attaching must **never** ask UTM to forget the instance.
+    ///
+    /// This once did, to bust UTM's configuration cache — and UTM's `delete`
+    /// command is documented as "Delete a virtual machine. All data will be
+    /// deleted, there is no confirmation!". When UTM happened to have the
+    /// instance registered, attaching a file to it destroyed the bundle: the
+    /// record survived, the disk did not, and Resume then reported an instance
+    /// that did not exist. It cost a real openSUSE instance minutes after that
+    /// baseline finished a 45-minute rebuild.
+    ///
+    /// `runClean` can call it safely only because it recreates the bundle
+    /// immediately afterwards. Nothing else may, and a stale drive list is a far
+    /// smaller problem than a deleted sandbox.
+    func testAttachingNeverAsksUTMToDeleteTheInstance() async throws {
+        let (workflow, root) = try makeWorkflow()
+
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("probe.zip", in: root), event: { _ in }
+        )
+
+        XCTAssertTrue(
+            unregistered.names.isEmpty,
+            "UTM's delete command destroys the VM's data; attaching a file must not invoke it"
+        )
+    }
+
+    func testRemovingNeverAsksUTMToDeleteTheInstance() async throws {
+        let (workflow, root) = try makeWorkflow()
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("bye.zip", in: root), event: { _ in }
+        )
+        unregistered.names.removeAll()
+
+        _ = try await workflow.removeMaterials(fromInstance: 1)
+
+        XCTAssertTrue(unregistered.names.isEmpty, "same hazard, same rule")
+    }
+
+    /// And the bundle it was attached to still exists afterwards, which is the
+    /// property the user actually cares about.
+    func testTheInstanceBundleSurvivesAnAttach() async throws {
+        let (workflow, root) = try makeWorkflow()
+        let bundle = root.appendingPathComponent("Virtual Machines/Instance1.utm")
+
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("keep.zip", in: root), event: { _ in }
+        )
+
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: bundle.path),
+            "attaching a file must not remove the sandbox it was attached to"
+        )
     }
 
     private func source(_ name: String, in root: URL) throws -> URL {
