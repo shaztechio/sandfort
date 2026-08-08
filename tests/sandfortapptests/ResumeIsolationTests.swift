@@ -51,6 +51,7 @@ final class ResumeIsolationTests: XCTestCase {
         }
         /// Materials are a clean-instance concern; nothing here exercises them.
         func attachMaterials(_ image: MaterialsImage, to bundleURL: URL) throws {}
+        func detachMaterials(from bundleURL: URL) throws {}
         func ensureBundleNotRunning(at bundleURL: URL) throws {}
     }
 

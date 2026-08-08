@@ -571,6 +571,12 @@ actor SandfortWorkflow {
         guard let index = instances.firstIndex(where: { $0.number == number }) else {
             throw SandboxError.sandboxInstanceNotFound
         }
+        // Clearing the record is not enough: without detaching, the user could
+        // remove materials, resume, and still find their file mounted.
+        let bundle = URL(fileURLWithPath: instances[index].bundlePath)
+        if fileManager.fileExists(atPath: bundle.path) {
+            try provider.detachMaterials(from: bundle)
+        }
         try removeStoredMaterials(forInstance: number)
         instances[index].materialsDisplayName = nil
         instances[index].materialsSourcePath = nil
@@ -623,10 +629,6 @@ actor SandfortWorkflow {
             event(.phase("Moving Instance \(number) to macOS Trash…"))
             try fileManager.trashItem(at: bundle, resultingItemURL: &trashedURL)
         }
-        // The stored image goes with the instance. Leaving it would mean the
-        // number is never reused but the file lingers — an orphaned copy of the
-        // user's materials outside any bundle.
-        try removeStoredMaterials(forInstance: number)
         instances.remove(at: index)
         state.replaceInstances(instances)
         do {
@@ -637,6 +639,10 @@ actor SandfortWorkflow {
             }
             throw error
         }
+        // Only once the removal is recorded. A failed save restores the bundle
+        // from the Trash, and deleting the stored image before that point would
+        // bring the instance back without the materials it still claims to have.
+        try removeStoredMaterials(forInstance: number)
         return state
     }
 

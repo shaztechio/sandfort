@@ -51,6 +51,10 @@ final class MaterialsScopeTests: XCTestCase {
             if attachShouldFail { throw CocoaError(.fileWriteNoPermission) }
             attached.append((image.displayName, bundleURL.lastPathComponent))
         }
+        var detached: [String] = []
+        func detachMaterials(from bundleURL: URL) throws {
+            detached.append(bundleURL.lastPathComponent)
+        }
         func ensureBundleNotRunning(at bundleURL: URL) throws {}
     }
 
@@ -219,6 +223,58 @@ final class MaterialsScopeTests: XCTestCase {
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: storedImage(in: root).path),
             "instance numbers are never reused, so a lingering image is simply orphaned"
+        )
+    }
+
+    /// Removing materials must take them out of the bundle, not just out of the
+    /// record. Otherwise a user removes their file, resumes, and finds it still
+    /// mounted — a copy of it left somewhere they believe is empty.
+    func testRemovingMaterialsDetachesThemFromTheBundle() async throws {
+        let (workflow, root) = try makeWorkflow()
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("bye.zip", in: root), event: { _ in }
+        )
+
+        _ = try await workflow.removeMaterials(fromInstance: 1)
+
+        XCTAssertEqual(
+            provider.detached, ["Instance1.utm"],
+            "the drive and the image are removed from the instance itself"
+        )
+    }
+
+    /// A failed save restores the bundle from the Trash, so the stored image must
+    /// still be there — otherwise the instance comes back claiming materials it
+    /// no longer has.
+    ///
+    /// Making `save` fail without also breaking the *read* is the fiddly part.
+    /// Replacing `state.plist` with a directory fails `currentState()` first, so
+    /// `deleteInstance` throws at its very first line and never reaches the
+    /// store — the assertion then passes for entirely the wrong reason. The
+    /// environment root is made read-only instead: `state.plist` still reads,
+    /// `Virtual Machines/` is a separate directory so trashing the bundle still
+    /// works, and only the atomic rewrite of `state.plist` — which needs a
+    /// temporary file beside it — fails.
+    func testAFailedDeleteKeepsTheStoredImage() async throws {
+        let (workflow, root) = try makeWorkflow()
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("keep.zip", in: root), event: { _ in }
+        )
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: root.path)
+        addTeardownBlock {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700], ofItemAtPath: root.path
+            )
+        }
+
+        do {
+            _ = try await workflow.deleteInstance(number: 1, event: { _ in })
+            XCTFail("the delete could not have been recorded")
+        } catch {}
+
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: self.storedImage(in: root).path),
+            "the approved image survives a delete that could not be recorded"
         )
     }
 
