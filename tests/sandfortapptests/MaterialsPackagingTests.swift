@@ -175,6 +175,38 @@ final class MaterialsPackagingTests: XCTestCase {
         }
     }
 
+    /// A folder is measured before it is archived, and the refusal must not
+    /// conflate the two thresholds. `total` is unarchived content; the 512 MiB
+    /// limit applies to the archive. Reporting one as the other would tell
+    /// someone their 3 GB folder fits inside a 512 MB limit.
+    ///
+    /// The ceiling is injected so this needs a folder of a few bytes rather than
+    /// four gigabytes.
+    func testAnEnormousFolderIsRefusedBeforeItIsArchived() throws {
+        let root = try workspace()
+        let folder = root.appendingPathComponent("huge", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        _ = try file("huge/a.bin", bytes: 512, in: root)
+        _ = try file("huge/b.bin", bytes: 512, in: root)
+
+        XCTAssertThrowsError(
+            try MaterialsPackager.pack(contentsOf: folder, unarchivedCeiling: 100)
+        ) { error in
+            guard case let .materialsSourceTooLargeToArchive(byteCount, packedLimit)
+                    = error as? SandboxError else {
+                return XCTFail("expected .materialsSourceTooLargeToArchive, got \(error)")
+            }
+            XCTAssertGreaterThan(byteCount, 100, "it reports what it measured")
+            XCTAssertEqual(
+                packedLimit, MaterialsPackager.maximumPayloadBytes,
+                "and names the limit that will actually apply, not the ceiling it tripped"
+            )
+            let message = (error as? SandboxError)?.errorDescription ?? ""
+            XCTAssertTrue(message.contains("before"), "the message separates the two measures")
+            XCTAssertTrue(message.contains("once archived"), "and says which one is the real limit")
+        }
+    }
+
     func testAMissingSourceIsRefused() throws {
         let root = try workspace()
         XCTAssertThrowsError(

@@ -84,7 +84,13 @@ enum MaterialsPackager {
     /// minutes of work and a full disk.
     static let maximumUnarchivedBytes = 4 * 1024 * 1024 * 1024
 
-    static func pack(contentsOf url: URL) throws -> MaterialsImage {
+    /// `unarchivedCeiling` is injectable so the folder preflight can be tested
+    /// without creating four gigabytes, the same way the UTM resolver and the
+    /// architecture check take their inputs.
+    static func pack(
+        contentsOf url: URL,
+        unarchivedCeiling: Int = maximumUnarchivedBytes
+    ) throws -> MaterialsImage {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
             throw SandboxError.materialsUnreadable("\(url.lastPathComponent) could not be found.")
@@ -93,7 +99,7 @@ enum MaterialsPackager {
         let payload: Data
         let archived: Bool
         if isDirectory.boolValue {
-            try refuseUnarchivedFolderThatIsFarTooLarge(url)
+            try refuseUnarchivedFolderThatIsFarTooLarge(url, ceiling: unarchivedCeiling)
             payload = try archive(url)
             archived = true
         } else {
@@ -140,7 +146,7 @@ enum MaterialsPackager {
         }
     }
 
-    private static func refuseUnarchivedFolderThatIsFarTooLarge(_ url: URL) throws {
+    private static func refuseUnarchivedFolderThatIsFarTooLarge(_ url: URL, ceiling: Int) throws {
         var total = 0
         let keys: [URLResourceKey] = [.fileSizeKey, .isRegularFileKey]
         guard let walker = FileManager.default.enumerator(
@@ -152,9 +158,13 @@ enum MaterialsPackager {
             let values = try? item.resourceValues(forKeys: Set(keys))
             guard values?.isRegularFile == true, let size = values?.fileSize else { continue }
             total += size
-            if total > maximumUnarchivedBytes {
-                throw SandboxError.materialsTooLarge(
-                    byteCount: total, limit: maximumPayloadBytes
+            if total > ceiling {
+                // Deliberately not `materialsTooLarge`: `total` is unarchived
+                // content and `maximumPayloadBytes` applies to the archive, so
+                // reporting them as one comparison would be telling the user a
+                // 3 GB folder is within a 512 MB limit.
+                throw SandboxError.materialsSourceTooLargeToArchive(
+                    byteCount: total, packedLimit: maximumPayloadBytes
                 )
             }
         }
