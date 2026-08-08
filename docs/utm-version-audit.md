@@ -573,14 +573,21 @@ three failures were the drive — they were the guest's desktop packaging.
 `Bundle.main.url(forResource:withExtension:"png",subdirectory:"Icons")`, and
 `IconCustom: false` says it is one of UTM's rather than a file in the bundle.
 
-**Read in UTM 5.0.4's source and confirmed present on disk**, which is the same
-evidence class as §1: the four files `ubuntu.png`, `fedora.png`, `debian.png`,
-and `opensuse.png` all exist in the installed app.
+**Verified against UTM 5.0.4 on 2026-08-09.** All four distributions render their
+own icon in the UTM library list, on baselines and instances alike. Existing VMs
+picked the icon up through `repairBundle` on the next state read, with no
+rebuild, no re-import, and no UTM restart — so the retrofit path is confirmed and
+not just the creation path.
 
-**Still needs a live look:** that UTM actually renders each icon in its library
-list. Tests can only prove the key is written. The failure mode is a VM showing
-the generic icon, which is exactly the state this replaced, so nothing breaks if
-a name is wrong — an unknown name degrades to the default rather than failing.
+The four files `ubuntu.png`, `fedora.png`, `debian.png`, and `opensuse.png` were
+confirmed present in the installed app first, and `Information.Icon` was read in
+UTM 5.0.4's source.
+
+Note that a `strings` sweep of Sandfort's own binary **cannot** confirm the icon
+names are compiled in: `"ubuntu"`, `"Icon"`, and `"IconCustom"` are all at or
+under 15 UTF-8 bytes and are therefore stored inline by Swift's small-string
+optimization rather than in the string table. An empty grep here means nothing.
+Same false negative recorded in §1 and §7.
 
 Both spellings of the openSUSE icon exist (`SUSE.png` and `opensuse.png`); the
 lowercase one is used, matching the other three.
