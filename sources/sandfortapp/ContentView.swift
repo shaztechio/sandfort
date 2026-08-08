@@ -66,6 +66,9 @@ struct ContentView: View {
         .sheet(isPresented: $model.showBaselineTools) {
             BaselineToolsSheet(model: model) { model.showBaselineTools = false }
         }
+        .sheet(isPresented: $model.showMaterials) {
+            MaterialsSheet(model: model) { model.showMaterials = false }
+        }
         .confirmationDialog("Has \(model.guestProfile.displayName) finished setup and been shut down?", isPresented: $model.showFinishConfirmation, titleVisibility: .visible) {
             Button("Protect Baseline and Create Instance 1") { model.finishSetup() }
             Button("Cancel", role: .cancel) {}

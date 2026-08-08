@@ -155,6 +155,7 @@ final class SandfortViewModel: ObservableObject {
     /// app people demo and screenshot, and revealing it should be a decision.
     @Published var revealGuestPassword = false
     @Published var showBaselineTools = false
+    @Published var showMaterials = false
     /// Refreshed on launch, on Check My Mac, and after any operation, so
     /// installing UTM while Sandfort is open is noticed without a relaunch.
     @Published private(set) var utmIsMissing = false
@@ -362,6 +363,68 @@ final class SandfortViewModel: ObservableObject {
             await self.update(
                 status: "Resuming Sandbox Instance \(number)",
                 message: "UTM is reopening Instance \(number) without restoring the baseline. Its previous files, processes, and network configuration remain in place."
+            )
+        }
+    }
+
+    // MARK: - Materials
+
+    /// The selected instance, for the materials sheet to describe.
+    var selectedInstance: SandboxInstance? {
+        instances.first { $0.number == selectedInstanceNumber }
+    }
+
+    /// Materials are per instance and take effect on its next launch, so the
+    /// sheet is only meaningful when there is an instance to attach them to.
+    var canChooseMaterials: Bool {
+        stage == .ready && selectedInstance != nil && !isRunning
+    }
+
+    /// Opens a picker and attaches whatever is chosen to the selected instance.
+    ///
+    /// The panel accepts a file or a folder: a challenge arrives as either, and
+    /// making the user compress a folder first would be friction for no gain
+    /// since the packer does it with a system API.
+    func chooseMaterialsForSelectedInstance() {
+        let number = selectedInstanceNumber
+        guard let selection = selectedSelection else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+        panel.prompt = "Send In"
+        panel.message = "Choose a file or folder to send into Sandbox Instance \(number). "
+            + "It is copied into a read-only disc image; the guest cannot change it or reach the original."
+        // This is the app's first file picker. Sandfort is not App Sandboxed, so
+        // no security-scoped bookmark is needed; adopting App Sandbox later, per
+        // docs/APP-STORE.md, would require
+        // com.apple.security.files.user-selected.read-only.
+        guard panel.runModal() == .OK, let source = panel.url else { return }
+        perform {
+            let state = try await selection.workflow.attachMaterials(
+                toInstance: number,
+                from: source,
+                event: self.eventHandler
+            )
+            await self.apply(state, profile: selection.profile)
+            await self.update(
+                status: "Materials ready for Instance \(number)",
+                message: "\(source.lastPathComponent) is attached to Instance \(number) as a read-only disc image. "
+                    + "Launch or reset that instance to see it."
+            )
+        }
+    }
+
+    func removeMaterialsFromSelectedInstance() {
+        let number = selectedInstanceNumber
+        guard let selection = selectedSelection else { return }
+        perform {
+            let state = try await selection.workflow.removeMaterials(fromInstance: number)
+            await self.apply(state, profile: selection.profile)
+            await self.update(
+                status: "Materials removed from Instance \(number)",
+                message: "The disc image was detached and deleted. Instance \(number) no longer has access to it."
             )
         }
     }
