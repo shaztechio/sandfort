@@ -106,9 +106,11 @@ Select an instance, then choose **Materials…** from the environment's actions 
 
 The instance must be **fully powered off**, not suspended — attaching rewrites its configuration, and Sandfort will not touch a VM whose disk is in use.
 
-**Quit UTM before you start the instance.** UTM keeps its own copy of each machine's configuration, so if it is running when you attach, it does not know about the new disc and the sandbox starts without it. Nothing inside the guest explains why — there is simply no disc. Quit UTM, then **Resume**, and it is there. Sandfort warns you in the Materials window when UTM is running.
+Then **Resume**, and the disc is there.
 
-If you would rather not quit UTM, **Reset & Run Clean** always picks the disc up, because it rebuilds the instance from the baseline. That also discards everything else in that instance, so it is the heavier option.
+UTM keeps its own copy of each machine's configuration, so a disc attached while UTM is running would not reach the sandbox. Sandfort asks UTM to re-read the instance, which works from **UTM 5.0.4** onwards. Earlier versions have no such command, and the activity log says so when that happens: **quit UTM and Resume again**, or use **Reset & Run Clean**, which rebuilds the instance from the baseline and so always picks the disc up — at the cost of discarding everything else in that instance.
+
+This matters when you **remove** materials too. Until UTM re-reads the instance, it still hands the old disc to the guest, so check the activity log before assuming a file is out of a sandbox.
 
 Inside the guest, open **Files** and look for **SANDFORT_MATERIALS** in the sidebar, then click it to open. If it is not there, `sudo mount -o ro /dev/disk/by-label/SANDFORT_MATERIALS /mnt` always works. Where it appears, and whether opening it asks for anything, depends on the distribution:
 

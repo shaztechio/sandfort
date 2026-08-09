@@ -131,17 +131,19 @@ struct MaterialsSheet: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             // UTM holds its own copy of a machine's configuration, so an
-            // instance resumed while UTM is running starts without the disc —
-            // and nothing in the guest explains why. Said here as well as in the
-            // log, because this is the moment the choice is being made.
+            // instance resumed while UTM is running can start without the disc.
+            // Sandfort asks UTM to re-read the bundle, which works from UTM
+            // 5.0.4; older versions have no such command. Deliberately does not
+            // predict which — the activity log says what actually happened,
+            // and claiming failure here would be wrong on a current UTM.
             if model.utmIsRunning {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                    Text("UTM is running, so it will not see this disc yet. Quit UTM before Resume, or use Reset & Run Clean.")
+                    Image(systemName: "info.circle")
+                    Text("UTM is running. Sandfort will ask it to re-read this instance; if it cannot, quit UTM before Resume or use Reset & Run Clean. The activity log says which.")
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(.secondary)
             }
         }
     }

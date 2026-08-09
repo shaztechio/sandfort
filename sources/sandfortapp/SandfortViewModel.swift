@@ -474,7 +474,9 @@ final class SandfortViewModel: ObservableObject {
         perform {
             let state: SandboxState
             do {
-                state = try await selection.workflow.removeMaterials(fromInstance: number)
+                state = try await selection.workflow.removeMaterials(
+                    fromInstance: number, event: self.eventHandler
+                )
             } catch {
                 await self.showMaterialsError(error)
                 throw error

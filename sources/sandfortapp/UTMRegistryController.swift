@@ -20,6 +20,11 @@ import Foundation
 enum UTMRegistryController {
     private static let bundleIdentifier = UTMLauncher.bundleIdentifier
     private static let virtualMachineClass = fourCharacterCode("UTMv")
+    /// Configuration commands sit in their own suite: `UTMcReLd`, `UTMcUpDt`.
+    private static let configurationClass = fourCharacterCode("UTMc")
+    /// `errAEEventNotHandled`. UTM 4.7.5 has no `reload configuration` command —
+    /// it arrived in 5.0.4 — so this is the expected answer there, not a fault.
+    static let commandNotUnderstoodStatus = -1708
     private static let applicationNotRunningStatus = -600
     /// `errAEEventNotPermitted`. macOS returns this when the user has refused
     /// Sandfort permission to control UTM, which is a refusal rather than a
@@ -116,6 +121,44 @@ enum UTMRegistryController {
             let message = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorString))?.stringValue
                 ?? "UTM returned Apple Event error \(errorNumber)."
             throw UTMRegistryError.startFailed(name: name, reason: message)
+        }
+    }
+
+    /// Asks UTM to re-read a stopped machine's configuration from its bundle.
+    ///
+    /// UTM keeps its own copy of a configuration, so a drive Sandfort attaches
+    /// while UTM is running is not in the copy UTM launches from — the instance
+    /// resumes with no disc, silently. UTM 5.0.4 added a command for exactly
+    /// this case: *"Useful when the .utm bundle has been modified externally
+    /// (e.g. by an automation tool) and UTM's cached configuration needs to be
+    /// refreshed. The VM must be in the stopped state."*
+    ///
+    /// **This is not `delete`.** That command is documented as "All data will be
+    /// deleted, there is no confirmation!" and destroyed a user's instance when
+    /// it was used as a cache-buster. This one only re-reads.
+    ///
+    /// It is an optimisation and never a requirement: the command does not exist
+    /// before 5.0.4, and 4.7.5 is still what `releases/latest` gives people.
+    /// There it answers `errAEEventNotHandled` and the caller falls back to
+    /// telling the user to quit UTM. Checked against each tag's `UTM.sdef`:
+    /// absent in 4.7.5 and 5.0.0–5.0.3, present in 5.0.4.
+    static func reloadConfiguration(named name: String) throws {
+        let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
+        let event = NSAppleEventDescriptor(
+            eventClass: configurationClass,
+            eventID: fourCharacterCode("ReLd"),
+            targetDescriptor: target,
+            returnID: AEReturnID(kAutoGenerateReturnID),
+            transactionID: AETransactionID(kAnyTransactionID)
+        )
+        event.setParam(objectSpecifier(named: name), forKeyword: AEKeyword(keyDirectObject))
+
+        let reply = try event.sendEvent(options: [.waitForReply], timeout: 30)
+        let errorNumber = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorNumber))?.int32Value ?? 0
+        guard errorNumber == 0 else {
+            let message = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorString))?.stringValue
+                ?? "UTM returned Apple Event error \(errorNumber)."
+            throw UTMRegistryError.reloadFailed(name: name, reason: message)
         }
     }
 
@@ -241,6 +284,7 @@ enum UTMRegistryError: LocalizedError {
     case startFailed(name: String, reason: String)
     case stopFailed(name: String, reason: String)
     case stopIgnored(name: String)
+    case reloadFailed(name: String, reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -251,6 +295,11 @@ enum UTMRegistryError: LocalizedError {
         case let .stopIgnored(name):
             return "The guest in “\(name)” did not shut down when asked. It may be showing a "
                 + "confirmation dialog. Finish shutting it down in the VM, or stop it from UTM."
+        case let .reloadFailed(name, reason):
+            // Never surfaced as a failed operation: the caller treats this as
+            // "UTM could not be asked" and tells the user to quit UTM instead.
+            // UTM 4.7.5 has no such command and always lands here.
+            return "UTM could not re-read “\(name)”: \(reason)"
         case let .deleteFailed(name, reason):
             return "UTM could not remove “\(name)” from its library: \(reason)"
         case let .deletionTimedOut(name):

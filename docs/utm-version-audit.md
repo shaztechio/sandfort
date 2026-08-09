@@ -511,8 +511,35 @@ because the success is indistinguishable from a correct implementation. A claim
 about caching needs the negative case — the same instance failing, then
 succeeding after a restart, with nothing else altered.
 
-So: **quit UTM before resuming an instance whose drives changed.** Reset & Run
-Clean is exempt, because it deletes the registration and rebuilds the bundle.
+So: **an instance whose drives changed needs UTM to re-read the bundle.** Reset &
+Run Clean is exempt, because it deletes the registration and rebuilds the bundle.
+
+### `reload configuration` (`UTMcReLd`) — new in 5.0.4
+
+UTM 5.0.4 adds a command for exactly this: *"Reload the configuration of the
+virtual machine from disk, discarding any unsaved in-memory changes. Useful when
+the .utm bundle has been modified externally (e.g. by an automation tool) and
+UTM's cached configuration needs to be refreshed. The VM must be in the stopped
+state."*
+
+Note the event class differs from the VM commands: `UTMc`, not `UTMv`.
+
+**Version support, read from each tag's `Scripting/UTM.sdef`:**
+
+| Tag | `UTMcReLd` |
+| --- | --- |
+| v4.7.5 | absent |
+| v5.0.0 – v5.0.3 | absent |
+| v5.0.4 | **present** |
+
+4.7.5 is still the newest release **not** flagged prerelease, so most installs
+will not have this. Sandfort treats it as an optimisation with a fallback and
+never as a requirement — see §4 on the minimum version.
+
+**Still needs a live run:** that the command actually refreshes the drive list
+on 5.0.4, rather than merely returning success. Reading a dictionary entry is not
+running it, and this section already records two claims that were wrong for
+exactly that reason.
 
 The drive is deliberately not marked external: in UTM that means the image lives
 outside the bundle with a security-scoped bookmark, which is the opposite of what
