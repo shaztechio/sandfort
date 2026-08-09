@@ -154,31 +154,32 @@ Verified on Ubuntu: `unzip` from a terminal works, and GNOME Files' **Extract
 to…** fails with *"Not enough free space to extract"* while the guest has tens of
 gigabytes free.
 
-**Where the message comes from**, read in the sources rather than guessed:
-`extract_job_on_scanned` in Nautilus' `nautilus-file-operations.c` compares
-`autoar_extractor_get_total_size()` against `G_FILE_ATTRIBUTE_FILESYSTEM_FREE`
-queried on the extractor's output file, and aborts when the total exceeds it.
-The extractor is created with the chosen destination, so the check is *not*
-looking at the disc — an earlier version of this note claimed it was, which the
-source does not support.
+**Cause, read in the source and confirmed by experiment.** Nautilus'
+`extract_job_on_scanned` compares the archive's uncompressed total against the
+free space of a filesystem — and through GNOME 48 it queries the **source**
+archive's filesystem, not the destination:
 
-**What is established about our side:** the archive `MaterialsPackager` produces
-through `NSFileCoordinator`'s `.forUploading` uses **data descriptors** — general
-purpose bit 3 set, with compressed and uncompressed sizes written as `0` in each
-local file header, verified by reading the bytes of a real materials image. A
-reader that does not consult the central directory cannot size such an archive.
+```c
+source_file = autoar_extractor_get_source_file (extractor);
+fsinfo = g_file_query_filesystem_info (source_file, …FILESYSTEM_FREE…);
+if (total_size != G_MAXUINT64 && total_size > free_size)   /* → refuse */
+```
 
-**What is not established** is the arithmetic that fails. autoar sums
-`archive_entry_size()` per entry and substitutes `G_MAXUINT64` when the total
-comes out at zero, and Nautilus deliberately skips its check on exactly that
-value — so a purely streaming read should *disable* the check rather than trip
-it. Something between those two produces a positive total larger than the
-destination's free space, and that has not been pinned down.
+A materials disc is ISO 9660 and read-only, so it reports **zero** free space.
+Any non-empty archive therefore fails the check, whatever the destination has
+free. Fixed after GNOME 48 — `main` queries `output_file` — but Ubuntu 24.04
+ships 46, and 47 and 48 have it too.
 
-The discriminating experiment, if it matters later: copy the archive off the disc
-into the home directory and extract it there with Files. Working then implicates
-the source being on a read-only mount; failing again implicates the archive's own
-shape.
+Confirmed by experiment: copying the archive off the disc and extracting it from
+the home directory works, because the check then reads a writable filesystem.
+
+Two notes for whoever revisits this. The archive `MaterialsPackager` produces
+uses **data descriptors** — general purpose bit 3 set, sizes zero in every local
+header, verified by reading the bytes of a real materials image. That is a red
+herring here: `total_size` is computed correctly and the failure is entirely the
+filesystem being queried. And an earlier version of this note *retracted* the
+correct explanation after reading `main`, where the bug is already fixed. Reading
+the branch a user actually runs is the whole difference.
 
 `HELP.md` therefore points people at a terminal. It previously recommended
 Files' **Extract Here**, which is worse still: that extracts into the disc
