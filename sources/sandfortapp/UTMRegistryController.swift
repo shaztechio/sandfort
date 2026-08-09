@@ -56,7 +56,12 @@ enum UTMRegistryController {
     /// rest of the app had already found it.
     @MainActor
     private static func launchUTMIfNeeded() throws {
-        if NSWorkspace.shared.runningApplications.contains(where: {
+        // With a pin, "already running" must mean the pinned copy. Another UTM
+        // being open is not a substitute and would leave every later event
+        // unaddressable.
+        if UTMLauncher.activePinnedApplicationURL != nil {
+            if UTMLauncher.pinnedProcessIdentifier() != nil { return }
+        } else if NSWorkspace.shared.runningApplications.contains(where: {
             $0.bundleIdentifier == bundleIdentifier && !$0.isTerminated
         }) {
             return
@@ -79,6 +84,35 @@ enum UTMRegistryController {
                 try await Task.sleep(for: .milliseconds(250))
             }
         }
+    }
+
+    /// Which application the next Apple Event is addressed to.
+    ///
+    /// Normally the bundle identifier, which reaches whichever UTM is running.
+    /// When a UTM is pinned in Settings, the event is addressed to **that
+    /// process** instead: addressing by identifier with two copies installed
+    /// would send `start`, `stop` and `reload configuration` to whichever
+    /// happened to be open, while the app reported the pinned version. A pin
+    /// that did not cover this would make a version test meaningless.
+    ///
+    /// A pin whose copy is not running is an error rather than a fallback.
+    /// Falling back to the identifier is exactly the case this exists to
+    /// prevent, and it would be invisible — the command would succeed against
+    /// the wrong UTM.
+    private static func targetApplication() throws -> NSAppleEventDescriptor {
+        // Only a pin that resolved redirects the event. A pin naming an
+        // application that has moved, or that is not UTM, falls back to the
+        // ordinary target — the same copy `resolveInstallation` reports and the
+        // user is told about in Check My Mac.
+        guard UTMLauncher.activePinnedApplicationURL != nil else {
+            return NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
+        }
+        guard let pid = UTMLauncher.pinnedProcessIdentifier() else {
+            throw UTMRegistryError.pinnedUTMNotRunning(
+                path: UTMLauncher.activePinnedApplicationURL?.path ?? "the pinned UTM"
+            )
+        }
+        return NSAppleEventDescriptor(processIdentifier: pid)
     }
 
     static func isApplicationNotRunning(_ error: NSError) -> Bool {
@@ -105,7 +139,7 @@ enum UTMRegistryController {
     /// See docs/utm-version-audit.md for which UTM versions this was checked
     /// against and how to re-check it.
     static func startVirtualMachine(named name: String) throws {
-        let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
+        let target = try targetApplication()
         let event = NSAppleEventDescriptor(
             eventClass: virtualMachineClass,
             eventID: fourCharacterCode("star"),
@@ -143,7 +177,7 @@ enum UTMRegistryController {
     /// telling the user to quit UTM. Checked against each tag's `UTM.sdef`:
     /// absent in 4.7.5 and 5.0.0–5.0.3, present in 5.0.4.
     static func reloadConfiguration(named name: String) throws {
-        let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
+        let target = try targetApplication()
         let event = NSAppleEventDescriptor(
             eventClass: configurationClass,
             eventID: fourCharacterCode("ReLd"),
@@ -171,7 +205,7 @@ enum UTMRegistryController {
     /// corrupt baseline that looks fine until it is used. A guest that ignores
     /// the request is reported, not escalated.
     static func stopVirtualMachine(named name: String) throws {
-        let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
+        let target = try targetApplication()
         let event = NSAppleEventDescriptor(
             eventClass: virtualMachineClass,
             eventID: fourCharacterCode("stop"),
@@ -195,7 +229,7 @@ enum UTMRegistryController {
     }
 
     private static func sendDeleteRequest(named name: String) throws {
-        let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
+        let target = try targetApplication()
         let event = NSAppleEventDescriptor(
             eventClass: AEEventClass(kAECoreSuite),
             eventID: AEEventID(kAEDelete),
@@ -224,7 +258,7 @@ enum UTMRegistryController {
     /// both to confirm a deletion completed and, before starting a VM, to wait
     /// until UTM has finished importing a freshly written bundle.
     static func isVirtualMachineRegistered(named name: String) throws -> Bool {
-        let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
+        let target = try targetApplication()
         let event = NSAppleEventDescriptor(
             eventClass: AEEventClass(kAECoreSuite),
             eventID: AEEventID(kAEGetData),
@@ -285,6 +319,7 @@ enum UTMRegistryError: LocalizedError {
     case stopFailed(name: String, reason: String)
     case stopIgnored(name: String)
     case reloadFailed(name: String, reason: String)
+    case pinnedUTMNotRunning(path: String)
 
     var errorDescription: String? {
         switch self {
@@ -295,6 +330,9 @@ enum UTMRegistryError: LocalizedError {
         case let .stopIgnored(name):
             return "The guest in “\(name)” did not shut down when asked. It may be showing a "
                 + "confirmation dialog. Finish shutting it down in the VM, or stop it from UTM."
+        case let .pinnedUTMNotRunning(path):
+            return "The UTM pinned in Settings is not running: \(path). Open that copy of UTM, "
+                + "or clear the pin in Settings → Advanced."
         case let .reloadFailed(name, reason):
             // Never surfaced as a failed operation: the caller treats this as
             // "UTM could not be asked" and tells the user to quit UTM instead.
