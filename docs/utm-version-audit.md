@@ -488,17 +488,31 @@ The Ubuntu run below was the original, taken with `Interface: "USB"`:
 - A **newly attached** drive is picked up by Resume with UTM already running —
   no quit, no re-import.
 
-**But UTM does cache a VM's configuration, and the distinction matters.** Resume
-reads a drive that has just been *added* to a stopped VM. It does **not** pick up
-an in-place *edit* of a drive UTM already knows about: changing this entry's
-interface from `USB` to `SCSI` left UTM's own settings still reporting
-`CD/DVD (ISO) Image (USB)` until the app was quit and relaunched. Anything
-measured in between was measured against stale state.
+**UTM caches a VM's configuration, and it caches an addition as readily as an
+edit.** Verified 2026-08-09: an instance whose `config.plist` held
+`materials.iso` as a SCSI CD, with the image in `Data/` and the store copy
+intact, resumed with no disc in the guest while UTM was running. Quitting UTM and
+resuming the same instance produced it, with nothing else changed.
 
-So: adding materials needs only a Resume; changing how an existing drive is
-attached needs UTM restarted. An earlier version of this section claimed the
-stronger "no cache to defeat", generalised from the first case to both. It was
-wrong.
+An in-place *edit* behaves the same way — changing this entry's interface from
+`USB` to `SCSI` left UTM's own settings reporting `CD/DVD (ISO) Image (USB)`
+until the app was quit and relaunched.
+
+**This section has now been wrong twice, in opposite directions.** It first
+claimed "no cache to defeat". It was then corrected to say that an *addition* is
+picked up on Resume and only an *edit* is cached — a distinction drawn from a
+single Ubuntu run that happened to follow a UTM restart, and which two later
+observations contradicted. There is no add/edit distinction: what varies is
+whether UTM has re-read the bundle since the change.
+
+The lesson is about method rather than UTM. Both wrong versions came from
+generalising a mechanism out of one successful observation, and both survived
+because the success is indistinguishable from a correct implementation. A claim
+about caching needs the negative case — the same instance failing, then
+succeeding after a restart, with nothing else altered.
+
+So: **quit UTM before resuming an instance whose drives changed.** Reset & Run
+Clean is exempt, because it deletes the registration and rebuilds the bundle.
 
 The drive is deliberately not marked external: in UTM that means the image lives
 outside the bundle with a security-scoped bookmark, which is the opposite of what

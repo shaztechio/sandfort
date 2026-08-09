@@ -87,7 +87,7 @@ struct EnvironmentDetailView: View {
                     .disabled(model.stage == .provisioning)
                 // Materials belong to the selected instance and take effect on
                 // its next launch, so this is only offered once there is one.
-                Button("Materials…") { model.showMaterials = true }
+                Button("Materials…") { model.openMaterials() }
                     .disabled(model.stage != .ready || model.selectedInstance == nil)
                 if model.stage != nil {
                     Divider()

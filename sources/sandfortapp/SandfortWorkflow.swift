@@ -582,17 +582,30 @@ actor SandfortWorkflow {
             "\(image.displayName) is attached to Instance \(number) as a read-only disc image. "
                 + "The guest reads a copy and cannot reach the original."
         ))
-        // UTM caches a VM's configuration, so a newly attached drive may not
-        // appear until it re-reads the bundle. Quitting UTM is the remedy.
+        // UTM keeps its own copy of a VM's configuration, so a drive attached
+        // while it is running is not there when the instance is resumed. This is
+        // established, not suspected: an instance whose bundle held the drive
+        // and the image resumed without it, and quitting UTM and resuming the
+        // same instance made it appear.
         //
-        // It must NOT be UTM's `delete` command, which is what this used to do:
-        // that command is documented as "All data will be deleted, there is no
-        // confirmation!", and when UTM happened to have the instance registered
-        // it destroyed the bundle. `runClean` can call it safely only because it
-        // rebuilds the bundle immediately afterwards. There is no equivalent
-        // here, and losing an instance is far worse than a stale drive list.
+        // Say it plainly, and say it here. It is invisible from inside the
+        // guest — the sandbox simply has no disc — so someone who is not told
+        // concludes the feature is broken, or worse, that their files are in
+        // there somewhere.
+        //
+        // The remedy must NOT be UTM's `delete` command, which is what this used
+        // to do: that command is documented as "All data will be deleted, there
+        // is no confirmation!", and when UTM happened to have the instance
+        // registered it destroyed the bundle. `runClean` can call it safely only
+        // because it rebuilds the bundle immediately afterwards. There is no
+        // equivalent here, and losing an instance is far worse than a stale
+        // drive list.
         event(.log(
-            "If the disc does not appear in the guest, quit UTM and launch this instance again."
+            UTMLauncher.isRunning
+                ? "UTM is running, and it will not see this disc until it re-reads the bundle. "
+                    + "Quit UTM before choosing Resume, or use Reset & Run Clean."
+                : "Resume will pick this up. If UTM is running when you resume, quit it first — "
+                    + "it keeps its own copy of the configuration — or use Reset & Run Clean."
         ))
         return state
     }
@@ -1176,6 +1189,20 @@ enum UTMLauncher {
     nonisolated static var installation: Installation? { resolveInstallation() }
 
     nonisolated static var isInstalled: Bool { installation != nil }
+
+    /// Whether UTM is running right now.
+    ///
+    /// It matters for materials: UTM keeps its own copy of a virtual machine's
+    /// configuration, so a drive attached while it is running is not seen when
+    /// that instance is resumed — verified on a live run, where quitting UTM and
+    /// resuming the same instance made the disc appear. The failure is silent
+    /// from inside the guest, so the app has to say it rather than let someone
+    /// conclude their files did not go in.
+    nonisolated static var isRunning: Bool {
+        NSWorkspace.shared.runningApplications.contains {
+            $0.bundleIdentifier == bundleIdentifier && !$0.isTerminated
+        }
+    }
 
     /// Why waiting for UTM to register a bundle stopped.
     enum RegistrationWait: Equatable {

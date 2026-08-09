@@ -219,6 +219,59 @@ final class MaterialsScopeTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(state?.resolvedInstances.first).hasMaterials)
     }
 
+    // MARK: - The silent failure has to be said out loud
+
+    /// UTM keeps its own copy of a machine's configuration, so a disc attached
+    /// while UTM is running is not there when the instance is resumed. Verified
+    /// on a live run: a bundle holding the drive and the image resumed with no
+    /// disc, and quitting UTM and resuming the same instance produced it.
+    ///
+    /// Nothing in the guest explains that — the sandbox simply has no disc — so
+    /// an attach that says nothing leaves the user to conclude the feature is
+    /// broken, or that their files are in there somewhere. This is the one part
+    /// of the fix a test can hold: the remedy is always stated.
+    ///
+    /// Asserted on the remedy rather than the exact sentence, because the
+    /// wording branches on whether UTM is running and that differs between a
+    /// developer's Mac and CI. Pinning either branch would make the suite pass
+    /// or fail on an unrelated fact about the machine.
+    func testAttachingAlwaysSaysHowToMakeUTMSeeTheDisc() async throws {
+        let (workflow, root) = try makeWorkflow()
+        let logged = LogRecorder()
+
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("challenge.zip", in: root),
+            event: { if case .log(let line) = $0 { logged.append(line) } }
+        )
+
+        let text = logged.text
+        XCTAssertTrue(text.contains("challenge.zip"), "the attach is still reported: \(text)")
+        XCTAssertTrue(
+            text.lowercased().contains("quit"),
+            "quitting UTM is the remedy and must be named: \(text)"
+        )
+        XCTAssertTrue(
+            text.contains("Reset & Run Clean"),
+            "the alternative that always works must be named: \(text)"
+        )
+    }
+
+    /// Collects log lines without reaching for shared mutable state.
+    private final class LogRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var lines: [String] = []
+
+        func append(_ line: String) {
+            lock.lock(); defer { lock.unlock() }
+            lines.append(line)
+        }
+
+        var text: String {
+            lock.lock(); defer { lock.unlock() }
+            return lines.joined(separator: "\n")
+        }
+    }
+
     // MARK: - Reset restores what was approved, not what is there now
 
     func testResetReattachesTheApprovedImageRatherThanRereadingTheSource() async throws {

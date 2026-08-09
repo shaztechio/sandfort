@@ -130,6 +130,19 @@ struct MaterialsSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            // UTM holds its own copy of a machine's configuration, so an
+            // instance resumed while UTM is running starts without the disc —
+            // and nothing in the guest explains why. Said here as well as in the
+            // log, because this is the moment the choice is being made.
+            if model.utmIsRunning {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text("UTM is running, so it will not see this disc yet. Quit UTM before Resume, or use Reset & Run Clean.")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
         }
     }
 
