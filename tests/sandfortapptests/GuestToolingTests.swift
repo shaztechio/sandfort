@@ -229,9 +229,9 @@ final class GuestToolingTests: XCTestCase {
     /// These four revisions are what force the rebuild that ships the terminal
     /// and the editor. Getting one wrong silently reuses an old baseline.
     func testProfileRevisionsWereBumpedForTheseGuestChanges() {
-        XCTAssertEqual(LinuxGuestCatalog.ubuntu2404ARM64.revision, 4)
-        XCTAssertEqual(LinuxGuestCatalog.fedora44ARM64.revision, 4)
-        XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.revision, 7)
-        XCTAssertEqual(LinuxGuestCatalog.opensuseLeap16ARM64.revision, 8)
+        XCTAssertEqual(LinuxGuestCatalog.ubuntu2404ARM64.revision, 5)
+        XCTAssertEqual(LinuxGuestCatalog.fedora44ARM64.revision, 5)
+        XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.revision, 8)
+        XCTAssertEqual(LinuxGuestCatalog.opensuseLeap16ARM64.revision, 9)
     }
 }
