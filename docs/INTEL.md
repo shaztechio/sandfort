@@ -78,6 +78,17 @@ so the images exist; every one needs its own pinned SHA-256, its own signature
 check, its own provenance record, and its own revision counter starting at 1.
 Never reuse an ARM64 checksum or revision.
 
+It also unblocks distributions the ARM64 catalog cannot have at all. Arch was
+checked on 2026-08-09: it publishes `Arch-Linux-x86_64-cloudimg.qcow2` with both
+a SHA-256 and a **detached signature**, and no aarch64 artifact whatsoever. So an
+x86-64 provider is the only route to Pacman and a rolling toolchain, and the
+candidate arrives with stronger provenance than Debian, which is hash-only here
+because it publishes no signature for its cloud manifest. CachyOS sits behind the
+same door. See [Linux profile selection](linux-profile-selection.md).
+
+That is a genuine payoff rather than a consolation, and it is worth weighing
+against this document's own recommendation not to build the port.
+
 ## Sonoma is the wrong floor, and it is worth being blunt about why
 
 Intel Macs that run Sonoma, minus those that run Sequoia, are two

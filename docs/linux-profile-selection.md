@@ -126,6 +126,34 @@ unofficial conversion.
 References: [CachyOS project overview](https://cachyos.org/),
 [CachyOS architecture optimizations](https://wiki.cachyos.org/features/kernel/).
 
+Arch Linux itself was checked directly on 2026-08-09, since the CachyOS entry
+answers for a derivative rather than for Arch. The official image directory that
+`arch-boxes` publishes to holds **x86-64 only**:
+
+```
+Arch-Linux-x86_64-basic.qcow2
+Arch-Linux-x86_64-cloudimg.qcow2
+```
+
+There is no aarch64 or arm64 artifact, so Arch fails the same requirement as
+CachyOS and for the same reason — the blocker is the architecture, not the
+distribution. Arch Linux ARM is a separate project rather than an official Arch
+publication, and is exactly the unofficial conversion this document declines to
+substitute.
+
+The other half of that check is worth recording too, because it points the
+opposite way. Each Arch image ships a `.SHA256` **and a detached signature**,
+which is stronger provenance than Debian offers today — Debian is hash-only in
+this catalog because it publishes no signature for its cloud manifest. Arch would
+therefore clear the intake bar comfortably under an x86-64 provider, and it would
+bring the Pacman and rolling-toolchain coverage the catalog currently lacks. See
+[Intel macOS support](INTEL.md), whose payoff section is where that candidacy
+belongs.
+
+Source: `https://geo.mirror.pkgbuild.com/images/latest/`. Re-check it before
+acting on this; the point of dating the finding is that a distribution can start
+publishing a new architecture at any time.
+
 This list may change as distributions alter their architectures, image
 publishing, or support policy. Any change must be recorded as a reviewed catalog
 revision and must pass the requirements in
