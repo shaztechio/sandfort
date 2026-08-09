@@ -80,6 +80,37 @@ def commits(current, previous):
         yield subject.strip(), body
 
 
+# A trailer ends the footer as surely as a blank line does: "Co-Authored-By:"
+# and friends are not part of the sentence being written.
+TRAILER = re.compile(r"^[A-Z][A-Za-z]*(-[A-Za-z]+)*: ")
+
+
+def breaking_note(body):
+    """The whole BREAKING CHANGE footer, not just its first line.
+
+    Commit footers wrap. Reading one line produced release notes that stopped
+    mid-sentence — "every baseline must be rebuilt. The retry lives in the" —
+    which shipped in 1.1.0. The instruction survived there by luck of where the
+    wrap fell; a footer that wrapped two words earlier would have said nothing
+    actionable at all.
+
+    Collects until a blank line or the next trailer, and joins the wrapped lines
+    back into one paragraph.
+    """
+    lines, collecting = [], False
+    for line in body.splitlines():
+        if line.startswith("BREAKING CHANGE:"):
+            lines.append(line[len("BREAKING CHANGE:") :].strip())
+            collecting = True
+            continue
+        if collecting:
+            stripped = line.strip()
+            if not stripped or TRAILER.match(line):
+                break
+            lines.append(stripped)
+    return " ".join(part for part in lines if part).strip()
+
+
 def classify(current, previous):
     breaking, buckets, other = [], {t: [] for t, _ in SECTIONS}, []
     for subject, body in commits(current, previous):
@@ -88,12 +119,7 @@ def classify(current, previous):
         match = SUBJECT.match(subject)
         is_breaking = bool(match and match.group("breaking")) or "BREAKING CHANGE:" in body
         if is_breaking:
-            note = ""
-            for line in body.splitlines():
-                if line.startswith("BREAKING CHANGE:"):
-                    note = line[len("BREAKING CHANGE:") :].strip()
-                    break
-            breaking.append((subject, note))
+            breaking.append((subject, breaking_note(body)))
             continue
         if match and match.group("type") in buckets:
             buckets[match.group("type")].append(subject)
