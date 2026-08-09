@@ -23,10 +23,16 @@ without weakening the common provisioning policy.
   and `linuxArchiveArchitecture` — which the provisioners and firmware lookup
   are handed rather than hardcoding. `linuxArchiveArchitecture` is the *vendor's*
   spelling, not the architecture's: Node.js and VS Code both publish `x64`, and
-  neither uses `x86_64` or `amd64`. `utmIconName` sits on the profile rather than
-  on `Hardware` — it is distribution identity, not machine shape — and names a
-  **built-in UTM icon with no extension**, so Sandfort ships no distribution logo
-  and takes on no trademark question.
+  neither uses `x86_64` or `amd64`. `utmIconNames` sits on the profile rather than
+  on `Hardware` — it is distribution identity, not machine shape — and lists
+  **built-in UTM icons with no extension**, so Sandfort ships no distribution
+  logo and takes on no trademark question. A *list* because UTM renames them
+  between versions: openSUSE is `suse.png` in 4.7.5 and both `SUSE.png` and
+  `opensuse.png` in 5.0.4, so naming one literal left every 4.7.5 install
+  without an icon. `UTMLauncher.resolvedIconName` picks the first the installed
+  UTM actually ships, comparing **exact filenames** — `fileExists` matches
+  `suse.png` against `SUSE.png` on a case-insensitive volume, which would pass
+  on most Macs and fail on a case-sensitive one.
 - `HostArchitecture.swift`: what the Mac is, detected at run time including
   Rosetta, and which UTM guest architecture it can hardware-accelerate. A
   compile-time `#if arch(arm64)` describes the running slice instead, which made

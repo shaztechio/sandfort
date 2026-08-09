@@ -640,8 +640,25 @@ under 15 UTF-8 bytes and are therefore stored inline by Swift's small-string
 optimization rather than in the string table. An empty grep here means nothing.
 Same false negative recorded in §1 and §7.
 
-Both spellings of the openSUSE icon exist (`SUSE.png` and `opensuse.png`); the
-lowercase one is used, matching the other three.
+**The icon names are not the same across versions**, which the original entry
+missed by checking only the installed 5.0.4:
+
+| Icon file | 4.7.5 | 5.0.4 |
+| --- | --- | --- |
+| `ubuntu.png`, `fedora.png`, `debian.png` | present | present |
+| `opensuse.png` | **absent** | present |
+| openSUSE's actual file | `suse.png` | `SUSE.png` |
+
+So `opensuse` gave every 4.7.5 install a generic openSUSE icon. Found by running
+against a pinned 4.7.5 — the live verification that "all four icons render" was
+done on 5.0.4, and the one distribution whose name differs is the one it could
+not have caught.
+
+The profile now carries candidates in preference order and the bundle writer
+picks the first the installed UTM ships, by exact filename. Note that
+`fileExists` is not sufficient: the default APFS volume is case-insensitive, so
+it answers yes for `suse.png` when the file is `SUSE.png`, and a check built on
+it would fail only on a case-sensitive volume.
 
 ## Reproducing this audit
 

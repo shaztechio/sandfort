@@ -72,21 +72,24 @@ final class DistributionIconTests: XCTestCase {
     func testEverySupportedProfileNamesAnIcon() {
         for profile in LinuxGuestCatalog.supportedProfiles {
             XCTAssertFalse(
-                profile.utmIconName.isEmpty,
+                profile.utmIconNames.isEmpty,
                 "\(profile.id) names no icon, so its VMs would be generic"
             )
-            XCTAssertFalse(
-                profile.utmIconName.hasSuffix(".png"),
-                "\(profile.id): UTM resolves a bare resource name, so "
-                    + "'\(profile.utmIconName)' would not match anything"
-            )
+            for name in profile.utmIconNames {
+                XCTAssertFalse(name.isEmpty, "\(profile.id) has an empty candidate")
+                XCTAssertFalse(
+                    name.hasSuffix(".png"),
+                    "\(profile.id): UTM resolves a bare resource name, so "
+                        + "'\(name)' would not match anything"
+                )
+            }
         }
     }
 
     /// Distinct icons are the entire point — four profiles sharing one would
     /// leave the library exactly as indistinguishable as before.
     func testTheProfilesDoNotAllShareOneIcon() {
-        let names = LinuxGuestCatalog.supportedProfiles.map(\.utmIconName)
+        let names = LinuxGuestCatalog.supportedProfiles.compactMap(\.utmIconNames.first)
         XCTAssertEqual(
             Set(names).count, names.count,
             "two profiles name the same icon: \(names)"
@@ -97,10 +100,94 @@ final class DistributionIconTests: XCTestCase {
     /// looked up in `/Applications/UTM.app`, so this passes on a build machine
     /// with no UTM installed — the lookup itself is in the audit document.
     func testTheIconNamesAreTheOnesUTMShips() {
-        XCTAssertEqual(LinuxGuestCatalog.ubuntu2404ARM64.utmIconName, "ubuntu")
-        XCTAssertEqual(LinuxGuestCatalog.fedora44ARM64.utmIconName, "fedora")
-        XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.utmIconName, "debian")
-        XCTAssertEqual(LinuxGuestCatalog.opensuseLeap16ARM64.utmIconName, "opensuse")
+        XCTAssertEqual(LinuxGuestCatalog.ubuntu2404ARM64.utmIconNames, ["ubuntu"])
+        XCTAssertEqual(LinuxGuestCatalog.fedora44ARM64.utmIconNames, ["fedora"])
+        XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.utmIconNames, ["debian"])
+        // 4.7.5 ships suse.png and no opensuse.png; 5.0.4 ships both SUSE.png
+        // and opensuse.png. Naming only the 5.0.4 spelling left every 4.7.5
+        // install with a generic icon.
+        XCTAssertEqual(
+            LinuxGuestCatalog.opensuseLeap16ARM64.utmIconNames,
+            ["opensuse", "SUSE", "suse"]
+        )
+    }
+
+    // MARK: - Choosing the name UTM actually ships
+
+    /// UTM renames these between versions. openSUSE is `suse.png` in 4.7.5 and
+    /// both `SUSE.png` and `opensuse.png` in 5.0.4, so the single literal
+    /// `opensuse` left every 4.7.5 install with a generic icon — found by
+    /// running against a pinned 4.7.5, not by reading.
+    func testTheNameIsChosenFromWhatTheInstalledUTMShips() {
+        let opensuse = LinuxGuestCatalog.opensuseLeap16ARM64.utmIconNames
+        let icons = URL(fileURLWithPath: "/UTM.app/Contents/Resources/Icons", isDirectory: true)
+
+        XCTAssertEqual(
+            UTMLauncher.resolvedIconName(
+                preferring: opensuse, iconsDirectory: icons,
+                listing: { _ in ["debian.png", "suse.png", "ubuntu.png"] }
+            ),
+            "suse",
+            "UTM 4.7.5 ships suse.png and no opensuse.png"
+        )
+
+        XCTAssertEqual(
+            UTMLauncher.resolvedIconName(
+                preferring: opensuse, iconsDirectory: icons,
+                listing: { _ in ["SUSE.png", "debian.png", "opensuse.png", "ubuntu.png"] }
+            ),
+            "opensuse",
+            "UTM 5.0.4 ships opensuse.png, which is preferred"
+        )
+    }
+
+    /// The default APFS volume is case-insensitive, so `fileExists` answers yes
+    /// for `suse.png` when the file is `SUSE.png`. A check that relied on that
+    /// would pass on most Macs and fail on a case-sensitive one — the least
+    /// reproducible kind of bug — so the comparison is on exact filenames.
+    func testTheComparisonIsExactRatherThanCaseInsensitive() {
+        let icons = URL(fileURLWithPath: "/UTM.app/Contents/Resources/Icons", isDirectory: true)
+
+        XCTAssertEqual(
+            UTMLauncher.resolvedIconName(
+                preferring: ["opensuse", "SUSE", "suse"], iconsDirectory: icons,
+                listing: { _ in ["SUSE.png"] }
+            ),
+            "SUSE",
+            "the candidate matching the real filename must win, not a case variant"
+        )
+    }
+
+    /// Nothing to inspect is not a failure: an unknown name degrades to UTM's
+    /// default icon, which is the state this replaced.
+    func testAnUninspectableUTMFallsBackToTheFirstCandidate() {
+        XCTAssertEqual(
+            UTMLauncher.resolvedIconName(
+                preferring: ["opensuse", "SUSE", "suse"], iconsDirectory: nil, listing: { _ in nil }
+            ),
+            "opensuse"
+        )
+        XCTAssertEqual(
+            UTMLauncher.resolvedIconName(
+                preferring: ["opensuse", "suse"],
+                iconsDirectory: URL(fileURLWithPath: "/nope", isDirectory: true),
+                listing: { _ in nil }
+            ),
+            "opensuse"
+        )
+    }
+
+    /// A UTM shipping none of the candidates still gets a name written rather
+    /// than an empty string, which UTM would treat differently from a miss.
+    func testAUTMWithNoneOfTheCandidatesStillWritesAName() {
+        XCTAssertEqual(
+            UTMLauncher.resolvedIconName(
+                preferring: ["opensuse", "suse"],
+                iconsDirectory: URL(fileURLWithPath: "/x", isDirectory: true),
+                listing: { _ in ["ubuntu.png"] }
+            ),
+            "opensuse"
+        )
     }
 
     // MARK: - What reaches the bundle
@@ -125,7 +212,7 @@ final class DistributionIconTests: XCTestCase {
 
                 let information = try self.information(at: bundleURL)
                 XCTAssertEqual(
-                    information["Icon"] as? String, profile.utmIconName,
+                    information["Icon"] as? String, profile.utmIconNames.first,
                     "\(profile.id) as \(role) kept the default icon"
                 )
                 XCTAssertEqual(
