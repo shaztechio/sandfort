@@ -402,7 +402,15 @@ final class SandfortViewModel: ObservableObject {
     /// Taken here rather than relying on the value left by the last operation:
     /// the whole point of the warning is that it is true at the moment someone
     /// decides how to launch, and UTM may have been quit or started since.
-    func openMaterials() {
+    /// Opens the materials sheet **for one named instance**.
+    ///
+    /// The number is passed rather than read from a prior selection: the sheet
+    /// used to sit in the environment's menu and act on whichever instance was
+    /// selected last, which with two instances on screen named neither. Setting
+    /// the selection here keeps "selection and action are the same gesture",
+    /// which is what the instance rows already promise.
+    func openMaterials(forInstance number: Int) {
+        selectedInstanceNumber = number
         utmIsRunning = UTMLauncher.isRunning
         materialsError = nil
         showMaterials = true

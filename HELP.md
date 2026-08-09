@@ -65,6 +65,7 @@ instance. There is no separate selection step.
 - **Reset & Run Clean** deletes that instance's changes and restores it from the Protected Baseline.
 - **Rename Instance**, in the row's **⋯** menu, adds or changes its descriptive label without changing its number, disk, or identity.
 - **Shut Down Instance**, in the row's **⋯** menu, asks the guest to power itself down.
+- **Materials…**, in the row's **⋯** menu, sends a file or folder into that instance as a read-only disc. See **Bring files into a sandbox**.
 - **Delete Instance**, also in the row's **⋯** menu, unregisters the stopped instance from UTM, waits for UTM to confirm its removal, and moves its bundle to macOS Trash. It does not change the baseline or other instances.
 
 Every launch writes to the activity log what that instance carries: the distribution, its network mode, the tools the baseline was built with, whether a custom setup script was used, and which materials are attached — or that none are. Resume does not state a network mode, because it keeps whatever the instance last ran with rather than choosing one.
@@ -102,7 +103,7 @@ Resume does not ask again because it preserves the instance's last explicit netw
 
 A sandbox has no shared folders, clipboard, or USB, so there is otherwise no way to hand it a file that is already on your Mac. **Materials** are the one exception, and they only go one way.
 
-Select an instance, then choose **Materials…** from the environment's actions menu. Pick a file or a folder and Sandfort packs it into a read-only disc image attached to that instance.
+Materials belong to **one instance**, not to the environment. In that instance's row, open the **⋯** menu and choose **Materials…**, then pick a file or a folder; Sandfort packs it into a read-only disc image attached to that instance. An instance carrying materials shows the disc and its file name in its own row, so you can see which sandbox holds what without opening anything.
 
 The instance must be **fully powered off**, not suspended — attaching rewrites its configuration, and Sandfort will not touch a VM whose disk is in use.
 

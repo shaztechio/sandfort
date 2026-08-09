@@ -62,7 +62,11 @@ without weakening the common provisioning policy.
   `sym53c8xx`. Never VirtIO: as a VirtIO disk the desktop classes them as an
   internal system drive and never offers them.
   `attachMaterials` and `repairBundle` must write the same drive shape, or repair
-  silently undoes the attach on the next state read. See `docs/materials.md`.
+  silently undoes the attach on the next state read. The **UI is per instance**:
+  `Materials…` lives in each instance row's menu and the row shows what is
+  attached. It was briefly an environment-level control acting on a hidden
+  selection, which with two instances named neither and read as materials being
+  deleted. See `docs/materials.md`.
 - `MemorablePasswordWords.swift`: reviewed 2,048-word list behind the generated
   guest password. Its size is an entropy claim documented in
   `docs/password-strength.md` and enforced by tests; do not add, remove, or
