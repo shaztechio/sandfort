@@ -137,7 +137,7 @@ sudo mount -o ro /dev/disk/by-label/SANDFORT_MATERIALS /mnt/materials
 
 A **folder** is sent as a single `.zip` archive named after it, and has to be extracted inside the sandbox.
 
-**Extract it from a terminal, not from Files.** The disc is read-only, and Files' **Extract to…** reports *"not enough free space"* even when the sandbox has tens of gigabytes free — a misleading message about the disc rather than about your destination. In a terminal:
+**Extract it from a terminal, not from Files.** Files' **Extract to…** can refuse with *"Not enough free space to extract"* even when the sandbox has tens of gigabytes free. The sandbox is not out of space and the file is fine; the terminal extracts it without complaint:
 
 ```
 unzip /run/media/$USER/SANDFORT_MATERIALS/archive.zip -d ~/Documents

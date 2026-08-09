@@ -151,9 +151,34 @@ ls /run/media/$USER/SANDFORT_MATERIALS
 ### Extracting a folder archive
 
 Verified on Ubuntu: `unzip` from a terminal works, and GNOME Files' **Extract
-to…** fails with *"not enough free space"* while the guest has tens of gigabytes
-free. The archive sits on a read-only ISO 9660 mount, and Nautilus's space check
-answers for the wrong filesystem.
+to…** fails with *"Not enough free space to extract"* while the guest has tens of
+gigabytes free.
+
+**Where the message comes from**, read in the sources rather than guessed:
+`extract_job_on_scanned` in Nautilus' `nautilus-file-operations.c` compares
+`autoar_extractor_get_total_size()` against `G_FILE_ATTRIBUTE_FILESYSTEM_FREE`
+queried on the extractor's output file, and aborts when the total exceeds it.
+The extractor is created with the chosen destination, so the check is *not*
+looking at the disc — an earlier version of this note claimed it was, which the
+source does not support.
+
+**What is established about our side:** the archive `MaterialsPackager` produces
+through `NSFileCoordinator`'s `.forUploading` uses **data descriptors** — general
+purpose bit 3 set, with compressed and uncompressed sizes written as `0` in each
+local file header, verified by reading the bytes of a real materials image. A
+reader that does not consult the central directory cannot size such an archive.
+
+**What is not established** is the arithmetic that fails. autoar sums
+`archive_entry_size()` per entry and substitutes `G_MAXUINT64` when the total
+comes out at zero, and Nautilus deliberately skips its check on exactly that
+value — so a purely streaming read should *disable* the check rather than trip
+it. Something between those two produces a positive total larger than the
+destination's free space, and that has not been pinned down.
+
+The discriminating experiment, if it matters later: copy the archive off the disc
+into the home directory and extract it there with Files. Working then implicates
+the source being on a read-only mount; failing again implicates the archive's own
+shape.
 
 `HELP.md` therefore points people at a terminal. It previously recommended
 Files' **Extract Here**, which is worse still: that extracts into the disc
