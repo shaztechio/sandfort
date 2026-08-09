@@ -34,6 +34,11 @@ struct SandfortSettingsView: View {
                 .tabItem {
                     Label("Safety", systemImage: "exclamationmark.shield")
                 }
+
+            SandfortAdvancedSettingsView(runtime: runtime)
+                .tabItem {
+                    Label("Advanced", systemImage: "wrench.and.screwdriver")
+                }
         }
         .frame(width: 760, height: 390)
     }
@@ -184,3 +189,91 @@ private struct SandfortDownloadSettingsView: View {
 /// accepting or quitting, so the limits are not skipped past accidentally.
 /// `review` is for re-reading it later from Settings, where demanding consent
 /// again would be theater; it just closes.
+
+/// Pins the UTM that Sandfort drives.
+///
+/// A testing aid, and labelled as one rather than hidden. Sandfort supports UTM
+/// 4.7.5 and 5.0.4, and they differ at run time — 5.0.4 added the
+/// `reload configuration` command that lets a materials disc reach a resumed
+/// instance without quitting UTM, and 4.7.5 has no such command. Verifying
+/// either path means choosing which copy is driven, and Launch Services picks
+/// on its own otherwise.
+///
+/// Unset is the default and changes nothing.
+private struct SandfortAdvancedSettingsView: View {
+    let runtime: SandfortRuntimeConfiguration
+    @State private var pinnedPath = UTMLauncher.pinnedApplicationURL?.path ?? ""
+    @State private var problem = ""
+
+    var body: some View {
+        Form {
+            Section("UTM version") {
+                LabeledContent("Pinned application") {
+                    Text(pinnedPath.isEmpty ? "None — Sandfort finds UTM automatically" : pinnedPath)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(pinnedPath.isEmpty ? .secondary : .primary)
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.trailing)
+                }
+
+                HStack {
+                    Button("Choose UTM…") { choose() }
+                    Button("Clear") { clear() }
+                        .disabled(pinnedPath.isEmpty)
+                    Spacer()
+                    if !problem.isEmpty {
+                        Text(problem)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                Text("For testing against a specific UTM version. Leave this unset unless you have a reason: Sandfort otherwise finds UTM wherever macOS has registered it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("A pinned copy is used for launching, for the UEFI firmware Sandfort reads, and for every command it sends — so it must be the copy you actually run. If it is not open when Sandfort needs it, Sandfort opens that copy rather than talking to a different one.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("Check My Mac reports which UTM is in use, and says so when a pin is being ignored because the application has moved.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .padding(.vertical, 8)
+    }
+
+    /// A panel rather than a text field: a typed path is a typo waiting to point
+    /// Sandfort at something that is not UTM, and the firmware read follows
+    /// whatever is resolved.
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.prompt = "Pin"
+        panel.message = "Choose the UTM application Sandfort should use."
+        guard panel.runModal() == .OK, let chosen = panel.url else { return }
+
+        // Validated on selection rather than at launch, so a mis-pick is a
+        // message here instead of a confusing failure much later.
+        guard UTMLauncher.readBundleIdentifier(at: chosen) == UTMLauncher.bundleIdentifier else {
+            problem = "That is not UTM."
+            return
+        }
+        UTMLauncher.pinnedApplicationURL = chosen
+        pinnedPath = chosen.path
+        problem = ""
+    }
+
+    private func clear() {
+        UTMLauncher.pinnedApplicationURL = nil
+        pinnedPath = ""
+        problem = ""
+    }
+}

@@ -152,6 +152,14 @@ The guest cannot change the image and cannot reach the original file, because it
 
 It does **not** mean the contents are safe. Anything you send into a sandbox is readable by whatever runs there. Send a work file only if you accept that a hostile program in that instance can read it, and never a credential, key, wallet, or secret.
 
+## Choose which UTM to use
+
+Sandfort finds UTM wherever macOS has registered it, and **Check My Mac** reports which copy it resolved and where. That is all most people need.
+
+If more than one UTM is installed — an installer disk image left mounted after an upgrade is enough — macOS decides which one wins, and it may not be the one you expect. **Settings → Advanced** can pin a specific UTM application. Sandfort then uses that copy for launching, for the firmware it reads, and for every command it sends, whatever else is installed.
+
+Leave it unset unless you are testing a particular UTM version. If a pinned application is moved or deleted, Sandfort falls back to finding UTM normally and says so in **Check My Mac** rather than refusing to start anything.
+
 ## Configure development tools
 
 Open the environment's actions menu (**⋯**, beside the main button) and choose **Development Tools…** before creating or rebuilding the baseline.

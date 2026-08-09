@@ -273,7 +273,20 @@ actor SandfortWorkflow {
             "\nOther copies of UTM are also registered on this Mac, and are not being used:\n"
                 + utm.alternatives.map { "  \($0.path)" }.joined(separator: "\n")
                 + "\nSandfort uses the one above. Eject or remove the others to be certain."
-        return "\(version) is installed at \(utm.applicationURL.path).\(otherCopies)\n"
+        // A pin changes which UTM every command reaches, so "which UTM am I
+        // driving" stops being answerable from the version alone. Say it.
+        let pinDescription: String
+        switch utm.pin {
+        case .none:
+            pinDescription = ""
+        case .active:
+            pinDescription = "\nThis copy is pinned in Settings → Advanced, so Sandfort uses it "
+                + "and sends every command to it, whatever else is installed."
+        case .unusable(let reason):
+            pinDescription = "\nA UTM is pinned in Settings → Advanced but is being ignored: "
+                + "\(reason). Sandfort resolved the copy above instead."
+        }
+        return "\(version) is installed at \(utm.applicationURL.path).\(pinDescription)\(otherCopies)\n"
             + "This Mac is \(architecture).\(accelerationDescription)\n"
             + "\(resourcesDescription) \(stateDescription)\(baselineDescription)"
     }
@@ -1147,6 +1160,22 @@ enum UTMLauncher {
     nonisolated static let downloadPage = URL(string: "https://mac.getutm.app/")!
 
     /// Where UTM actually is, and what version it is.
+    /// Whether a specific UTM has been pinned in Settings, and whether it is
+    /// usable.
+    ///
+    /// A pin exists to test one UTM version deliberately — the app supports
+    /// 4.7.5 and 5.0.4, and their behaviour differs in ways that only show up at
+    /// run time. Left unset, resolution is exactly what it was.
+    enum PinState: Equatable, Sendable {
+        case none
+        case active
+        /// Pinned, but the pin cannot be honoured. Resolution falls back to the
+        /// normal search rather than refusing to launch: a stale pin should cost
+        /// a warning, not the use of the app. The reason is surfaced so it does
+        /// not become a silent reversion to a different UTM.
+        case unusable(String)
+    }
+
     struct Installation: Equatable, Sendable {
         let applicationURL: URL
         let version: String?
@@ -1157,14 +1186,23 @@ enum UTMLauncher {
         /// loud instead of leaving the user to infer it from a version number.
         let alternatives: [URL]
 
+        /// Whether this came from a pin, and if a pin was set but ignored, why.
+        let pin: PinState
+
         /// Spelled out rather than synthesized so `alternatives` can be `let`
         /// and still be omitted. A `let` with an initial value is dropped from
         /// the memberwise initializer entirely, which would have made the
         /// default unusable at the one call site that supplies it.
-        init(applicationURL: URL, version: String?, alternatives: [URL] = []) {
+        init(
+            applicationURL: URL,
+            version: String?,
+            alternatives: [URL] = [],
+            pin: PinState = .none
+        ) {
             self.applicationURL = applicationURL
             self.version = version
             self.alternatives = alternatives
+            self.pin = pin
         }
 
         /// Derived from wherever UTM was found rather than assumed, so a UTM
@@ -1215,8 +1253,37 @@ enum UTMLauncher {
             NSWorkspace.shared.urlsForApplications(withBundleIdentifier: $0)
         },
         fallbackPaths: [String] = ["/Applications/UTM.app", NSHomeDirectory() + "/Applications/UTM.app"],
-        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+        pinnedPath: String? = UserDefaults.standard.string(forKey: pinnedPathDefaultsKey),
+        bundleIdentifierAt: (URL) -> String? = { readBundleIdentifier(at: $0) }
     ) -> Installation? {
+        // A pin wins outright when it is usable. It exists so a specific UTM can
+        // be driven deliberately — 4.7.5 and 5.0.4 differ at run time in ways
+        // that only a real launch shows — and a pin that Launch Services could
+        // override would be no pin at all.
+        var pin = PinState.none
+        if let pinnedPath, !pinnedPath.isEmpty {
+            let pinned = URL(fileURLWithPath: pinnedPath, isDirectory: true)
+            if !fileExists(pinned.path) {
+                pin = .unusable("the pinned UTM is no longer at \(pinnedPath)")
+            } else if bundleIdentifierAt(pinned) != bundleIdentifier {
+                // Guards the firmware read as much as the launch: the UEFI
+                // variable store is taken from whatever was resolved, so a pin
+                // pointing at some other app would have Sandfort reading
+                // Contents/Resources/qemu out of it.
+                pin = .unusable("the pinned application at \(pinnedPath) is not UTM")
+            } else {
+                let others = identifierLookup(bundleIdentifier)
+                    .filter { fileExists($0.path) && !isDiscarded($0) && $0 != pinned }
+                return Installation(
+                    applicationURL: pinned,
+                    version: version(at: pinned),
+                    alternatives: others,
+                    pin: .active
+                )
+            }
+        }
+
         let registered = identifierLookup(bundleIdentifier)
             .filter { fileExists($0.path) && !isDiscarded($0) }
         // Stable, so Launch Services' own preference still decides between two
@@ -1230,13 +1297,67 @@ enum UTMLauncher {
         let located = ranked.first
             ?? fallbackPaths.first(where: fileExists).map { URL(fileURLWithPath: $0, isDirectory: true) }
         guard let located, fileExists(located.path) else { return nil }
-        let info = NSDictionary(contentsOf: located.appendingPathComponent("Contents/Info.plist"))
         return Installation(
             applicationURL: located,
-            version: info?["CFBundleShortVersionString"] as? String,
-            alternatives: ranked.filter { $0 != located }
+            version: version(at: located),
+            alternatives: ranked.filter { $0 != located },
+            pin: pin
         )
     }
+
+    /// The defaults key behind Settings → Advanced. App-wide rather than
+    /// per environment: it names which UTM to drive, not anything about a guest.
+    nonisolated static let pinnedPathDefaultsKey = "PinnedUTMApplicationPath"
+
+    nonisolated static var pinnedApplicationURL: URL? {
+        get {
+            UserDefaults.standard.string(forKey: pinnedPathDefaultsKey)
+                .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(newValue.path, forKey: pinnedPathDefaultsKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: pinnedPathDefaultsKey)
+            }
+        }
+    }
+
+    nonisolated static func readBundleIdentifier(at url: URL) -> String? {
+        NSDictionary(contentsOf: url.appendingPathComponent("Contents/Info.plist"))?
+            .value(forKey: "CFBundleIdentifier") as? String
+    }
+
+    nonisolated private static func version(at url: URL) -> String? {
+        NSDictionary(contentsOf: url.appendingPathComponent("Contents/Info.plist"))?
+            .value(forKey: "CFBundleShortVersionString") as? String
+    }
+
+    /// The running UTM that a pin names, if it is running.
+    ///
+    /// Apple Events address an application, and addressing by bundle identifier
+    /// reaches whichever copy is running — so with 5.0.4 open and 4.7.5 pinned,
+    /// every `start`, `stop` and `reload configuration` would go to 5.0.4 while
+    /// the app reported 4.7.5. Pinning that did not cover this would produce a
+    /// test whose result means nothing.
+    ///
+    /// `nil` when no pin is active, or when the pinned copy is not running —
+    /// callers must not silently fall back to the identifier in the latter case.
+    nonisolated static func pinnedProcessIdentifier(
+        running: [(bundleURL: URL?, processIdentifier: pid_t)] = NSWorkspace.shared
+            .runningApplications
+            .filter { !$0.isTerminated }
+            .map { ($0.bundleURL, $0.processIdentifier) }
+    ) -> pid_t? {
+        guard let pinned = pinnedApplicationURL else { return nil }
+        let wanted = pinned.standardizedFileURL.resolvingSymlinksInPath().path
+        return running.first {
+            $0.bundleURL?.standardizedFileURL.resolvingSymlinksInPath().path == wanted
+        }?.processIdentifier
+    }
+
+    /// Whether a pin is set at all, regardless of whether it resolves.
+    nonisolated static var isPinned: Bool { pinnedApplicationURL != nil }
 
     /// A mounted volume can disappear while a baseline is being written.
     nonisolated private static func isOnMountedVolume(_ url: URL) -> Bool {
@@ -1260,7 +1381,12 @@ enum UTMLauncher {
     /// from inside the guest, so the app has to say it rather than let someone
     /// conclude their files did not go in.
     nonisolated static var isRunning: Bool {
-        NSWorkspace.shared.runningApplications.contains {
+        // With a pin, only the pinned copy counts. Another UTM being open says
+        // nothing about whether the one Sandfort drives has a cached
+        // configuration to refresh, and treating it as equivalent would send the
+        // materials guidance down the wrong branch.
+        if isPinned { return pinnedProcessIdentifier() != nil }
+        return NSWorkspace.shared.runningApplications.contains {
             $0.bundleIdentifier == bundleIdentifier && !$0.isTerminated
         }
     }
