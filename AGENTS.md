@@ -39,7 +39,12 @@ without weakening the common provisioning policy.
   terminal and browser verification commands, MOTD, and completion helpers. Both
   vendor downloads are checked against the vendor's published SHA-256, and VS
   Code uses the tarball so no third-party repository or key is added to a
-  guest.
+  guest. Every vendor `curl` carries `curlRetryOptions`: one dropped connection
+  used to discard a whole baseline, and there is no resuming a failed setup
+  because cloud-init's `runcmd` is once-per-instance. Retrying is safe only
+  because each download is checksum-verified immediately afterwards — a
+  truncated retry fails the check rather than being installed — so a new
+  download needs both, and `GuestDownloadRetryTests` counts them.
 - `MaterialsPackager.swift`: packs a user-chosen file or folder into the
   read-only image a clean instance can be handed. A folder is archived by
   `NSFileCoordinator`'s `.forUploading`, deliberately rather than by a hand-written
@@ -77,12 +82,12 @@ without weakening the common provisioning policy.
 - `FedoraCloudInit.swift`: Fedora 44 DNF5, Workstation, firewalld, SELinux,
   automatic-update, and completion policy.
 - `DebianCloudInit.swift`: Debian 13 APT, GNOME/GDM, AppArmor, UFW,
-  unattended-upgrade, and completion policy. Debian revision 7 is production-supported.
+  unattended-upgrade, and completion policy. Debian revision 8 is production-supported.
 - `OpenSUSECloudInit.swift`: openSUSE Leap 16 Zypper, GNOME/GDM, Firefox,
   NetworkManager, firewalld, SELinux, security-patch timer, and completion
   policy. Leap's GNOME pattern pulls in neither a browser nor a terminal, unlike
   the other three desktop metapackages, so the profile installs both explicitly.
-  Leap revision 8 is production-supported.
+  Leap revision 9 is production-supported.
 - `NativeDownloader.swift`, `DiskUtilities.swift`, `ISO9660Writer.swift`: native
   download, verification, disk manipulation, and NoCloud ISO generation.
   `ISO9660Writer` validates before it writes, and every limit it states is load

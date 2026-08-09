@@ -16,6 +16,34 @@ import Foundation
 
 enum GuestProvisioningSupport {
     static let completionMarkerPath = "/var/lib/sandfort/setup-complete"
+
+    /// Retry options for every vendor download in the guest.
+    ///
+    /// A single dropped connection used to discard the whole baseline. Observed:
+    /// twelve minutes into an Ubuntu build, with packages, the desktop and
+    /// Node.js already installed and verified, the Visual Studio Code tarball
+    /// failed with `curl: (56) Recv failure: Connection reset by peer` and setup
+    /// stopped. Nothing was salvageable — cloud-init's `runcmd` is
+    /// once-per-instance, so the only way forward was a full Rebuild.
+    ///
+    /// The package install already retried three times; these did not, which
+    /// made the cheapest part of the build the least robust.
+    ///
+    /// `--retry-all-errors` is needed rather than plain `--retry`: on its own
+    /// `--retry` covers timeouts, 429 and 5xx, and a mid-transfer reset like the
+    /// one observed is not in that set. The cost is retrying a genuine 404 three
+    /// times before failing, which is fifteen seconds.
+    ///
+    /// **Deliberately no `-C -`.** Resuming needs the server to honour range
+    /// requests, and a resume that silently stitches two different files
+    /// together is a worse failure than a slow re-download. Every one of these
+    /// downloads is checked against a published SHA-256 immediately afterwards,
+    /// so a truncated retry fails the checksum rather than being installed —
+    /// which is what makes restarting from zero the safe choice.
+    ///
+    /// Needs curl 7.71 or newer for `--retry-all-errors`; all four profiles ship
+    /// curl 8.
+    static let curlRetryOptions = "--retry 3 --retry-delay 5 --retry-connrefused --retry-all-errors"
     static let motd = """
     This is a disposable malware-analysis sandbox.
     Do not enter personal credentials or secrets here.
@@ -117,7 +145,7 @@ enum GuestProvisioningSupport {
         guard enabled else { return "" }
         return """
         status "Discovering and installing Visual Studio Code for Linux \(linuxArchiveArchitecture)."
-        codeMetadata="$(curl --fail --silent --show-error --location https://update.code.visualstudio.com/api/update/linux-\(linuxArchiveArchitecture)/stable/latest)"
+        codeMetadata="$(curl --fail --silent --show-error --location \(curlRetryOptions) https://update.code.visualstudio.com/api/update/linux-\(linuxArchiveArchitecture)/stable/latest)"
         codeVersion="$(printf '%s' "$codeMetadata" | jq -er '.productVersion')"
         codeURL="$(printf '%s' "$codeMetadata" | jq -er '.url')"
         codeSHA="$(printf '%s' "$codeMetadata" | jq -er '.sha256hash')"
@@ -130,7 +158,7 @@ enum GuestProvisioningSupport {
           false
         fi
         codeTemp="$(mktemp -d)"
-        curl --fail --silent --show-error --location --output "$codeTemp/vscode.tar.gz" "$codeURL"
+        curl --fail --silent --show-error --location \(curlRetryOptions) --output "$codeTemp/vscode.tar.gz" "$codeURL"
         printf '%s  %s\n' "$codeSHA" "$codeTemp/vscode.tar.gz" | sha256sum --check -
         codeInstall="/usr/local/lib/vscode/${codeVersion}"
         rm -rf /usr/local/lib/vscode
@@ -185,7 +213,7 @@ enum GuestProvisioningSupport {
         guard enabled else { return "" }
         return """
         status "Discovering and installing the latest official Node.js LTS for Linux \(linuxArchiveArchitecture)."
-        nodeMetadata="$(curl --fail --silent --show-error --location https://nodejs.org/dist/index.json)"
+        nodeMetadata="$(curl --fail --silent --show-error --location \(curlRetryOptions) https://nodejs.org/dist/index.json)"
         nodeVersion="$(printf '%s' "$nodeMetadata" | jq -er 'map(select(.lts != false))[0].version')"
         case "$nodeVersion" in
           v[0-9]*.[0-9]*.[0-9]*) ;;
@@ -194,8 +222,8 @@ enum GuestProvisioningSupport {
         nodeArchive="node-${nodeVersion}-linux-\(linuxArchiveArchitecture).tar.xz"
         nodeBase="https://nodejs.org/dist/${nodeVersion}"
         nodeTemp="$(mktemp -d)"
-        curl --fail --silent --show-error --location --output "$nodeTemp/SHASUMS256.txt" "$nodeBase/SHASUMS256.txt"
-        curl --fail --silent --show-error --location --output "$nodeTemp/$nodeArchive" "$nodeBase/$nodeArchive"
+        curl --fail --silent --show-error --location \(curlRetryOptions) --output "$nodeTemp/SHASUMS256.txt" "$nodeBase/SHASUMS256.txt"
+        curl --fail --silent --show-error --location \(curlRetryOptions) --output "$nodeTemp/$nodeArchive" "$nodeBase/$nodeArchive"
         (cd "$nodeTemp" && grep "  ${nodeArchive}$" SHASUMS256.txt | sha256sum --check -)
         nodeInstall="/usr/local/lib/nodejs/${nodeVersion}"
         rm -rf "$nodeInstall"

@@ -168,7 +168,7 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
 enum LinuxGuestCatalog {
     static let ubuntu2404ARM64 = LinuxGuestProfile(
         id: "ubuntu-24.04-arm64",
-        revision: 4,
+        revision: 5,
         displayName: "Ubuntu 24.04 LTS",
         distributionName: "Ubuntu",
         utmIconName: "ubuntu",
@@ -196,7 +196,7 @@ enum LinuxGuestCatalog {
 
     static let fedora44ARM64 = LinuxGuestProfile(
         id: "fedora-44-arm64",
-        revision: 4,
+        revision: 5,
         displayName: "Fedora Cloud 44",
         distributionName: "Fedora",
         utmIconName: "fedora",
@@ -224,7 +224,7 @@ enum LinuxGuestCatalog {
 
     static let debian13ARM64 = LinuxGuestProfile(
         id: "debian-13-arm64",
-        revision: 7,
+        revision: 8,
         displayName: "Debian 13 (Trixie)",
         distributionName: "Debian",
         utmIconName: "debian",
@@ -252,7 +252,7 @@ enum LinuxGuestCatalog {
 
     static let opensuseLeap16ARM64 = LinuxGuestProfile(
         id: "opensuse-leap-16.0-arm64",
-        revision: 8,
+        revision: 9,
         displayName: "openSUSE Leap 16.0",
         distributionName: "openSUSE",
         utmIconName: "opensuse",

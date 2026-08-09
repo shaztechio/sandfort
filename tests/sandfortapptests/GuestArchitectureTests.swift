@@ -61,28 +61,28 @@ final class GuestArchitectureTests: XCTestCase {
     /// pull request, per `AGENTS.md`.
     private static let goldenUserDataDigests: [String: [String: String]] = [
         "ubuntu-24.04-arm64": [
-            "recommended": "c2ad0ed4323f701d33826c8500702cf35762983b27da8b3a112414833de1773c",
+            "recommended": "d76c60442d9a5379316f794b2ed2cefbfb2f493730f83a999f41822043b61116",
             "bare": "0692d4ad8e7ea42a6e4293a36aa6989168f326042c58f65a16b059d073114606",
-            "custom": "d945990b3f90f366efb1bd21759d011112d637764f55a43c9acb473c207cae84"
+            "custom": "74fad348c12ee55961787901fe35c498804b5b67e40fb9e81b5c38eaa4fbe833"
         ],
         "fedora-44-arm64": [
-            "recommended": "7a025de7947f0b06522690c613f04908bee8e323e944d3f9bdd498084cbfc8be",
+            "recommended": "de69f7120016be0d491d8656954356a1d5f67252d2cb8bb942a2f022b83a6a40",
             "bare": "975d8a1abef48e8be654b40db862f427bbef3d2ebaa59d81b4114ea3b5f5cdd4",
-            "custom": "b7475e8b17ac03f9aa2433fbdfd4fce0777f983faf1b42c21b987b48e9bff0f1"
+            "custom": "114e419d23a8e6b09b6e36f19bb08eb921382f9ad632b4d390aa41f36d40352d"
         ],
         "debian-13-arm64": [
-            "recommended": "cd1151acd8dfc879a8275a5042d54db94b1cf300b19c9977af7dba74eab806dd",
+            "recommended": "e340bbe909c05791038bbc342446c2dd056066997a25702ec2003388e68ce387",
             "bare": "eb66123488c06a52e8b0831199a9f98327ce20efa095b3df6fb3b205870f24f4",
-            "custom": "a17a9994419c5895754cdc21a6d028d946f60da120e61fe440777ee286d14e3d"
+            "custom": "c323f0a2886cccc6a63b52fa4d5b77cd8cb1b5b97ee7692baa2ed8862088094a"
         ],
         "opensuse-leap-16.0-arm64": [
             // Revision 7: a file manager, gvfs, gvfs-backends, and udisks2.
             // Leap's GNOME pattern provides none of them. Revision 6 added the
             // first three and was still not enough — core gvfs does not carry
             // the udisks2 volume monitor, so Files showed no removable media.
-            "recommended": "93a5dc078de2463fcfde835043bf4c819904721f384046d45bf84c78700452d9",
+            "recommended": "e82983bbe30ea7565a7e5ed984482d828ca40f1500ae74f3b34159697252c93d",
             "bare": "c8c1811367826663f1ee6b1c220fb7c47b478cc5bd9aefd30859066582dee454",
-            "custom": "f41962f89bef56b1633402dfabbb97be12a4ba3ae8a5b6b82e0d9753bd572716"
+            "custom": "32522480f15bbf3c34a225ff19bb724fc135748105d860a9df4074096601a33c"
         ]
     ]
 

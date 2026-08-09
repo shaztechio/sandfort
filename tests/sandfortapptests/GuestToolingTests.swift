@@ -226,12 +226,20 @@ final class GuestToolingTests: XCTestCase {
         }
     }
 
-    /// These four revisions are what force the rebuild that ships the terminal
-    /// and the editor. Getting one wrong silently reuses an old baseline.
+    /// The revision is what forces a rebuild, so every change embedded in the
+    /// guest has to bump one. Getting it wrong silently reuses an old baseline:
+    /// the app sees a supported revision, asks for no rebuild, and the user runs
+    /// a guest that predates the change while believing otherwise.
+    ///
+    /// Deliberately not a list of what each revision shipped. That wording named
+    /// "the terminal and the editor" and survived two later bumps that had
+    /// nothing to do with either, so it described the wrong change while looking
+    /// authoritative. `docs/linux-profile-provenance.md` and the git history
+    /// carry the per-revision record; this test only holds the numbers.
     func testProfileRevisionsWereBumpedForTheseGuestChanges() {
-        XCTAssertEqual(LinuxGuestCatalog.ubuntu2404ARM64.revision, 4)
-        XCTAssertEqual(LinuxGuestCatalog.fedora44ARM64.revision, 4)
-        XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.revision, 7)
-        XCTAssertEqual(LinuxGuestCatalog.opensuseLeap16ARM64.revision, 8)
+        XCTAssertEqual(LinuxGuestCatalog.ubuntu2404ARM64.revision, 5)
+        XCTAssertEqual(LinuxGuestCatalog.fedora44ARM64.revision, 5)
+        XCTAssertEqual(LinuxGuestCatalog.debian13ARM64.revision, 8)
+        XCTAssertEqual(LinuxGuestCatalog.opensuseLeap16ARM64.revision, 9)
     }
 }
