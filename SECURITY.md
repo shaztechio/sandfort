@@ -14,8 +14,12 @@ Use GitHub's private vulnerability reporting instead:
 2. Choose **Report a vulnerability**.
 
 That opens a private advisory visible only to you and the maintainers. If
-private reporting is unavailable to you, contact the maintainer through their
-GitHub profile and ask for a private channel before sending details.
+private reporting is unavailable to you, email **hello@sandfort.app** and say
+you have a security report.
+
+Prefer the advisory for the details. Email is not encrypted, so treat it as a
+way to make contact rather than a place to send a working exploit — a one-line
+"I have found something in X" is enough to start.
 
 Please include:
 

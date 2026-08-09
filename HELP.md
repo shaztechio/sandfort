@@ -342,3 +342,11 @@ Do not manually move or edit these files while Sandfort or UTM is open. Use Sand
 ## More information
 
 Visit [sandfort.app](https://sandfort.app/) for project information. Technical contributors can consult the repository README, architecture document, and security model.
+
+## Getting in touch
+
+Email **hello@sandfort.app** with a question, a problem, or a suggestion. Include the version from **Sandfort → About**, which Linux environment you were using, and what you expected to happen.
+
+Bugs and feature requests can also go to the [issue tracker](https://github.com/shaztechio/sandfort/issues), and questions to [Discussions](https://github.com/shaztechio/sandfort/discussions), if you have a GitHub account. You do not need one to email.
+
+If you think you have found a security vulnerability, do not open a public issue — the [security policy](https://github.com/shaztechio/sandfort/blob/main/SECURITY.md) explains how to report it privately.
