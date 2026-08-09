@@ -88,6 +88,18 @@ actor SandfortWorkflow {
     /// then refuses with "Cannot import this VM" — a visible dialog on someone's
     /// machine, caused by a unit test.
     typealias LaunchVirtualMachine = @Sendable (URL, String, @escaping @Sendable (String) -> Void) async -> Void
+    /// Asking UTM to re-read a bundle it already knows about.
+    ///
+    /// Returns whether UTM was actually asked: `false` means it is not running,
+    /// so there is no cached copy to refresh and the next launch reads from
+    /// disk. Throwing means it is running and could not be asked — UTM 4.7.5 has
+    /// no such command — which is the case that needs the user to quit it.
+    ///
+    /// "Is UTM running" lives behind this closure rather than in the workflow so
+    /// tests are deterministic. Read directly, a test would take one path on a
+    /// developer's Mac with UTM open and the other on CI, which is how a suite
+    /// starts passing for reasons unrelated to the code.
+    typealias ReloadUTMConfiguration = @Sendable (String) async throws -> Bool
 
     private let downloader = NativeDownloader()
     private let fileManager = FileManager.default
@@ -95,6 +107,7 @@ actor SandfortWorkflow {
     private let environment: SandfortWorkflowEnvironment
     private let deleteUTMRegistration: DeleteUTMRegistration
     private let launchVirtualMachine: LaunchVirtualMachine
+    private let reloadUTMConfiguration: ReloadUTMConfiguration
 
     init(
         environment: SandfortWorkflowEnvironment = .production,
@@ -104,12 +117,18 @@ actor SandfortWorkflow {
         },
         launchVirtualMachine: @escaping LaunchVirtualMachine = { bundle, name, log in
             await UTMLauncher.openAndStart(bundle: bundle, name: name, log: log)
+        },
+        reloadUTMConfiguration: @escaping ReloadUTMConfiguration = { name in
+            guard UTMLauncher.isRunning else { return false }
+            try UTMRegistryController.reloadConfiguration(named: name)
+            return true
         }
     ) {
         self.environment = environment
         self.provider = provider ?? UTMBundleBuilder()
         self.deleteUTMRegistration = deleteUTMRegistration
         self.launchVirtualMachine = launchVirtualMachine
+        self.reloadUTMConfiguration = reloadUTMConfiguration
     }
 
     private var canonicalRootURL: URL {
@@ -582,25 +601,37 @@ actor SandfortWorkflow {
             "\(image.displayName) is attached to Instance \(number) as a read-only disc image. "
                 + "The guest reads a copy and cannot reach the original."
         ))
-        // UTM caches a VM's configuration, so a newly attached drive may not
-        // appear until it re-reads the bundle. Quitting UTM is the remedy.
+        // UTM keeps its own copy of a VM's configuration, so a drive attached
+        // while it is running is not there when the instance is resumed. This is
+        // established, not suspected: an instance whose bundle held the drive
+        // and the image resumed without it, and quitting UTM and resuming the
+        // same instance made it appear.
         //
-        // It must NOT be UTM's `delete` command, which is what this used to do:
-        // that command is documented as "All data will be deleted, there is no
-        // confirmation!", and when UTM happened to have the instance registered
-        // it destroyed the bundle. `runClean` can call it safely only because it
-        // rebuilds the bundle immediately afterwards. There is no equivalent
-        // here, and losing an instance is far worse than a stale drive list.
-        event(.log(
-            "If the disc does not appear in the guest, quit UTM and launch this instance again."
-        ))
+        // Say it plainly, and say it here. It is invisible from inside the
+        // guest — the sandbox simply has no disc — so someone who is not told
+        // concludes the feature is broken, or worse, that their files are in
+        // there somewhere.
+        //
+        // The remedy must NOT be UTM's `delete` command, which is what this used
+        // to do: that command is documented as "All data will be deleted, there
+        // is no confirmation!", and when UTM happened to have the instance
+        // registered it destroyed the bundle. `runClean` can call it safely only
+        // because it rebuilds the bundle immediately afterwards. There is no
+        // equivalent here, and losing an instance is far worse than a stale
+        // drive list.
+        await makeUTMRereadBundle(
+            named: instances[index].vmName, subject: "this disc", event: event
+        )
         return state
     }
 
     /// Forgets materials for one instance: the stored image, the metadata, and
     /// the drive, which `repairBundle` drops on the next state read once the
     /// bundle is rewritten by a Reset.
-    func removeMaterials(fromInstance number: Int) async throws -> SandboxState {
+    func removeMaterials(
+        fromInstance number: Int,
+        event: @escaping @Sendable (WorkflowEvent) -> Void = { _ in }
+    ) async throws -> SandboxState {
         guard let existing = currentState()?.resolvedInstances.first(where: { $0.number == number })
         else { throw SandboxError.sandboxInstanceNotFound }
         // Clearing the record is not enough: without detaching, the user could
@@ -610,7 +641,50 @@ actor SandfortWorkflow {
             try provider.detachMaterials(from: bundle)
         }
         let state = try clearMaterialsRecord(forInstance: number)
+        // Removal needs the re-read more than attaching does. A stale attach
+        // means a missing convenience; a stale removal means the user was told
+        // their files are gone from the sandbox while UTM still hands the disc
+        // to the guest.
+        await makeUTMRereadBundle(
+            named: existing.vmName, subject: "the removal", event: event
+        )
         return state
+    }
+
+    /// Asks UTM to re-read a bundle whose drives just changed, and says what to
+    /// do when it cannot.
+    ///
+    /// UTM keeps its own copy of a machine's configuration, so a change written
+    /// while UTM is running does not reach a resumed instance. UTM 5.0.4 added
+    /// `reload configuration` for exactly this; 4.7.5, which is what
+    /// `releases/latest` still gives people, has no such command and answers
+    /// `errAEEventNotHandled`.
+    ///
+    /// Best effort by design. Every outcome here is recoverable by quitting UTM
+    /// or by Reset & Run Clean, so nothing about materials may fail because UTM
+    /// is old, closed, or has been denied Automation permission — the user is
+    /// free to refuse that, and a refusal must not break a feature.
+    private func makeUTMRereadBundle(
+        named vmName: String,
+        subject: String,
+        event: @escaping @Sendable (WorkflowEvent) -> Void
+    ) async {
+        do {
+            let asked = try await reloadUTMConfiguration(vmName)
+            event(.log(
+                asked
+                    ? "UTM has re-read this instance, so Resume will pick \(subject) up."
+                    // Not running, so there is no cached copy: the next launch
+                    // reads the bundle from disk.
+                    : "Resume will pick \(subject) up."
+            ))
+        } catch {
+            event(.log(
+                "UTM keeps its own copy of this instance's configuration and could not be asked "
+                    + "to refresh it, so it does not know about \(subject) yet. Quit UTM before "
+                    + "choosing Resume, or use Reset & Run Clean."
+            ))
+        }
     }
 
     /// Forgets the stored image and the metadata, and nothing else.
@@ -1176,6 +1250,20 @@ enum UTMLauncher {
     nonisolated static var installation: Installation? { resolveInstallation() }
 
     nonisolated static var isInstalled: Bool { installation != nil }
+
+    /// Whether UTM is running right now.
+    ///
+    /// It matters for materials: UTM keeps its own copy of a virtual machine's
+    /// configuration, so a drive attached while it is running is not seen when
+    /// that instance is resumed — verified on a live run, where quitting UTM and
+    /// resuming the same instance made the disc appear. The failure is silent
+    /// from inside the guest, so the app has to say it rather than let someone
+    /// conclude their files did not go in.
+    nonisolated static var isRunning: Bool {
+        NSWorkspace.shared.runningApplications.contains {
+            $0.bundleIdentifier == bundleIdentifier && !$0.isTerminated
+        }
+    }
 
     /// Why waiting for UTM to register a bundle stopped.
     enum RegistrationWait: Equatable {

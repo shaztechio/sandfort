@@ -66,7 +66,8 @@ final class MaterialsScopeTests: XCTestCase {
     private var unregistered = Unregistrations()
 
     private func makeWorkflow(
-        deleteRegistration: (@Sendable (String) async throws -> Void)? = nil
+        deleteRegistration: (@Sendable (String) async throws -> Void)? = nil,
+        reload: (@Sendable (String) async throws -> Bool)? = nil
     ) throws -> (SandfortWorkflow, URL) {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -113,7 +114,10 @@ final class MaterialsScopeTests: XCTestCase {
             // synthetic bundle makes UTM show "Cannot import this VM" — a dialog
             // on the developer's machine, from a unit test. It also polled for
             // 16 seconds per test waiting for a registration that never came.
-            launchVirtualMachine: { _, _, _ in }
+            launchVirtualMachine: { _, _, _ in },
+            // Defaults to "UTM is not running", so tests that do not care about
+            // the re-read behave the same on a developer's Mac and on CI.
+            reloadUTMConfiguration: reload ?? { _ in false }
         )
         return (workflow, root)
     }
@@ -217,6 +221,114 @@ final class MaterialsScopeTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: storedImage(in: root).path))
         let state = await workflow.currentState()
         XCTAssertFalse(try XCTUnwrap(state?.resolvedInstances.first).hasMaterials)
+    }
+
+    // MARK: - The silent failure has to be said out loud
+
+    /// UTM 5.0.4 added `reload configuration` for precisely this: a bundle
+    /// changed underneath it by an automation tool. When it works, nobody has to
+    /// quit anything.
+    func testAttachingAsksUTMToRereadTheBundle() async throws {
+        let asked = LogRecorder()
+        let (workflow, root) = try makeWorkflow(reload: { name in
+            asked.append(name)
+            return true
+        })
+
+        let logged = LogRecorder()
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("challenge.zip", in: root),
+            event: { if case .log(let line) = $0 { logged.append(line) } }
+        )
+
+        let named = await workflow.currentState()?.resolvedInstances.first?.vmName
+        XCTAssertEqual(
+            asked.text, named,
+            "the reload must name the instance whose drives changed"
+        )
+        XCTAssertTrue(logged.text.contains("re-read"), logged.text)
+        XCTAssertFalse(
+            logged.text.lowercased().contains("quit utm"),
+            "UTM re-read it, so telling the user to quit would be wrong: \(logged.text)"
+        )
+    }
+
+    /// The path most users are on: UTM 4.7.5 has no such command and answers
+    /// `errAEEventNotHandled`. Materials must still attach, and the user must be
+    /// told what to do — this is the outcome that has to degrade gracefully,
+    /// which is why it is tested more carefully than the happy one.
+    func testAnOlderUTMThatCannotRereadStillAttachesAndSaysToQuitIt() async throws {
+        struct NotUnderstood: Error {}
+        let (workflow, root) = try makeWorkflow(reload: { _ in throw NotUnderstood() })
+
+        let logged = LogRecorder()
+        let state = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("challenge.zip", in: root),
+            event: { if case .log(let line) = $0 { logged.append(line) } }
+        )
+
+        XCTAssertTrue(
+            try XCTUnwrap(state.resolvedInstances.first).hasMaterials,
+            "a UTM that cannot be asked must not fail the attach"
+        )
+        XCTAssertTrue(logged.text.lowercased().contains("quit utm"), logged.text)
+        XCTAssertTrue(logged.text.contains("Reset & Run Clean"), logged.text)
+    }
+
+    /// Nothing is running, so there is nothing cached and no instruction to give.
+    func testAClosedUTMIsNotToldToQuit() async throws {
+        let (workflow, root) = try makeWorkflow(reload: { _ in false })
+
+        let logged = LogRecorder()
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("challenge.zip", in: root),
+            event: { if case .log(let line) = $0 { logged.append(line) } }
+        )
+
+        XCTAssertTrue(logged.text.contains("Resume will pick"), logged.text)
+        XCTAssertFalse(logged.text.lowercased().contains("quit utm"), logged.text)
+    }
+
+    /// Removal needs the re-read more than attaching does. A stale attach is a
+    /// missing convenience; a stale removal means the user was told their files
+    /// are out of the sandbox while UTM still hands the disc to the guest.
+    func testRemovingMaterialsAlsoAsksUTMToRereadTheBundle() async throws {
+        let asked = LogRecorder()
+        let (workflow, root) = try makeWorkflow(reload: { name in
+            asked.append(name)
+            return true
+        })
+        _ = try await workflow.attachMaterials(
+            toInstance: 1, from: try source("challenge.zip", in: root), event: { _ in }
+        )
+
+        _ = try await workflow.removeMaterials(fromInstance: 1, event: { _ in })
+
+        XCTAssertEqual(
+            asked.count, 2,
+            "attach and remove each change the drives, so each needs the re-read"
+        )
+    }
+
+    /// Collects log lines without reaching for shared mutable state.
+    private final class LogRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var lines: [String] = []
+
+        func append(_ line: String) {
+            lock.lock(); defer { lock.unlock() }
+            lines.append(line)
+        }
+
+        var text: String {
+            lock.lock(); defer { lock.unlock() }
+            return lines.joined(separator: "\n")
+        }
+
+        var count: Int {
+            lock.lock(); defer { lock.unlock() }
+            return lines.count
+        }
     }
 
     // MARK: - Reset restores what was approved, not what is there now

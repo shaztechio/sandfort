@@ -132,9 +132,10 @@ nothing pointing at it is still the user's file inside a bundle.
 ## Using it
 
 The instance must be **fully powered off**, not suspended — attaching rewrites
-its configuration, and a suspended VM still holds its disk lock. Afterwards
-**Resume** is enough; resetting would discard everything else in that instance to
-deliver a file that is already attached.
+its configuration, and a suspended VM still holds its disk lock. Then **quit UTM
+before launching it** — see the Resume caveat below — and **Resume**. Resetting
+would discard everything else in that instance to deliver a file that is already
+attached, so it is the heavier way to get the same disc.
 
 In the guest, open Files and look for `SANDFORT_MATERIALS`. Ubuntu and openSUSE
 list it as a CD in the sidebar; Debian shows it in Files but not as a sidebar CD,
@@ -165,17 +166,55 @@ openSUSE needed `gvfs-backends` installed explicitly before Files would offer it
 at all: core `gvfs` does not carry the udisks2 volume monitor, so the disc was
 enumerated as `/dev/sr0` and the desktop showed nothing.
 
-**Attaching** materials to a stopped instance needs only a Resume — UTM picks up
-a newly added drive. **Changing how an existing drive is attached** does not:
-UTM caches a VM's configuration, and an interface change is invisible to it until
-the app is quit and relaunched. That distinction cost an afternoon of measuring
-against stale state.
+### UTM has to re-read the bundle, and from 5.0.4 it can be asked to
 
-One openSUSE resume, taken immediately after a rebuild, started without the
-drive, and a second resume of the same instance showed it. The instance's state
-straddled the rebuild, so this is not evidence against the rule above; it is
-recorded because the failure is silent, and **Reset & Run Clean** always picks
-the drive up if a resume ever does not.
+**UTM keeps its own copy of a machine's configuration.** A drive attached while
+UTM is running is not in the copy it launches from, so the instance resumes
+without it. Quitting UTM and resuming the same instance makes it appear.
+
+`SandfortWorkflow` therefore asks UTM to re-read the bundle after attaching and
+after removing, through the `reload configuration` command (`UTMcReLd`) that UTM
+5.0.4 added for this exact case: *"Useful when the .utm bundle has been modified
+externally (e.g. by an automation tool) and UTM's cached configuration needs to
+be refreshed."*
+
+Verified on a live run against UTM 5.0.4, with UTM running throughout: attach to
+a stopped instance, resume it without quitting UTM, and the disc is in the guest.
+
+**It is an optimisation, never a requirement.** Checked against each tag's
+`UTM.sdef`, the command is absent in 4.7.5 and 5.0.0–5.0.3 and present in 5.0.4 —
+and 4.7.5 is still what `releases/latest` gives people. There the event answers
+`errAEEventNotHandled`, and the app falls back to telling the user to quit UTM.
+The same fallback covers UTM being closed, or the user having declined Automation
+permission, which they are free to do.
+
+**It must not be `delete`.** That is what this originally used as a cache-buster,
+and UTM's own dictionary says "All data will be deleted, there is no
+confirmation!" — it destroyed a user's instance. `reload configuration` only
+re-reads.
+
+**Removal needs the re-read more than attaching does.** A stale attach is a
+missing convenience. A stale removal means the user was told their files are out
+of the sandbox while UTM still hands the disc to the guest.
+
+This was verified directly: an instance whose `config.plist` contained
+`materials.iso` as a SCSI CD, with `Data/materials.iso` present and the store
+copy intact, resumed with no disc in the guest. Quitting UTM and resuming the
+same instance — nothing else changed — produced it.
+
+**The distinction previously recorded here was wrong.** This document claimed
+that UTM picks up a newly *added* drive and only caches an *edited* one. That
+came from a single Ubuntu run that happened to follow a UTM restart. Adding is
+cached the same as editing; what varies is whether UTM has re-read the bundle.
+
+It is worth stating carefully because the failure is **silent**. There is no
+error and nothing in the guest to see — the sandbox simply has no disc — so the
+natural conclusion is that materials do not work, or worse, that the files are in
+there somewhere. `SandfortWorkflow.attachMaterials` therefore says so in the
+activity log, and `MaterialsSheet` warns while UTM is running.
+
+**Reset & Run Clean** is unaffected: it deletes the UTM registration and rebuilds
+the bundle, so UTM necessarily re-reads it.
 
 Not yet verified, and recorded as such in `utm-version-audit.md` rather than
 assumed:

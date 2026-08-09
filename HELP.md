@@ -104,9 +104,13 @@ A sandbox has no shared folders, clipboard, or USB, so there is otherwise no way
 
 Select an instance, then choose **Materials…** from the environment's actions menu. Pick a file or a folder and Sandfort packs it into a read-only disc image attached to that instance.
 
-The instance must be **fully powered off**, not suspended — attaching rewrites its configuration, and Sandfort will not touch a VM whose disk is in use. Afterwards, **Resume** is enough; you do not need to reset, and resetting would throw away everything else in that instance to deliver a file you have already attached.
+The instance must be **fully powered off**, not suspended — attaching rewrites its configuration, and Sandfort will not touch a VM whose disk is in use.
 
-In the rare case a resumed instance starts without the disc, **Reset & Run Clean** always picks it up.
+Then **Resume**, and the disc is there.
+
+UTM keeps its own copy of each machine's configuration, so a disc attached while UTM is running would not reach the sandbox. Sandfort asks UTM to re-read the instance, which works from **UTM 5.0.4** onwards. Earlier versions have no such command, and the activity log says so when that happens: **quit UTM and Resume again**, or use **Reset & Run Clean**, which rebuilds the instance from the baseline and so always picks the disc up — at the cost of discarding everything else in that instance.
+
+This matters when you **remove** materials too. Until UTM re-reads the instance, it still hands the old disc to the guest, so check the activity log before assuming a file is out of a sandbox.
 
 Inside the guest, open **Files** and look for **SANDFORT_MATERIALS** in the sidebar, then click it to open. If it is not there, `sudo mount -o ro /dev/disk/by-label/SANDFORT_MATERIALS /mnt` always works. Where it appears, and whether opening it asks for anything, depends on the distribution:
 

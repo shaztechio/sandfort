@@ -164,6 +164,11 @@ final class SandfortViewModel: ObservableObject {
     /// Refreshed on launch, on Check My Mac, and after any operation, so
     /// installing UTM while Sandfort is open is noticed without a relaunch.
     @Published private(set) var utmIsMissing = false
+    /// Whether UTM is running, which decides whether a newly attached materials
+    /// disc can reach a resumed instance at all. Refreshed when the materials
+    /// sheet opens and after every operation, so quitting UTM while Sandfort is
+    /// open is noticed without a relaunch.
+    @Published private(set) var utmIsRunning = false
     @Published private(set) var hasAcknowledgedSafety = true
 
     private var pendingSandboxAction: PendingSandboxAction?
@@ -177,6 +182,7 @@ final class SandfortViewModel: ObservableObject {
         self.runtime = runtime
         output = Self.timestamped(Self.readyMessage, at: Date(), since: nil)
         utmIsMissing = !UTMLauncher.isInstalled
+        utmIsRunning = UTMLauncher.isRunning
         let needsAcknowledgement = runtime.safetyAcknowledgementStore.needsAcknowledgement
         hasAcknowledgedSafety = !needsAcknowledgement
         showSafetyAcknowledgement = needsAcknowledgement
@@ -391,6 +397,17 @@ final class SandfortViewModel: ObservableObject {
     /// Opens a picker and attaches whatever is chosen to the selected instance.
     ///
     /// The panel accepts a file or a folder: a challenge arrives as either, and
+    /// Opens the materials sheet with a fresh reading of whether UTM is running.
+    ///
+    /// Taken here rather than relying on the value left by the last operation:
+    /// the whole point of the warning is that it is true at the moment someone
+    /// decides how to launch, and UTM may have been quit or started since.
+    func openMaterials() {
+        utmIsRunning = UTMLauncher.isRunning
+        materialsError = nil
+        showMaterials = true
+    }
+
     /// making the user compress a folder first would be friction for no gain
     /// since the packer does it with a system API.
     func chooseMaterialsForSelectedInstance() {
@@ -457,7 +474,9 @@ final class SandfortViewModel: ObservableObject {
         perform {
             let state: SandboxState
             do {
-                state = try await selection.workflow.removeMaterials(fromInstance: number)
+                state = try await selection.workflow.removeMaterials(
+                    fromInstance: number, event: self.eventHandler
+                )
             } catch {
                 await self.showMaterialsError(error)
                 throw error
@@ -747,6 +766,7 @@ final class SandfortViewModel: ObservableObject {
             }
             SandfortActivityMonitor.shared.end()
             utmIsMissing = !UTMLauncher.isInstalled
+            utmIsRunning = UTMLauncher.isRunning
             isRunning = false
             operationStartedAt = nil
         }
