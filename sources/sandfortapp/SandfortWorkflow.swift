@@ -125,7 +125,11 @@ actor SandfortWorkflow {
         }
     ) {
         self.environment = environment
-        self.provider = provider ?? UTMBundleBuilder()
+        // The one place that consults the installed UTM for icon names. Kept
+        // here rather than inside the builder so tests are not machine-dependent.
+        self.provider = provider ?? UTMBundleBuilder(
+            iconNameResolver: { UTMLauncher.resolvedIconName(preferring: $0) }
+        )
         self.deleteUTMRegistration = deleteUTMRegistration
         self.launchVirtualMachine = launchVirtualMachine
         self.reloadUTMConfiguration = reloadUTMConfiguration
@@ -1248,6 +1252,37 @@ enum UTMLauncher {
     }
 
     nonisolated static var installation: Installation? { resolveInstallation() }
+
+
+    /// The first candidate icon the installed UTM actually ships.
+    ///
+    /// UTM renames these between versions: openSUSE is `suse.png` in 4.7.5 and
+    /// both `SUSE.png` and `opensuse.png` in 5.0.4. Naming one literal leaves
+    /// some UTM with no icon — `opensuse` left every 4.7.5 install without one,
+    /// and 4.7.5 is still the newest release not flagged prerelease.
+    ///
+    /// **Exact filename comparison, deliberately.** `fileExists` would answer
+    /// yes for `suse.png` when the file is `SUSE.png`, because the default APFS
+    /// volume is case-insensitive — so a check that passed on the developer's
+    /// Mac would fail on a case-sensitive one, which is the least reproducible
+    /// kind of bug.
+    ///
+    /// Falls back to the first candidate when UTM cannot be inspected: an
+    /// unknown name degrades to UTM's default icon, which is exactly the state
+    /// this improves on, so there is nothing to lose by guessing.
+    nonisolated static func resolvedIconName(
+        preferring candidates: [String],
+        iconsDirectory: URL? = installation?.applicationURL
+            .appendingPathComponent("Contents/Resources/Icons", isDirectory: true),
+        listing: (URL) -> [String]? = {
+            try? FileManager.default.contentsOfDirectory(atPath: $0.path)
+        }
+    ) -> String {
+        guard let first = candidates.first else { return "" }
+        guard let iconsDirectory, let files = listing(iconsDirectory) else { return first }
+        let present = Set(files)
+        return candidates.first { present.contains("\($0).png") } ?? first
+    }
 
     nonisolated static var isInstalled: Bool { installation != nil }
 

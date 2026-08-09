@@ -1251,7 +1251,7 @@ final class SandfortAppTests: XCTestCase {
             revision: 7,
             displayName: "Test Linux",
             distributionName: "Test",
-            utmIconName: "ubuntu",
+            utmIconNames: ["ubuntu"],
             setupDurationDescription: "a few minutes",
             image: LinuxGuestProfile.Image(
                 url: ubuntu.image.url,

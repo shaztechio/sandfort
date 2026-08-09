@@ -15,7 +15,24 @@
 import Foundation
 
 struct UTMBundleBuilder: VirtualMachineProvider {
-    var firmwareURLOverride: URL? = nil
+    /// Chooses which of a profile's candidate icon names to write.
+    ///
+    /// Injected rather than read from the environment, and defaulting to the
+    /// first candidate, so the bundle a test inspects does not depend on which
+    /// UTM happens to be installed on the machine running it. The production
+    /// provider is built in `SandfortWorkflow` with the resolver that does look.
+    let iconNameResolver: @Sendable ([String]) -> String
+
+    var firmwareURLOverride: URL?
+
+    init(
+        iconNameResolver: @escaping @Sendable ([String]) -> String = { $0.first ?? "" },
+        firmwareURLOverride: URL? = nil
+    ) {
+        self.iconNameResolver = iconNameResolver
+        self.firmwareURLOverride = firmwareURLOverride
+    }
+
     var identifier: String { "macos-arm64.utm-qemu" }
 
     /// The image is verified in the shared cache and used from the bundle, and
@@ -270,7 +287,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
         // here. `Name` is deliberately not touched — that carries the user's
         // instance label.
         var information = plist["Information"] as? [String: Any] ?? [:]
-        information["Icon"] = profile.utmIconName
+        information["Icon"] = iconNameResolver(profile.utmIconNames)
         information["IconCustom"] = false
         plist["Information"] = information
         // Role comes from the caller. It used to be read out of
@@ -405,7 +422,7 @@ struct UTMBundleBuilder: VirtualMachineProvider {
             "Backend": "QEMU",
             "ConfigurationVersion": 4,
             "Information": [
-                "Icon": profile.utmIconName,
+                "Icon": iconNameResolver(profile.utmIconNames),
                 "IconCustom": false,
                 "Name": name,
                 "UUID": machineID

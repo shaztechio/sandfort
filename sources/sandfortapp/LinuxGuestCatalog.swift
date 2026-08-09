@@ -132,18 +132,24 @@ struct LinuxGuestProfile: Identifiable, Sendable, Hashable {
     let revision: Int
     let displayName: String
     let distributionName: String
-    /// The built-in UTM icon shown for this distribution's virtual machines.
+    /// Built-in UTM icons for this distribution, in preference order.
     ///
     /// Distribution identity, so it belongs here rather than on `Hardware`,
-    /// which describes machine shape. The value is a **bare resource name with
+    /// which describes machine shape. Each value is a **bare resource name with
     /// no extension** — UTM resolves it against its own `Icons` directory, and
     /// `"ubuntu.png"` would not match.
     ///
-    /// Referencing UTM's copy is also why Sandfort ships no distribution logo of
-    /// its own and takes on no trademark question. A name UTM does not have
-    /// degrades to its default icon rather than failing, so this is not
-    /// validated at run time.
-    let utmIconName: String
+    /// Referencing UTM's copies is also why Sandfort ships no distribution logo
+    /// of its own and takes on no trademark question.
+    ///
+    /// **A list because the names differ between UTM versions.** openSUSE ships
+    /// as `suse.png` in 4.7.5 and as both `SUSE.png` and `opensuse.png` in
+    /// 5.0.4, so a single literal is wrong somewhere: `opensuse` leaves 4.7.5 —
+    /// still the newest non-prerelease UTM — with no icon at all, which is how
+    /// this was found. The bundle writer picks the first name the *installed*
+    /// UTM actually ships, checked by exact filename rather than by trusting the
+    /// filesystem to be case-insensitive.
+    let utmIconNames: [String]
     let setupDurationDescription: String
     let image: Image
     let hardware: Hardware
@@ -171,7 +177,7 @@ enum LinuxGuestCatalog {
         revision: 5,
         displayName: "Ubuntu 24.04 LTS",
         distributionName: "Ubuntu",
-        utmIconName: "ubuntu",
+        utmIconNames: ["ubuntu"],
         setupDurationDescription: "10-30 minutes",
         image: LinuxGuestProfile.Image(
             url: URL(string: "https://cloud-images.ubuntu.com/releases/noble/release-20260725/ubuntu-24.04-server-cloudimg-arm64.img")!,
@@ -199,7 +205,7 @@ enum LinuxGuestCatalog {
         revision: 5,
         displayName: "Fedora Cloud 44",
         distributionName: "Fedora",
-        utmIconName: "fedora",
+        utmIconNames: ["fedora"],
         setupDurationDescription: "20-45 minutes",
         image: LinuxGuestProfile.Image(
             url: URL(string: "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2")!,
@@ -227,7 +233,7 @@ enum LinuxGuestCatalog {
         revision: 8,
         displayName: "Debian 13 (Trixie)",
         distributionName: "Debian",
-        utmIconName: "debian",
+        utmIconNames: ["debian"],
         setupDurationDescription: "20-45 minutes",
         image: LinuxGuestProfile.Image(
             url: URL(string: "https://cloud.debian.org/images/cloud/trixie/20260712-2537/debian-13-generic-arm64-20260712-2537.qcow2")!,
@@ -255,7 +261,7 @@ enum LinuxGuestCatalog {
         revision: 9,
         displayName: "openSUSE Leap 16.0",
         distributionName: "openSUSE",
-        utmIconName: "opensuse",
+        utmIconNames: ["opensuse", "SUSE", "suse"],
         setupDurationDescription: "20-45 minutes",
         image: LinuxGuestProfile.Image(
             url: URL(string: "https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.7.qcow2")!,
