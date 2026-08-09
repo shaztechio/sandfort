@@ -6,10 +6,11 @@ sync.
 
 ```
 docs/
-├── index.html          the whole site: its own CSS, its own SVG, no external requests
-├── assets/Sandfort.png hero art and favicon
-├── .nojekyll           serve these files as-is
-└── *.md                the technical documentation, unchanged
+├── index.html               the whole site: its own CSS, its own SVG, no external requests
+├── assets/Sandfort.png      hero art and favicon
+├── assets/social-card.png   the 1200×630 link preview
+├── .nojekyll                serve these files as-is
+└── *.md                     the technical documentation, unchanged
 ```
 
 Preview it by opening `docs/index.html` in a browser. There is no build step.
@@ -82,3 +83,32 @@ which is the thing a single-environment shot cannot convey. Retake it when the
 window layout changes, and update both copies — a screenshot of an interface
 that no longer exists is worse than none, which is why the page went without one
 for a while.
+
+## The link preview
+
+`assets/social-card.png` is what Slack, Mastodon, iMessage, and the rest render
+when someone posts a link. It is generated from `tools/packaging/social-card.html`:
+
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
+  --window-size=1200,630 --screenshot=docs/assets/social-card.png \
+  "file://$PWD/tools/packaging/social-card.html"
+```
+
+Three things about the `og:` tags are easy to get wrong and were all wrong at
+once before this file existed:
+
+- **`og:image` must be an absolute URL.** A relative one resolves correctly in a
+  browser and is simply ignored by most crawlers, so the page looks fine and the
+  preview is blank. Every URL in the tags is written against `https://sandfort.app`,
+  the custom domain, not the `shaztechio.github.io` origin that redirects to it.
+- **The image has to match the card type.** `twitter:card` is
+  `summary_large_image`, which wants roughly 1.91:1 and refuses anything under
+  300px wide. The 256×256 app icon was being offered for that slot and could not
+  have rendered.
+- **`og:url` pins the canonical address.** Without it a crawler keys its cache on
+  whichever of the two hostnames it was handed.
+
+The card repeats the page's own claims and adds none of its own; keep it that way,
+because nothing validates it against `security-model.md`.
