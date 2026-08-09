@@ -167,8 +167,8 @@ if (total_size != G_MAXUINT64 && total_size > free_size)   /* → refuse */
 
 A materials disc is ISO 9660 and read-only, so it reports **zero** free space.
 Any non-empty archive therefore fails the check, whatever the destination has
-free. Fixed after GNOME 48 — `main` queries `output_file` — but Ubuntu 24.04
-ships 46, and 47 and 48 have it too.
+free. Still present in GNOME 46, 47 and 48; fixed only on the `main` branch of
+`GNOME/nautilus`, which queries `output_file` instead. Ubuntu 24.04 ships 46.
 
 Confirmed by experiment: copying the archive off the disc and extracting it from
 the home directory works, because the check then reads a writable filesystem.
@@ -178,17 +178,15 @@ uses **data descriptors** — general purpose bit 3 set, sizes zero in every loc
 header, verified by reading the bytes of a real materials image. That is a red
 herring here: `total_size` is computed correctly and the failure is entirely the
 filesystem being queried. And an earlier version of this note *retracted* the
-correct explanation after reading `main`, where the bug is already fixed. Reading
-the branch a user actually runs is the whole difference.
+correct explanation after reading upstream `main`, where the bug is already
+fixed. Reading the branch a user actually runs is the whole difference.
 
-`HELP.md` therefore points people at a terminal. It previously recommended
-Files' **Extract Here**, which is worse still: that extracts into the disc
-itself, which cannot be written to at all.
+`HELP.md` therefore tells people to drag the archive to their home folder first,
+with the terminal as the alternative. It previously recommended Files' **Extract
+Here**, which is worse still: that extracts into the disc itself, which cannot be
+written to at all.
 
-Copying the archive off the disc first and extracting it there is expected to
-work for the same reason, but has not been tested — the terminal route has.
-
-and if it is not mounted:
+Also worth knowing when the disc is not mounted automatically:
 
 ```sh
 sudo mount -o ro /dev/disk/by-label/SANDFORT_MATERIALS /mnt
