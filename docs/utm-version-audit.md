@@ -536,10 +536,20 @@ Note the event class differs from the VM commands: `UTMc`, not `UTMv`.
 will not have this. Sandfort treats it as an optimisation with a fallback and
 never as a requirement — see §4 on the minimum version.
 
-**Still needs a live run:** that the command actually refreshes the drive list
-on 5.0.4, rather than merely returning success. Reading a dictionary entry is not
-running it, and this section already records two claims that were wrong for
-exactly that reason.
+**Verified against UTM 5.0.4 on 2026-08-09.** With UTM running throughout, a
+materials image was attached to a stopped instance; the app reported that UTM had
+re-read it; resuming that instance — without quitting UTM — showed the disc in
+the guest with the expected contents.
+
+That is the whole claim, end to end: the command is understood, it refreshes the
+drive list rather than merely returning success, and the drive reaches the guest.
+Worth stating explicitly because this section has already carried two claims that
+were wrong from exactly the gap between reading a dictionary and running it.
+
+Still unverified: the 4.7.5 fallback. It is inferred from the command's absence
+in that tag's `sdef`, not observed, and the app has no 4.7.5 to test against on
+this machine. The consequence of being wrong is small — the user is told to quit
+UTM when they might not have needed to — but it is inference, not evidence.
 
 The drive is deliberately not marked external: in UTM that means the image lives
 outside the bundle with a security-scoped bookmark, which is the opposite of what

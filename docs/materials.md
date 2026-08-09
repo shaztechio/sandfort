@@ -178,6 +178,9 @@ after removing, through the `reload configuration` command (`UTMcReLd`) that UTM
 externally (e.g. by an automation tool) and UTM's cached configuration needs to
 be refreshed."*
 
+Verified on a live run against UTM 5.0.4, with UTM running throughout: attach to
+a stopped instance, resume it without quitting UTM, and the disc is in the guest.
+
 **It is an optimisation, never a requirement.** Checked against each tag's
 `UTM.sdef`, the command is absent in 4.7.5 and 5.0.0–5.0.3 and present in 5.0.4 —
 and 4.7.5 is still what `releases/latest` gives people. There the event answers
