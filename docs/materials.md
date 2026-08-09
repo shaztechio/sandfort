@@ -148,6 +148,20 @@ lsblk -f
 ls /run/media/$USER/SANDFORT_MATERIALS
 ```
 
+### Extracting a folder archive
+
+Verified on Ubuntu: `unzip` from a terminal works, and GNOME Files' **Extract
+to…** fails with *"not enough free space"* while the guest has tens of gigabytes
+free. The archive sits on a read-only ISO 9660 mount, and Nautilus's space check
+answers for the wrong filesystem.
+
+`HELP.md` therefore points people at a terminal. It previously recommended
+Files' **Extract Here**, which is worse still: that extracts into the disc
+itself, which cannot be written to at all.
+
+Copying the archive off the disc first and extracting it there is expected to
+work for the same reason, but has not been tested — the terminal route has.
+
 and if it is not mounted:
 
 ```sh

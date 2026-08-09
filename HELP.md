@@ -135,7 +135,15 @@ sudo mkdir -p /mnt/materials
 sudo mount -o ro /dev/disk/by-label/SANDFORT_MATERIALS /mnt/materials
 ```
 
-A **folder** is sent as a single `.zip` archive named after it — extract it inside the sandbox. `unzip` is not preinstalled on every distribution; Files' **Extract Here** works on the desktop, and `python3 -m zipfile -e archive.zip .` works in a terminal when Python is selected.
+A **folder** is sent as a single `.zip` archive named after it, and has to be extracted inside the sandbox.
+
+**Extract it from a terminal, not from Files.** The disc is read-only, and Files' **Extract to…** reports *"not enough free space"* even when the sandbox has tens of gigabytes free — a misleading message about the disc rather than about your destination. In a terminal:
+
+```
+unzip /run/media/$USER/SANDFORT_MATERIALS/archive.zip -d ~/Documents
+```
+
+`unzip` is present on Ubuntu; if a distribution does not have it, `python3 -m zipfile -e archive.zip ~/Documents` works when Python is selected. Copying the archive off the disc first and extracting it there also avoids the problem.
 
 Materials are limited to 512 MB. For anything larger, run the instance with Internet access and download it inside the guest instead.
 
