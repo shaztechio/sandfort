@@ -114,13 +114,9 @@ final class PinnedUTMTests: XCTestCase {
     /// to 5.0.4 while the app reported 4.7.5. The result would be a version test
     /// whose outcome says nothing about the version.
     func testTheProcessLookupFindsThePinnedCopyAndNotAnotherUTM() {
-        UTMLauncher.pinnedApplicationURL = four
-        defer { UTMLauncher.pinnedApplicationURL = nil }
-
-        let pid = UTMLauncher.pinnedProcessIdentifier(running: [
-            (five, 100),
-            (four, 200)
-        ])
+        let pid = UTMLauncher.pinnedProcessIdentifier(
+            pinned: four, running: [(five, 100), (four, 200)]
+        )
 
         XCTAssertEqual(pid, 200, "the event must go to the pinned copy, not the other UTM")
     }
@@ -129,16 +125,16 @@ final class PinnedUTMTests: XCTestCase {
     /// here is precisely the failure a pin exists to prevent, and it would be
     /// invisible: the command would succeed against the wrong UTM.
     func testAPinnedCopyThatIsNotRunningYieldsNoProcess() {
-        UTMLauncher.pinnedApplicationURL = four
-        defer { UTMLauncher.pinnedApplicationURL = nil }
-
-        XCTAssertNil(UTMLauncher.pinnedProcessIdentifier(running: [(five, 100)]))
+        XCTAssertNil(UTMLauncher.pinnedProcessIdentifier(pinned: four, running: [(five, 100)]))
     }
 
+    /// No usable pin means no process is singled out — including a pin that was
+    /// set but did not resolve, which is what `activePinnedApplicationURL`
+    /// returns nil for.
     func testWithoutAPinNoProcessIsSingledOut() {
-        UTMLauncher.pinnedApplicationURL = nil
-
-        XCTAssertNil(UTMLauncher.pinnedProcessIdentifier(running: [(five, 100), (four, 200)]))
+        XCTAssertNil(
+            UTMLauncher.pinnedProcessIdentifier(pinned: nil, running: [(five, 100), (four, 200)])
+        )
     }
 
     /// Stored as a path and read back as one, so a trailing slash or a symlinked

@@ -59,7 +59,7 @@ enum UTMRegistryController {
         // With a pin, "already running" must mean the pinned copy. Another UTM
         // being open is not a substitute and would leave every later event
         // unaddressable.
-        if UTMLauncher.isPinned {
+        if UTMLauncher.activePinnedApplicationURL != nil {
             if UTMLauncher.pinnedProcessIdentifier() != nil { return }
         } else if NSWorkspace.shared.runningApplications.contains(where: {
             $0.bundleIdentifier == bundleIdentifier && !$0.isTerminated
@@ -100,12 +100,16 @@ enum UTMRegistryController {
     /// prevent, and it would be invisible — the command would succeed against
     /// the wrong UTM.
     private static func targetApplication() throws -> NSAppleEventDescriptor {
-        guard UTMLauncher.isPinned else {
+        // Only a pin that resolved redirects the event. A pin naming an
+        // application that has moved, or that is not UTM, falls back to the
+        // ordinary target — the same copy `resolveInstallation` reports and the
+        // user is told about in Check My Mac.
+        guard UTMLauncher.activePinnedApplicationURL != nil else {
             return NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
         }
         guard let pid = UTMLauncher.pinnedProcessIdentifier() else {
             throw UTMRegistryError.pinnedUTMNotRunning(
-                path: UTMLauncher.pinnedApplicationURL?.path ?? "the pinned UTM"
+                path: UTMLauncher.activePinnedApplicationURL?.path ?? "the pinned UTM"
             )
         }
         return NSAppleEventDescriptor(processIdentifier: pid)

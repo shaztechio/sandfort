@@ -1344,16 +1344,31 @@ enum UTMLauncher {
     /// `nil` when no pin is active, or when the pinned copy is not running —
     /// callers must not silently fall back to the identifier in the latter case.
     nonisolated static func pinnedProcessIdentifier(
+        pinned: URL? = activePinnedApplicationURL,
         running: [(bundleURL: URL?, processIdentifier: pid_t)] = NSWorkspace.shared
             .runningApplications
             .filter { !$0.isTerminated }
             .map { ($0.bundleURL, $0.processIdentifier) }
     ) -> pid_t? {
-        guard let pinned = pinnedApplicationURL else { return nil }
+        guard let pinned else { return nil }
         let wanted = pinned.standardizedFileURL.resolvingSymlinksInPath().path
         return running.first {
             $0.bundleURL?.standardizedFileURL.resolvingSymlinksInPath().path == wanted
         }?.processIdentifier
+    }
+
+    /// The pinned application **only when the pin actually resolved**.
+    ///
+    /// `isPinned` says a defaults value exists; it says nothing about whether
+    /// the application is still there or is even UTM. Keying behaviour off the
+    /// raw value made a stale pin worse than no pin: every command insisted on a
+    /// copy that cannot be found, which is the opposite of the documented
+    /// fallback. Resolution already decides this — `.active` versus
+    /// `.unusable` — so the decision belongs there and not in three separate
+    /// places.
+    nonisolated static var activePinnedApplicationURL: URL? {
+        guard let installation, installation.pin == .active else { return nil }
+        return installation.applicationURL
     }
 
     /// Whether a pin is set at all, regardless of whether it resolves.
@@ -1381,11 +1396,11 @@ enum UTMLauncher {
     /// from inside the guest, so the app has to say it rather than let someone
     /// conclude their files did not go in.
     nonisolated static var isRunning: Bool {
-        // With a pin, only the pinned copy counts. Another UTM being open says
-        // nothing about whether the one Sandfort drives has a cached
-        // configuration to refresh, and treating it as equivalent would send the
-        // materials guidance down the wrong branch.
-        if isPinned { return pinnedProcessIdentifier() != nil }
+        // With a *usable* pin, only the pinned copy counts. Another UTM being
+        // open says nothing about whether the one Sandfort drives has a cached
+        // configuration to refresh. A pin that did not resolve falls through to
+        // the ordinary check, because the ordinary UTM is what will be driven.
+        if activePinnedApplicationURL != nil { return pinnedProcessIdentifier() != nil }
         return NSWorkspace.shared.runningApplications.contains {
             $0.bundleIdentifier == bundleIdentifier && !$0.isTerminated
         }
@@ -1450,7 +1465,23 @@ enum UTMLauncher {
         name: String,
         log: (@Sendable (String) -> Void)? = nil
     ) async {
-        NSWorkspace.shared.open(bundle)
+        // Opening a .utm bundle normally lets Launch Services choose the
+        // handler, which with two UTMs installed can be the copy that was not
+        // pinned — the bundle would then be imported into one UTM while every
+        // later Apple Event is addressed to the other. Naming the application
+        // keeps both halves on the same copy.
+        if let pinned = UTMLauncher.activePinnedApplicationURL {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            // Failure here is not fatal: the ordinary open below is what the
+            // app has always done, and a pin that cannot be honoured should cost
+            // precision, not the launch.
+            _ = try? await NSWorkspace.shared.open(
+                [bundle], withApplicationAt: pinned, configuration: configuration
+            )
+        } else {
+            NSWorkspace.shared.open(bundle)
+        }
         let outcome = await waitForRegistration(
             of: name,
             isRegistered: { try UTMRegistryController.isVirtualMachineRegistered(named: $0) },
