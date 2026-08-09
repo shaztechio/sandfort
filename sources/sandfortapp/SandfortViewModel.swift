@@ -394,20 +394,31 @@ final class SandfortViewModel: ObservableObject {
         stage == .ready && selectedInstance != nil && !isRunning
     }
 
-    /// Opens a picker and attaches whatever is chosen to the selected instance.
+    /// Opens the materials sheet **for one named instance**.
     ///
-    /// The panel accepts a file or a folder: a challenge arrives as either, and
-    /// Opens the materials sheet with a fresh reading of whether UTM is running.
+    /// The number is passed rather than read from a prior selection: the sheet
+    /// used to sit in the environment's menu and act on whichever instance was
+    /// selected last, which with two instances on screen named neither. Setting
+    /// the selection here keeps "selection and action are the same gesture",
+    /// which is what the instance rows already promise.
     ///
-    /// Taken here rather than relying on the value left by the last operation:
-    /// the whole point of the warning is that it is true at the moment someone
-    /// decides how to launch, and UTM may have been quit or started since.
-    func openMaterials() {
+    /// Whether UTM is running is read here rather than taken from the value the
+    /// last operation left behind: it drives a warning that has to be true at
+    /// the moment someone decides how to launch, and UTM may have been quit or
+    /// started since.
+    ///
+    /// This only presents the sheet. Choosing and attaching a file is
+    /// `chooseMaterialsForSelectedInstance()`.
+    func openMaterials(forInstance number: Int) {
+        selectedInstanceNumber = number
         utmIsRunning = UTMLauncher.isRunning
         materialsError = nil
         showMaterials = true
     }
 
+    /// Opens a picker and attaches whatever is chosen to the selected instance.
+    ///
+    /// The panel accepts a file or a folder: a challenge arrives as either, and
     /// making the user compress a folder first would be friction for no gain
     /// since the packer does it with a system API.
     func chooseMaterialsForSelectedInstance() {

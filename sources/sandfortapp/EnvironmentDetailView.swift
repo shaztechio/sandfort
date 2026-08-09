@@ -85,10 +85,6 @@ struct EnvironmentDetailView: View {
             Menu {
                 Button("Development Tools…") { model.showBaselineTools = true }
                     .disabled(model.stage == .provisioning)
-                // Materials belong to the selected instance and take effect on
-                // its next launch, so this is only offered once there is one.
-                Button("Materials…") { model.openMaterials() }
-                    .disabled(model.stage != .ready || model.selectedInstance == nil)
                 if model.stage != nil {
                     Divider()
                     Button("Rebuild \(model.guestProfile.distributionName)…") {
@@ -260,6 +256,25 @@ struct InstanceRow: View {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             Text(instance.displayTitle)
+            // What this instance carries, visible without opening anything.
+            // Materials belong to one instance, and with two instances on
+            // screen a control that named neither was unreadable: there was no
+            // way to see which sandbox held which file.
+            if instance.hasMaterials {
+                Label(
+                    instance.materialsDisplayName ?? "materials",
+                    systemImage: "opticaldiscdrive"
+                )
+                .labelStyle(.titleAndIcon)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help("This instance has materials attached, read-only")
+                .accessibilityLabel(
+                    "Materials attached: \(instance.materialsDisplayName ?? "materials")"
+                )
+            }
             Spacer()
             Button("Resume") { model.resume(instance: instance.number) }
                 .help("Reopen this instance with its files and processes intact")
@@ -270,6 +285,12 @@ struct InstanceRow: View {
                 Button("Shut Down Instance") { model.stop(instance: instance.number) }
                     .help("Ask the guest to power down, then close its UTM window")
                 Button("Rename Instance…") { model.beginRename(instance: instance.number) }
+                // Named for this instance rather than for whatever was selected
+                // last: materials attach to one sandbox, and the action has to
+                // say which.
+                Button("Materials…") { model.openMaterials(forInstance: instance.number) }
+                    .disabled(model.stage != .ready)
+                    .help("Send a file or folder into this instance as a read-only disc")
                 Divider()
                 Button("Delete Instance…", role: .destructive) {
                     model.requestDelete(instance: instance.number)

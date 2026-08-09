@@ -78,6 +78,45 @@ final class MaterialsGatingTests: XCTestCase {
         XCTAssertFalse(model.canChooseMaterials)
     }
 
+    /// Opening from a row must target *that* row.
+    ///
+    /// The control used to live in the environment's actions menu and act on
+    /// whichever instance was selected last. With two instances on screen it
+    /// named neither, so there was no way to tell which sandbox held which file
+    /// — reported as materials appearing to vanish when a second instance was
+    /// created, when in fact nothing had been deleted at all.
+    func testOpeningFromAnInstanceTargetsThatInstance() {
+        let model = self.model(
+            instances: [instance(1, materials: "one.zip"), instance(2), instance(3, materials: "three.zip")],
+            stage: .ready
+        )
+        model.selectedInstanceNumber = 1
+
+        model.openMaterials(forInstance: 3)
+
+        XCTAssertTrue(model.showMaterials)
+        XCTAssertEqual(
+            model.selectedInstance?.number, 3,
+            "the sheet must describe the instance whose menu was used"
+        )
+        XCTAssertEqual(model.selectedInstance?.materialsDisplayName, "three.zip")
+    }
+
+    /// An instance with none is still a valid target — that is how materials get
+    /// attached in the first place.
+    func testOpeningFromAnInstanceWithoutMaterialsStillTargetsIt() {
+        let model = self.model(
+            instances: [instance(1, materials: "one.zip"), instance(2)],
+            stage: .ready
+        )
+
+        model.openMaterials(forInstance: 2)
+
+        XCTAssertEqual(model.selectedInstance?.number, 2)
+        XCTAssertFalse(model.selectedInstance?.hasMaterials == true)
+        XCTAssertTrue(model.canChooseMaterials)
+    }
+
     /// The sheet describes the selected instance, and it has to follow the
     /// selection rather than remember the first one it saw.
     func testTheSheetDescribesWhicheverInstanceIsSelected() {
