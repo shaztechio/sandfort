@@ -32,6 +32,18 @@ the release build uses. That name is what a required status check would refer
 to, so it is worth leaving alone. Run
 it locally anyway; a red pull request is a slower way to learn the same thing.
 
+Check that the suite actually **ran** before trusting a green pull request. A
+skipped job is not a passed one, and the checks list shows an absence rather
+than anything red. `Tests / macos-arm64` deliberately sits out title and
+description edits, because those cannot change what the code does — so the
+result you want is a `SUCCESS` on the head commit, not merely the lack of a
+failure:
+
+```sh
+gh pr view <number> --json statusCheckRollup \
+  --jq '[.statusCheckRollup[] | "\(.name): \(.conclusion)"]'
+```
+
 Editing `HELP.md` has a trap worth knowing. Help Viewer keeps its own copy of
 the rendered Help Book under
 `~/Library/Group Containers/group.com.apple.helpviewer.content/Library/Caches/`,
