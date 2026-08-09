@@ -6,3 +6,6 @@ contact_links:
   - name: Question or idea
     url: https://github.com/shaztechio/sandfort/discussions
     about: Ask how something works, or propose a change before writing code.
+  - name: Something else
+    url: mailto:hello@sandfort.app
+    about: Anything that is not a bug, an idea, or a vulnerability. No GitHub account needed.
