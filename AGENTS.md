@@ -7,9 +7,10 @@ Fedora 44, Debian 13, and openSUSE Leap 16 ARM64 VMs for UTM on Apple silicon. K
 provider-oriented so Intel macOS, Windows, and Linux installers can be added
 without weakening the common provisioning policy.
 
-- `sources/sandfortapp/`: the view layer, split one file per pane rather than by
-  type. `ContentView.swift` is the window shell — sheets and dialogs live there,
-  not in the panes.
+- `sources/sandfortapp/`: all app source — every file named below is a sibling
+  here, not only the UI. The SwiftUI views among them are split one file per pane
+  rather than by type, and `ContentView.swift` is the window shell, so sheets and
+  dialogs live there rather than in the panes.
 - `SandfortWorkflow.swift`: app-owned state, verified downloads, baseline/session
   lifecycle, and native UTM launch.
 - `SandboxLibrary.swift`: multi-environment paths, shared cache, and preservation
