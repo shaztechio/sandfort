@@ -7,11 +7,10 @@ Fedora 44, Debian 13, and openSUSE Leap 16 ARM64 VMs for UTM on Apple silicon. K
 provider-oriented so Intel macOS, Windows, and Linux installers can be added
 without weakening the common provisioning policy.
 
-- `sources/sandfortapp/`: the view layer is split by pane —
-  `SandfortApp.swift` (App scene), `ContentView.swift` (window shell, sheets,
-  dialogs), `SandfortViewModel.swift`, `EnvironmentSidebar.swift`,
-  `EnvironmentDetailView.swift`, `ActivityLogView.swift`,
-  `BaselineToolsSheet.swift`, and `SandfortSettingsView.swift`.
+- `sources/sandfortapp/`: all app source — every file named below is a sibling
+  here, not only the UI. The SwiftUI views among them are split one file per pane
+  rather than by type, and `ContentView.swift` is the window shell, so sheets and
+  dialogs live there rather than in the panes.
 - `SandfortWorkflow.swift`: app-owned state, verified downloads, baseline/session
   lifecycle, and native UTM launch.
 - `SandboxLibrary.swift`: multi-environment paths, shared cache, and preservation
@@ -186,6 +185,15 @@ without weakening the common provisioning policy.
   stands in the way is file access between two containers and a reviewer on a
   clean Mac. It also frames the larger question of hosting VMs through
   Virtualization.framework instead of driving UTM.
+- `docs/network-observability.md`: plan only, nothing built. Per-sandbox egress
+  monitoring and filtering as a signed Network Extension, and why a host content
+  filter cannot see what a truly offline VM was blocked from attempting.
+- `docs/deferred-hardware-sizing.md`: plan only. Per-environment RAM and disk
+  sizing. There is no per-distribution work; the gap is that `repairBundle`
+  never writes `MemorySize` or `CPUCount`.
+- `docs/deferred-boot-time.md`: plan only. The two remaining clean-instance boot
+  costs, worth ~13 seconds together, and why neither is worth a
+  rebuild-forcing revision on its own.
 - `docs/index.html` and `docs/assets/`: the public project site, served by GitHub
   Pages from `main` and `/docs`. It shares this folder with the documentation, so
   `docs/.nojekyll` must stay: without it Jekyll renders every `.md` here into a
@@ -284,148 +292,6 @@ script's `set -x` trace lands in `/var/log/sandfort-setup.log` on disk, and
 that to a guest login — cloud-init's `runcmd` is once-per-instance, so a reboot
 leaves the console showing nothing at all, and the cloud image's GRUB has no
 timeout to interrupt.
-
-### Deferred: remaining clean-instance boot time
-
-Masking `systemd-networkd-wait-online` removed two minutes from a Debian clean
-boot. `systemd-analyze blame` on the resulting instance still shows two costs
-worth roughly 13 seconds together, both deliberately left alone:
-
-- `plymouth-quit-wait.service`, 11.5s, and on the critical chain. This waits for
-  the boot splash to hand off to the display manager. Disabling it is the obvious
-  win and the obvious risk: the complaint that started this was a black screen,
-  and interfering with the splash handoff is a good way to produce another one.
-- `fwupd.service`, 1.9s. A firmware updater with no firmware to update in a VM.
-  Safe to mask, but not worth a rebuild-forcing revision on its own.
-
-Fold these into a revision that is already forcing a rebuild for another reason,
-rather than spending one on 13 seconds. Measure with `systemd-analyze blame` and
-`systemd-analyze critical-chain graphical.target` inside an offline clean
-instance before and after, and check the other three profiles rather than
-assuming Debian's numbers transfer: the wait-online problem turned out to be
-Debian-only because systemd-networkd is a separate package on Fedora and
-openSUSE.
-
-### Deferred: per-environment RAM and disk sizing
-
-Every profile is fixed at 4 GiB RAM, 4 CPUs, and a 64 GiB disk in
-`LinuxGuestProfile.Hardware`. With VS Code installed beside GNOME and a browser
-that is tight. The agreed direction is to make RAM and disk configurable **per
-environment**, with defaults of **6 GiB and 96 GiB**. CPU count stays at 4.
-
-**There is no per-distribution work.** `Hardware` is uniform across the four
-profiles, and guest-side growth already works everywhere: baselines start from a
-2–4 GiB cloud image and end up with usable 64 GiB filesystems, which only
-happens because cloud-init's `growpart` and `resizefs` run. Filesystems differ
-(ext4 on Ubuntu and Debian, btrfs on Fedora and openSUSE) and cloud-init handles
-both; openSUSE's SBOM ships `growpart` plus `btrfsprogs`, `e2fsprogs`, and
-`xfsprogs`.
-
-Most of the plumbing exists:
-
-- `DiskUtilities.resizeQCOW2` grows and refuses to shrink, which is correct;
-  shrinking a qcow2 under a live filesystem is not safe.
-- `UTMBundleBuilder.repairBundle` already resizes the disk and runs on every
-  **Reset & Run Clean**, so a larger disk reaches existing instances already.
-- `growpart` and `resizefs` are `PER_ALWAYS`, so a guest picks up a larger disk
-  on its next boot rather than only at first boot.
-- **The gap:** `repairBundle` never writes `MemorySize` or `CPUCount`. Those are
-  set only by `writeConfiguration` at bundle creation, so an existing instance
-  would keep its old RAM forever. Reset must update them, and that deserves its
-  own regression test because it is invisible in the UI.
-
-Design notes for whoever picks this up:
-
-- Store optional `memoryMiB` and `diskSizeGiB` beside `SandboxToolSelection`,
-  falling back to the profile's values, so older state still decodes. Same
-  pattern as the VS Code toggle.
-- Pass the resolved hardware into `UTMBundleBuilder` instead of letting it read
-  `profile.hardware`, matching the rule that a resolved profile is passed
-  explicitly rather than looked up.
-- Validate before anything destructive: disk may only grow, so reject a value
-  below the environment's current size with a clear message instead of failing
-  inside `resizeQCOW2`. RAM needs a floor near 2 GiB, below which the GNOME
-  desktop is unusable, and a ceiling well under
-  `ProcessInfo.processInfo.physicalMemory` because instances run concurrently.
-- Put it in its own sheet, not the development-tools sheet. Tool selections apply
-  only to the next baseline; these apply to instances on reset, and mixing them
-  misrepresents when each takes effect.
-- `doctor()` now reports host RAM and free space alongside UTM, architecture,
-  and sandbox state, and states what one baseline costs. It still does not flag
-  a *configured* size the Mac cannot afford, because nothing is configurable
-  yet; that check belongs with this work.
-- No profile revision bump and no rebuild: nothing inside the guest changes and
-  the disk format is untouched, only its virtual size, through a path that
-  already runs. That is the judgment call in this plan most worth challenging
-  before implementing.
-
-Verify with a real UTM boot on at least one ext4 and one btrfs profile: after a
-reset, `free -h` should show the new RAM and `df -h /` the larger root.
-
-## Planned network observability and filtering
-
-Future work may add per-sandbox egress monitoring and filtering. Treat this as a
-separate signed Network Extension/system-extension project, not as a small UTM
-configuration change. Follow Apple's supported Network Extension content-filter
-APIs; do not modify Packet Filter rules, routing tables, install packet-capture
-shell tools, or add unreviewed QEMU arguments.
-
-Implementation plan:
-
-1. Prototype a macOS `NEFilterDataProvider` and, if required for pre-NAT
-   attribution, `NEFilterPacketProvider`. Package it as an app or system
-   extension with the required entitlements, Developer ID signing, user consent,
-   and documented uninstall behavior.
-2. Prove attribution with two concurrently running Internet-enabled UTM/QEMU
-   instances. UTM's Emulated VLAN traffic is presented to macOS as originating
-   from the UTM process, so process identity alone is insufficient. Correlate
-   only with stable, observed VM metadata such as the instance's unique MAC,
-   subnet, or pre-NAT packet context. Never guess the environment from timing.
-3. If reliable concurrent attribution is not possible, either introduce a
-   dedicated per-instance logging gateway or explicitly restrict monitored
-   Internet access to one running instance. Do not show potentially incorrect
-   instance attribution as authoritative.
-4. Keep **Offline** unchanged as the safest mode. Add **Monitored Internet** only
-   after the extension is active and healthy. Decide separately whether a
-   direct, unmonitored Internet mode remains available.
-5. Record metadata only: timestamp, environment ID, instance number, destination
-   IP, destination port, protocol, allow/block verdict, byte counts, and a domain
-   name only when it is genuinely observable from plaintext DNS or equivalent
-   flow metadata.
-6. Do not promise full URLs or complete domain visibility. HTTPS paths are
-   encrypted; encrypted DNS and TLS ECH can hide hostnames. Never capture packet
-   payloads, credentials, request bodies, cookies, or other content.
-7. Add an in-app activity view with filters for environment, instance, time,
-   domain, IP, protocol, and verdict. Include pause, clear, configurable
-   retention, and metadata-only JSONL/CSV export.
-8. Store logs under an app-owned `Network Logs/<environment-id>/<instance-id>`
-   hierarchy with per-run identifiers. Apply bounded retention and make log
-   deletion explicit and recoverable where practical. Never include the guest
-   password or custom setup script.
-9. Add reviewed allowlist and denylist policies with clear precedence and a safe
-   failure mode. If the monitor/filter is unavailable, a requested monitored run
-   must fail closed rather than silently launch with unrestricted Internet.
-10. Test DNS, direct IP connections, TCP, UDP, ICMP, IPv4, IPv6, encrypted DNS,
-    concurrent instances, extension restarts, app crashes, sleep/wake, and UTM
-    upgrades before release.
-
-A host content filter generally cannot observe attempts that UTM blocks inside a
-truly offline network. Logging attempted offline connections would require
-guest-side telemetry (tamperable by guest root) or a dedicated gateway that
-receives, records, and denies traffic. Preserve this distinction in the UI:
-"no observed traffic" must never be presented as proof that no connection was
-attempted.
-
-Primary references:
-
-- UTM QEMU network behavior:
-  <https://docs.getutm.app/settings-qemu/devices/network/network/>
-- Apple Network Extension content filters:
-  <https://developer.apple.com/documentation/networkextension/content-filter-providers>
-- Apple TN3120, including why packet tunnels are not content filters:
-  <https://developer.apple.com/documentation/technotes/tn3120-expected-use-cases-for-network-extension-packet-tunnel-providers>
-- Apple TN3134 provider deployment:
-  <https://developer.apple.com/documentation/technotes/tn3134-network-extension-provider-deployment>
 
 ## Build, test, and package
 
