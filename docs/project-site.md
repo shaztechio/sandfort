@@ -83,22 +83,22 @@ serving `assets/Sandfort-600.webp` with the PNG as its fallback; the favicon,
 the nav mark, `README.md`, and the Help Book icon all still use the PNG, so
 nothing in the packaging pipeline moves.
 
-Regenerate the WebP from the icon set rather than from the 256 PNG:
+Regenerate the WebP from the master artwork rather than from the 256 PNG:
 
 ```sh
-iconutil -c iconset assets/Sandfort.icns -o /tmp/Sandfort.iconset
-sips -Z 600 /tmp/Sandfort.iconset/icon_512x512@2x.png --out /tmp/hero.png
+sips -Z 600 assets/Sandfort-artwork-1024.png --out /tmp/hero.png
 cwebp -q 90 /tmp/hero.png -o docs/assets/Sandfort-600.webp
 ```
 
-Two things about that source. **Nothing in the `.icns` is masked** — all seven
-elements, 16 through 1024, are full-bleed squares with opaque corners — so the
-hero's rounded corners come from the `border-radius: 28%` already on
-`.hero-art img`, not from the file. That is also a bug in the shipped app icon
-rather than a fact about the site; see issue #68. And WebP is worth the format
-change rather than a larger PNG: the icon is a render with fine sand texture
-that PNG stores badly, so 600px costs 620 KB as a PNG and 43 KB as WebP, which
-is *less* than the 93 KB the 256 PNG cost.
+Two things about that source. `assets/Sandfort-artwork-1024.png` is the
+**unmasked, full-bleed** master, which is why the hero's rounded corners come
+from the `border-radius: 28%` already on `.hero-art img` rather than from the
+image. Do not substitute `assets/Sandfort.icns` here: it is generated from that
+master by `tools/packaging/make-legacy-icon.swift` and carries the app icon's
+mask, margin, and drop shadow, none of which belong on the site. And WebP is
+worth the format change rather than a larger PNG: the icon is a render with fine
+sand texture that PNG stores badly, so 600px costs 620 KB as a PNG and 43 KB as
+WebP, which is *less* than the 93 KB the 256 PNG cost.
 
 `.hero-art picture { display: contents }` keeps the `<img>` as the flex child it
 was before the `<picture>` wrapper existed, so the layout is unchanged.
