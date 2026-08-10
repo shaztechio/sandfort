@@ -7,7 +7,8 @@ sync.
 ```
 docs/
 ├── index.html               the whole site: its own CSS, its own SVG, one external script
-├── assets/Sandfort.png      hero art and favicon
+├── assets/Sandfort-600.webp the hero icon at 2× the size it renders
+├── assets/Sandfort.png      favicon, nav mark, and the hero's fallback
 ├── assets/social-card.png   the 1200×630 link preview
 ├── .nojekyll                serve these files as-is
 └── *.md                     the technical documentation, unchanged
@@ -75,6 +76,31 @@ Facts on the page that drift easily:
 The duplicate is deliberate: only files under `docs/` are published, so a
 `../assets/` reference would resolve during local preview and 404 on the live
 site. Update both if the icon changes.
+
+At 256×256 it is too small for the hero, which renders at 300 CSS px and so was
+upscaled even before a retina display doubled it. The hero is a `<picture>`
+serving `assets/Sandfort-600.webp` with the PNG as its fallback; the favicon,
+the nav mark, `README.md`, and the Help Book icon all still use the PNG, so
+nothing in the packaging pipeline moves.
+
+Regenerate the WebP from the icon set rather than from the 256 PNG:
+
+```sh
+iconutil -c iconset assets/Sandfort.icns -o /tmp/Sandfort.iconset
+sips -Z 600 /tmp/Sandfort.iconset/icon_512x512@2x.png --out /tmp/hero.png
+cwebp -q 90 /tmp/hero.png -o docs/assets/Sandfort-600.webp
+```
+
+Two things about that source. The `.icns` masks its own corners **only up to
+256×256** — `icon_512x512` and `icon_512x512@2x` are unmasked full-bleed
+squares — so the hero's rounded corners come from the `border-radius: 28%`
+already on `.hero-art img`, not from the file. And WebP is worth the format
+change rather than a larger PNG: the icon is a render with fine sand texture
+that PNG stores badly, so 600px costs 620 KB as a PNG and 43 KB as WebP, which
+is *less* than the 93 KB the 256 PNG cost.
+
+`.hero-art picture { display: contents }` keeps the `<img>` as the flex child it
+was before the `<picture>` wrapper existed, so the layout is unchanged.
 
 `assets/Sandfort-screenshot.png` is a copy of the one in the repository root,
 duplicated for the same reason as the icon: only files under `docs/` are
