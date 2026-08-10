@@ -192,6 +192,7 @@ code, kbd {
 }
 
 .hero-art { display: flex; justify-content: center; }
+.hero-art picture { display: contents; }
 .hero-art img {
   width: min(300px, 74vw); height: auto;
   border-radius: 28%; box-shadow: var(--shadow-lg);
@@ -451,7 +452,10 @@ footer { border-top: 1px solid var(--border); padding: 44px 0 56px; background: 
         </div>
       </div>
       <div class="hero-art">
-        <img src="assets/Sandfort.png" width="256" height="256" alt="Sandfort app icon: a sandbox holding a sandcastle with a shield" />
+        <picture>
+          <source srcset="assets/Sandfort-600.webp" type="image/webp" />
+          <img src="assets/Sandfort.png" width="600" height="600" alt="Sandfort app icon: a sandbox holding a sandcastle with a shield" />
+        </picture>
       </div>
     </div>
   </div>
