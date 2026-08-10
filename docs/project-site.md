@@ -91,10 +91,11 @@ sips -Z 600 /tmp/Sandfort.iconset/icon_512x512@2x.png --out /tmp/hero.png
 cwebp -q 90 /tmp/hero.png -o docs/assets/Sandfort-600.webp
 ```
 
-Two things about that source. The `.icns` masks its own corners **only up to
-256×256** — `icon_512x512` and `icon_512x512@2x` are unmasked full-bleed
-squares — so the hero's rounded corners come from the `border-radius: 28%`
-already on `.hero-art img`, not from the file. And WebP is worth the format
+Two things about that source. **Nothing in the `.icns` is masked** — all seven
+elements, 16 through 1024, are full-bleed squares with opaque corners — so the
+hero's rounded corners come from the `border-radius: 28%` already on
+`.hero-art img`, not from the file. That is also a bug in the shipped app icon
+rather than a fact about the site; see issue #68. And WebP is worth the format
 change rather than a larger PNG: the icon is a render with fine sand texture
 that PNG stores badly, so 600px costs 620 KB as a PNG and 43 KB as WebP, which
 is *less* than the 93 KB the 256 PNG cost.
