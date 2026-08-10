@@ -6,7 +6,7 @@ sync.
 
 ```
 docs/
-├── index.html               the whole site: its own CSS, its own SVG, no external requests
+├── index.html               the whole site: its own CSS, its own SVG, one external script
 ├── assets/Sandfort.png      hero art and favicon
 ├── assets/social-card.png   the 1200×630 link preview
 ├── .nojekyll                serve these files as-is
@@ -83,6 +83,19 @@ which is the thing a single-environment shot cannot convey. Retake it when the
 window layout changes, and update both copies — a screenshot of an interface
 that no longer exists is worse than none, which is why the page went without one
 for a while.
+
+## Analytics
+
+The page loads PostHog from `us-assets.i.posthog.com` and sends events to
+`us.i.posthog.com`. It is the only external request the site makes, and it is
+configured with `person_profiles: 'identified_only'`, so anonymous visitors get
+no person profile. The project key in the snippet is a public write-only key and
+is meant to be readable in the page source.
+
+This measures **the website**, not the app. Sandfort itself still collects and
+transmits nothing, which is what the "Local credentials" bullet on the page
+claims — keep that distinction intact if the analytics setup grows, because a
+reader who conflates the two will reasonably conclude the app phones home.
 
 ## The link preview
 
