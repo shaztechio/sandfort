@@ -34,6 +34,15 @@ equally: starting, stopping, and unregistering a VM live in `UTMLauncher` and
 before any second host can exist, and that work belongs on macOS with the
 existing tests green — not inside a port.
 
+**A split package, also first.** `Package.swift` declares
+`platforms: [.macOS(.v13)]` and one `SandfortApp` target covering all of
+`sources/sandfortapp/`, 13 of whose 33 files import SwiftUI or AppKit. There is
+no non-UI target, so phase 1's exit criterion below cannot be expressed, let
+alone met. Splitting it into a portable core and a macOS UI target is the same
+shape of prerequisite as the contract widening: macOS work a port should
+inherit rather than perform, and cheap to do while there is still only one
+implementation to keep green.
+
 **A `VirtualMachineProvider` implementation.** Nine methods, all of them about
 packaging rather than provisioning:
 
@@ -116,6 +125,47 @@ conversion is worth paying for.
 mounts, localhost forwarding, shared clipboard. That is the negation of the
 guarantee, not a cheaper route to it.
 
+## Host requirements
+
+Choosing WHPX sets a floor, and this plan should state it as precisely as the
+macOS side states macOS 13 and Apple silicon — not leave it to be discovered
+during phase 1.
+
+| | |
+| --- | --- |
+| x86-64 host | Windows 10 version 2004. The WHP API exists from 1803, but 2004 is what QEMU tests against. |
+| ARM64 host | Windows 11 24H2 with the April 2025 optional updates or May 2025 security updates. |
+| Edition | Not established. See below. |
+| CPU | SLAT, plus Intel VT-x with EPT and Unrestricted Guest, or AMD SVM, enabled in firmware. |
+| Feature | `HypervisorPlatform`, through Windows Features or `DISM /online /Enable-Feature /FeatureName:HypervisorPlatform /All`, then a reboot. |
+
+**The edition question, which argues for QEMU a second time.** Hyper-V's role and
+manager are Pro, Enterprise, and Education only — Microsoft says outright it
+cannot be installed on Home. WHPX is a different feature, a user-mode API for
+third-party virtualization stacks, and neither QEMU's documentation nor
+Microsoft's API documentation states an edition restriction. Home already runs
+the same hypervisor for WSL2 and VBS, and Google is sunsetting the Android
+Emulator hypervisor driver at the end of 2026 and moving that entire Windows user
+base onto WHPX, which it could not do if Home were excluded.
+
+So the recommendation above has a second argument behind it, about reach rather
+than design: **Hyper-V would have excluded Windows Home by definition, and QEMU
+with WHPX probably does not.** Against Home's share of consumer Windows that is
+not a footnote.
+
+"Probably" is doing real work in that sentence and must not survive into a
+shipped requirement. Nobody documents the edition matrix either way. **Check it
+on a Home machine before publishing a requirement**, the same way a profile is
+boot-smoke-tested rather than reasoned about.
+
+**Windows on ARM is unscoped, and it is the less obvious omission.** The phases
+below assume x86-64 throughout and never say whether an ARM64 Windows host is in
+or out. That matters more than it looks, because the entire existing guest
+catalog is ARM64: an ARM64 Windows host is the one Windows configuration that
+could run profiles already qualified, rather than needing four new ones. WHPX
+only became viable there in 2025, so there is no history to lean on. Decide it
+explicitly rather than by silence.
+
 ## Materials
 
 A clean instance can carry one extra drive: a read-only image Sandfort builds
@@ -184,9 +234,16 @@ Prove each one in tests, not by inspection. That is step 5 of
 
 ## Phases
 
+**0. Prerequisites, on macOS.** Widen the provider contract to cover lifecycle,
+and split the package into a portable core and a macOS UI target. Both are
+described above, both belong to macOS rather than to a port, and neither should
+be attempted while also writing a second provider. Exit: the existing suite green
+on macOS, and a core target that builds without SwiftUI.
+
 **1. Core port.** Everything in "What ports unchanged", plus the CNG signature
 backend, building and passing its tests on Windows with no UI. Exit: the full
-non-UI test suite is green on a Windows runner.
+non-UI test suite is green on a Windows runner, on a host meeting the
+requirements above.
 
 **2. Provider.** `QemuBundleProvider` implementing the nine methods, writing a
 bundle layout of its own, including the materials drive. Exit: bundle-format
@@ -217,9 +274,18 @@ of correct signing — plan for that rather than being surprised by it.
   the toolchain story is thinner. A C# or Rust core with a hand-port of the
   guest profiles may ship sooner than a shared Swift core. Decide before
   phase 1; it is expensive to revisit.
-- **WHPX prerequisites.** Enabling the Windows Hypervisor Platform needs a
-  feature toggle and a reboot, and historically conflicted with other
-  hypervisors and some anti-cheat. Decide what the first-run experience says.
+- **Does WHPX work on Windows Home?** The reasoning under "Host requirements"
+  says it should and cannot prove it. Check a Home machine early: the answer
+  decides how much of consumer Windows the port reaches, and it is cheap to
+  establish now and expensive to discover after phase 5.
+- **What the first run says about WHPX.** The feature toggle and reboot are in
+  the requirements table; what is open is the experience. WHPX has historically
+  conflicted with other hypervisors and some anti-cheat, so decide what the app
+  says when the feature is off, and what it says when it is on but something
+  else holds the hypervisor.
+- **Is an ARM64 Windows host in scope?** It is the only Windows configuration
+  that could run the already-qualified ARM64 catalog. Decide it rather than
+  letting the x86-64 phases answer by omission.
 - **Does the app ship QEMU, or require it?** Sandfort requires UTM today and
   helps you find it. Bundling QEMU means owning its update cadence and its CVEs;
   requiring it means a worse first run. This is the biggest product decision in
