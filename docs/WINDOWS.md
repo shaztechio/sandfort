@@ -279,7 +279,11 @@ of correct signing — plan for that rather than being surprised by it.
 - **Language for the core.** Swift on Windows is real but SwiftUI is not, and
   the toolchain story is thinner. A C# or Rust core with a hand-port of the
   guest profiles may ship sooner than a shared Swift core. Decide before
-  phase 1; it is expensive to revisit.
+  phase 1; it is expensive to revisit. It is also testable rather than
+  arguable — `GuestArchitectureTests` pins a digest a hand-port would have to
+  reproduce byte for byte. See
+  [core-language-spike.md](core-language-spike.md), and run it before phase 0,
+  because the answer decides how much of phase 0 pays for itself.
 - **Does WHPX work on Windows Home?** The reasoning under "Host requirements"
   says it should and cannot prove it. Check a Home machine early: the answer
   decides how much of consumer Windows the port reaches, and it is cheap to

@@ -182,6 +182,14 @@ without weakening the common provisioning policy.
   remembered. It opens by telling you not to install anything yet, which is the
   point: the core language is undecided and picks the toolchain, and phase 0 is
   macOS work that no Windows machine can begin.
+- `docs/core-language-spike.md`: how to settle the port's core language with an
+  experiment rather than an argument. `GuestArchitectureTests` pins a digest of
+  every generated `user-data`, so "can the guest contract be hand-ported to C#
+  or Rust?" has a yes-or-no answer: reproduce one digest byte for byte, or do
+  not. It names the traps that produce a working guest and a different hash —
+  CRLF, a BOM, and the fact that Swift and C# strip multiline-literal
+  indentation by different rules — and insists on dumping the reference text
+  first, because a digest says you failed and not where.
 - `docs/windows-qemu-spike.md`: the one thing a Windows machine *can* do first —
   check that WHPX accelerates and that `-netdev user,restrict=on` isolates,
   using QEMU alone. Deliberately not a qualification run: nothing it produces may
