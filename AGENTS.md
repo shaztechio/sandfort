@@ -171,7 +171,17 @@ without weakening the common provisioning policy.
   `VirtualMachineProvider`, so the contract has to grow before any second host.
 - `docs/WINDOWS.md`: plan only, nothing built. The concrete Windows instance of
   `adding-a-platform.md`, including why it recommends QEMU over the Hyper-V that
-  document assumes, and the open questions to settle before phase 1.
+  document assumes, the host requirements that choice implies, and the open
+  questions to settle before phase 1. The edition question is the second
+  argument for QEMU: Hyper-V's role is Pro and above, so choosing it would have
+  excluded Windows Home by definition. That WHPX does not is inference from
+  WSL2, VBS, and Google's AEHD migration rather than documentation, so it is
+  written as something to verify on a Home machine, not as a requirement.
+- `docs/windows-dev-setup.md`: what to install on a Windows machine to start
+  that port, with `winget` IDs checked against the live source rather than
+  remembered. It opens by telling you not to install anything yet, which is the
+  point: the core language is undecided and picks the toolchain, and phase 0 is
+  macOS work that no Windows machine can begin.
 - `docs/INTEL.md`: plan only, and the one port plan that argues against itself.
   Intel macOS is the cheapest of the three ports — the widened-contract
   prerequisite is a second-*host* problem, not a second-*architecture* one, so

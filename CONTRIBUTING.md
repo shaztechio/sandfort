@@ -21,6 +21,11 @@ than to enforce style.
 You need macOS 13+ on Apple silicon, a recent Xcode toolchain, and
 [UTM](https://mac.getutm.app/).
 
+There is no other supported host. Ports to Windows, Linux, and Intel macOS are
+planned and unbuilt; if you are picking one up, start with the plan for it in
+`docs/`, and for Windows see
+[docs/windows-dev-setup.md](docs/windows-dev-setup.md).
+
 ```sh
 make test     # policy and format regression tests
 make app      # release build into dist/Sandfort.app, ad-hoc signed
