@@ -24,16 +24,21 @@ lifecycle management proves to want it.
 
 ## The structural problem: the provider boundary is too small
 
-`VirtualMachineProvider` covers bundle creation, reset, repair, renaming, and a
-running check. It does **not** cover starting, stopping, or unregistering a VM.
-Those live in `UTMLauncher` and `UTMRegistryController`, both written directly
-against UTM's Apple Events, outside the abstraction that is supposed to make
-other hosts possible.
+`VirtualMachineProvider` covers bundle creation, reset, repair, materials attach
+and detach, renaming, and a running check. It does **not** cover starting,
+stopping, or unregistering a VM. Those live in `UTMLauncher` and
+`UTMRegistryController`, both written directly against UTM's Apple Events,
+outside the abstraction that is supposed to make other hosts possible.
 
-On macOS that was reasonable: UTM owns the library and the window, and Sandfort
-is a policy layer over it. **On Linux there is no UTM.** GNOME Boxes is not
-automatable enough to delegate to, and nothing else is ubiquitous. So Sandfort
-becomes the VM manager rather than a layer over one, and it owns process
+That the contract can grow is not theoretical: it already did, when materials
+added `attachMaterials` and `detachMaterials`, and the macOS provider absorbed
+them without disturbing anything else. Lifecycle is a larger version of the same
+move, not a different kind of change.
+
+On macOS the omission was reasonable: UTM owns the library and the window, and
+Sandfort is a policy layer over it. **On Linux there is no UTM.** GNOME Boxes is
+not automatable enough to delegate to, and nothing else is ubiquitous. So
+Sandfort becomes the VM manager rather than a layer over one, and it owns process
 lifecycle: spawn, monitor, shut down, reap, and notice a crash.
 
 That is the largest piece of work in this plan, and it is not Linux-specific
@@ -57,6 +62,15 @@ thinner there. Here the portable core can genuinely be shared, and only the view
 layer — GTK4 with libadwaita, or Qt — needs writing. That makes Linux the
 cheaper of the two ports, and arguably the one that should go first, because it
 proves the shared core with the least rewriting.
+
+One exception, small but worth naming rather than discovering:
+`MaterialsPackager` archives a chosen folder through
+`NSFileCoordinator().coordinate(readingItemAt:options:[.forUploading])`, and
+`NSFileCoordinator` is not in Swift Corelibs Foundation. The size checks, the
+name sanitizing, and the `ISO9660Writer` call all port; that one step needs a
+Linux zip implementation, and it is user-visible because the archive is what the
+user unpacks inside the guest. The Windows plan needs the same thing for the same
+reason.
 
 ## Both architectures matter
 
@@ -88,6 +102,24 @@ Whichever is chosen, `docs/releasing.md` and the release workflow need a Linux
 path, and `security-model.md` needs an honest paragraph about what verifying a
 Linux download actually proves.
 
+## Materials
+
+The QEMU drive shape is identical to the one in
+[WINDOWS.md](WINDOWS.md#materials) — cdrom media, `readonly=on`, a device chosen
+per profile, never VirtIO — and so are the rules that make it safe: clean
+instances only, the file removed as well as the drive entry when repair finds one
+on a setup VM or a baseline, the inherited copy dropped by `createCleanBundle`,
+and the guest always handed an image built from a copy rather than the user's
+file. Attach and repair must write the same shape; they did not once, and repair
+silently undid the attach.
+
+The part specific to this plan is the catalog. `materialsInterface` is SCSI for
+Ubuntu, Debian, and openSUSE and USB for Fedora, and that USB is a fact about the
+**ARM64** Fedora Cloud Base kernel's module set — it ships no `sym53c8xx` — not
+about Fedora. Since this port covers both architectures, every profile qualifies
+its own interface against its own image. Do not carry a value across an
+architecture boundary any more than a checksum.
+
 ## Isolation invariants, mapped
 
 | Invariant | Linux mechanism |
@@ -100,6 +132,9 @@ Linux download actually proves.
 | Instance not running | the qcow2 `fcntl` lock, exactly as today — QEMU holds it |
 | Per-instance identity | fresh VM UUID and MAC per instance |
 | Firmware state per instance | per-instance OVMF vars file, as `efi_vars.fd` today |
+| Materials read-only | cdrom media with `readonly=on`, reasserted on every repair |
+| Materials on clean instances only | never written for setup or baseline; repair strips the entry **and** the file |
+| No guest-to-host path via materials | the image is built from a copy, never the user's file |
 
 `ensureBundleNotRunning` is the one piece that needs no adaptation at all: it
 already tests the QEMU write lock on the disk, and on Linux that is the same
@@ -128,11 +163,15 @@ engineering grounds.
    Prerequisite for any second host, and the riskiest change here.
 2. **Core on Linux.** Everything under "What ports unchanged" building and
    passing on a Linux runner with no UI.
-3. **`QemuKvmProvider`.** Bundle layout, process lifecycle, and every row of the
-   isolation table asserted in tests.
+3. **`QemuKvmProvider`.** Bundle layout, the materials drive, process lifecycle,
+   and every row of the isolation table asserted in tests — including an
+   attach-then-repair test proving repair does not undo the attach.
 4. **One profile end to end**, x86-64 Ubuntu: download, verify, provision, boot,
-   automatic poweroff, graphical login, offline reset, Internet reset.
-5. **The rest of the matrix.** The other three distributions, then ARM64.
+   automatic poweroff, graphical login, offline reset, Internet reset, and
+   materials attached, visible on the desktop, detached, and not resurrected by
+   the next reset.
+5. **The rest of the matrix.** The other three distributions, then ARM64, each
+   qualifying its own `materialsInterface`.
 6. **Shell and packaging.** GTK4 or Qt over the existing view model, and one
    distribution format chosen deliberately.
 
