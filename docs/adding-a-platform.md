@@ -28,11 +28,15 @@ a property of the ARM64 Cloud Base kernel's module set — it ships no
 `sym53c8xx` — not of Fedora, and it fails silently when wrong, because the
 desktop simply never offers the drive.
 
-`WINDOWS.md` and `LINUX.md` work this checklist through in detail. Read
-`LINUX.md` first whichever host you are adding: it records that starting,
-stopping, and unregistering a VM are not part of `VirtualMachineProvider` at all,
-so the contract has to grow before a second host can exist.
+`WINDOWS.md`, `LINUX.md`, and `INTEL.md` each work this checklist through for one
+host in detail:
 
-`WINDOWS.md` works this checklist through for Windows in detail. It recommends
-QEMU rather than Hyper-V, because Hyper-V cannot express "Internet but no host
-access" without host firewall rules the user could undo.
+- Read `LINUX.md` first whichever host you are adding. It records that starting,
+  stopping, and unregistering a VM are not part of `VirtualMachineProvider` at
+  all, so the contract has to grow before a second host can exist.
+- `WINDOWS.md` recommends QEMU rather than Hyper-V, because Hyper-V cannot
+  express "Internet but no host access" without host firewall rules the user
+  could undo.
+- `INTEL.md` is the one plan that argues against itself, on hardware arithmetic
+  rather than engineering. Its Phase 0 is already done, so the architecture axis
+  the other two plans both need is in the code today.
