@@ -159,8 +159,11 @@ engineering grounds.
 
 ## Phases
 
-1. **Widen the provider contract to cover lifecycle**, on macOS, tests green.
-   Prerequisite for any second host, and the riskiest change here.
+1. **Widen the provider contract to cover lifecycle, and split the package**,
+   both on macOS with tests green. `Package.swift` declares one macOS target over
+   all of `sources/sandfortapp/`, 13 of whose 33 files import SwiftUI or AppKit,
+   so there is no portable core to build on a Linux runner until it is split.
+   Prerequisites for any second host, and the riskiest change here.
 2. **Core on Linux.** Everything under "What ports unchanged" building and
    passing on a Linux runner with no UI.
 3. **`QemuKvmProvider`.** Bundle layout, the materials drive, process lifecycle,
