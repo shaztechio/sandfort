@@ -186,8 +186,15 @@ without weakening the common provisioning policy.
   clean Mac. It also frames the larger question of hosting VMs through
   Virtualization.framework instead of driving UTM.
 - `docs/network-observability.md`: plan only, nothing built. Per-sandbox egress
-  monitoring and filtering as a signed Network Extension, and why a host content
-  filter cannot see what a truly offline VM was blocked from attempting.
+  monitoring and filtering, now preferring a per-instance gateway over the signed
+  Network Extension it was first designed around. The deciding argument is not
+  effort: a host content filter receives every flow on the Mac, so "only UTM is
+  watched" would be a promise in Sandfort's code rather than a boundary the
+  system enforces, and UTM's Emulated VLAN hides the guest MAC behind the UTM
+  process anyway, so it cannot tell two instances apart. A gateway also sees
+  attempts it *denied*, which a content filter structurally cannot — the same
+  reason a host filter cannot see what a truly offline VM was blocked from
+  attempting.
 - `docs/deferred-hardware-sizing.md`: plan only. Per-environment RAM and disk
   sizing. There is no per-distribution work; the gap is that `repairBundle`
   never writes `MemorySize` or `CPUCount`.
