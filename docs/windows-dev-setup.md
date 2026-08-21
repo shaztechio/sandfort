@@ -138,14 +138,22 @@ feature query answers whether WHPX itself is available.
 - **Run CI.** `Tests / macos-arm64` is the only job; a Windows job arrives with
   phase 1.
 
-You can, however, test the plan's central bet today without any of that. See
-[windows-qemu-spike.md](windows-qemu-spike.md), which needs only QEMU.
+You can, however, settle two of the plan's open questions today without any of
+that:
+
+- [windows-qemu-spike.md](windows-qemu-spike.md) — does WHPX accelerate, and
+  does `restrict=on` isolate? Needs only QEMU.
+- [core-language-spike.md](core-language-spike.md) — can the guest contract be
+  hand-ported at all? Needs only the candidate language's SDK, and it decides
+  which section above you needed in the first place.
 
 ## Links
 
 - [WINDOWS.md](WINDOWS.md) — the plan this setup serves
 - [windows-qemu-spike.md](windows-qemu-spike.md) — what to do with QEMU once it
   is installed, before any port work begins
+- [core-language-spike.md](core-language-spike.md) — how to settle the core
+  language with an experiment instead of an argument
 - [QEMU on Windows](https://www.qemu.org/download/#windows) and its
   [WHPX documentation](https://www.qemu.org/docs/master/system/whpx.html)
 - [Windows Hypervisor Platform API](https://learn.microsoft.com/en-us/virtualization/api/hypervisor-platform/hypervisor-platform)
