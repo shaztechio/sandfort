@@ -34,14 +34,20 @@ equally: starting, stopping, and unregistering a VM live in `UTMLauncher` and
 before any second host can exist, and that work belongs on macOS with the
 existing tests green — not inside a port.
 
-**A `VirtualMachineProvider` implementation.** Seven methods, all of them about
+**A `VirtualMachineProvider` implementation.** Nine methods, all of them about
 packaging rather than provisioning:
 
 ```
 createSetupBundle    createCleanBundle    resetCleanBundle
-repairBundle         setDisplayName       ensureBundleNotRunning
+repairBundle         attachMaterials      detachMaterials
+setDisplayName       ensureBundleNotRunning
 identifier
 ```
+
+The two materials methods deliberately carry **no default implementation**. A
+provider that quietly ignored them would compile, pass its bundle tests, and
+tell a user their files are in a sandbox that does not have them. See
+[Materials](#materials) below.
 
 `ensureBundleNotRunning` is the one with a platform-specific answer. On macOS it
 tests the qcow2's `fcntl` write lock, which QEMU holds while a VM is live. On
@@ -65,6 +71,15 @@ green, because a verifier that is wrong fails open.
 
 **A launcher.** Spawning the hypervisor with arguments, the way `NSWorkspace`
 opens UTM today. Not a shell dependency.
+
+**Half of `MaterialsPackager`.** The size checks, the name sanitizing, and the
+`ISO9660Writer` call are pure byte work and port unchanged. The folder-archive
+step does not: it runs
+`NSFileCoordinator().coordinate(readingItemAt:options:[.forUploading])`, which
+has no Windows equivalent, so the port writes its own zip. Treat that as
+user-visible behaviour rather than an implementation detail — the archive is
+what lands in the guest and what the user unpacks there — so it needs its own
+test, not an assumption that any zip will do.
 
 ## The hypervisor decision
 
@@ -101,6 +116,50 @@ conversion is worth paying for.
 mounts, localhost forwarding, shared clipboard. That is the negation of the
 guarantee, not a cheaper route to it.
 
+## Materials
+
+A clean instance can carry one extra drive: a read-only image Sandfort builds
+from the file or folder the user picked. [materials.md](materials.md) has the
+full design; what follows is only what changes on this host.
+
+**The drive shape.** macOS writes three things into the UTM plist —
+`ImageType: "CD"`, `Interface` from the profile, and `ReadOnly`. QEMU expresses
+the same drive as cdrom media with `readonly=on` and a device chosen per profile.
+`readonly=on` is the mechanism, not a convention: it is what makes the
+read-only claim true at the hypervisor rather than in the guest's manners. Never
+VirtIO, on any host — as a VirtIO disk the desktop classes the drive as an
+internal system drive and never offers it to the user at all.
+
+**`materialsInterface` is a kernel-module fact, and it is per architecture.**
+Ubuntu, Debian, and openSUSE use SCSI; Fedora uses USB because Fedora Cloud Base
+ships no `sym53c8xx`. That is not a property of Fedora. It is a property of the
+**ARM64** Fedora Cloud Base kernel's module set, and an x86-64 image is a
+different kernel build. Qualify each x86-64 profile's interface against its own
+image and never inherit the ARM64 value — the same rule that forbids reusing an
+ARM64 checksum, applied to a different field.
+
+**Materials reach clean instances only**, and three separate places have to hold
+that: `attachMaterials` is never called for a setup VM or a protected baseline;
+`repairBundle` removes an image from those roles — the file as well as the drive
+entry, since an orphaned payload is still the user's file sitting in a bundle;
+and `createCleanBundle` drops one inherited from the baseline clone.
+
+**The guest is handed a copy, never the user's file.** Guest-to-host is
+impossible by construction rather than by configuration, which is what makes
+this survivable if `readonly=on` is ever wrong. Reasserting `ReadOnly` on every
+repair sits on top of that, not instead of it.
+
+**Attach and repair must write the same drive shape.** They did not once, and
+repair silently undid the attach on the next state read. Whatever the QEMU
+provider writes on attach, its repair path writes identically — assert it, in
+one test that attaches and then repairs.
+
+**The 512 MiB payload limit is host-neutral.** It is a memory bound, not a disk
+one: the ISO is built whole in memory while the caller still holds the payload.
+Raising it on Windows needs the same fix it needs on macOS — streaming
+`ISO9660Writer` to a file handle first — so it is not a macOS limitation a port
+gets to relax.
+
 ## Security invariants, mapped
 
 Every rule in `docs/security-model.md` has to hold. The ones whose *mechanism*
@@ -116,6 +175,9 @@ changes:
 | Instance not running | file share-mode probe, not `fcntl` |
 | Per-instance identity | fresh VM UUID and MAC per instance, as today |
 | Firmware state per instance | per-instance OVMF vars file, as `efi_vars.fd` today |
+| Materials read-only | cdrom media with `readonly=on`, reasserted on every repair |
+| Materials on clean instances only | never written for setup or baseline; repair strips the entry **and** the file |
+| No guest-to-host path via materials | the image is built from a copy, never the user's file |
 
 Prove each one in tests, not by inspection. That is step 5 of
 `adding-a-platform.md` and it is the actual gate.
@@ -126,16 +188,21 @@ Prove each one in tests, not by inspection. That is step 5 of
 backend, building and passing its tests on Windows with no UI. Exit: the full
 non-UI test suite is green on a Windows runner.
 
-**2. Provider.** `QemuBundleProvider` implementing the seven methods, writing a
-bundle layout of its own. Exit: bundle-format regression tests pass, and every
-row of the table above is asserted.
+**2. Provider.** `QemuBundleProvider` implementing the nine methods, writing a
+bundle layout of its own, including the materials drive. Exit: bundle-format
+regression tests pass and every row of the table above is asserted — the three
+materials rows among them, plus an attach-then-repair test proving repair does
+not undo the attach.
 
 **3. One profile, end to end.** Ubuntu x86-64 only. Download, verify, provision,
-boot, automatic poweroff, graphical login, offline reset, Internet reset. Exit:
-a real boot smoke test, the same bar the four ARM64 profiles had to clear.
+boot, automatic poweroff, graphical login, offline reset, Internet reset, and
+materials attached, mounted and visible on the desktop, detached, and **not**
+resurrected by the next reset. Exit: a real boot smoke test, the same bar the
+four ARM64 profiles had to clear.
 
 **4. The other three profiles.** Fedora, Debian, openSUSE on x86-64, each with
-its own qualification run and provenance record.
+its own qualification run, provenance record, and its own `materialsInterface`
+confirmed against its own image rather than inherited from ARM64.
 
 **5. Shell.** WinUI or Avalonia over the existing view model.
 

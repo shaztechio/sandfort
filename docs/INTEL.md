@@ -137,6 +137,10 @@ strongest part of the case:
   explicit big-endian initializer, and the ISO writer deliberately emits both
   endiannesses. Nothing depends on host byte order.
 - The disk-lock check. Plain POSIX `fcntl(F_SETLK)`, identical on x86_64 macOS.
+- `MaterialsPackager.swift`. Same `NSFileCoordinator` folder archive, same
+  `ISO9660Writer`, same `UTMBundleBuilder` drive entry. Both sibling plans have
+  to rewrite the archive step because `NSFileCoordinator` is Apple-only; here
+  there is nothing to rewrite at all.
 - `OpenPGPSignatureVerifier.swift` and `TrustedSigningKeys.swift`. Same
   Security.framework, and Ubuntu, Fedora, and openSUSE sign their x86_64
   manifests with the keys already bundled. No cryptographic substitution at all,
@@ -201,6 +205,11 @@ disk lock is the same syscall, and per-instance UUIDs and MACs are unaffected.
 
 **One row changes**: per-instance firmware state, which is the same mechanism
 with a different source blob, per the firmware finding above.
+
+Materials are among the mechanisms that do not change: the same
+`ImageType: "CD"`, the same `ReadOnly`, the same clean-instance-only rule, and
+the same copy rather than the user's file. Worth saying because both sibling
+plans spend a section on it — this one does not need to.
 
 One addition to residual risk, and it is not about isolation. UTM has an
 unresolved report of **high idle host CPU under HVF on Intel**, with a
@@ -277,6 +286,14 @@ slice they cannot run.
 
 **Phase 3 — the other three profiles**, each with its own qualification run,
 provenance record, and Make target.
+
+One item that is easy to miss because it is a one-word field: each x86_64 profile
+confirms its own `materialsInterface` rather than copying the ARM64 value.
+Fedora's `USB` is a fact about the ARM64 Cloud Base kernel shipping no
+`sym53c8xx`, not about Fedora, and an x86_64 image is a different kernel build.
+It is cheap to check and silent when wrong — the desktop simply never offers the
+drive, on the one profile whose users would blame the feature rather than the
+field.
 
 **Phase 4 — docs and site**, including the project site's requirements copy.
 
