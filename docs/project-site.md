@@ -113,14 +113,21 @@ for a while.
 
 ## Analytics
 
-Both the snippet and the events go through `t.sandfort.app`, PostHog's managed
+Both the snippet and the events go through `t.shaztech.io`, PostHog's managed
 reverse proxy for this project, rather than `us-assets.i.posthog.com` and
-`us.i.posthog.com` directly. That is one first-party origin instead of two
-third-party ones, which the blockers keyed on PostHog's own hostnames do not
-match. `ui_host` still names `us.posthog.com`, so the toolbar and the links
-PostHog generates point back at the real app rather than at the proxy; the
-snippet needs that key precisely *because* `api_host` is no longer a PostHog
-domain.
+`us.i.posthog.com` directly. What that buys is narrow and worth stating
+precisely: the proxy hostname is not on the filter lists that ship with the
+common content blockers, whereas PostHog's own two hostnames are. It does not
+make the request first-party — the site is served from `sandfort.app`, so
+`t.shaztech.io` is a different registrable domain and the browser treats it as
+cross-site exactly as it did before. A blocker that rejects third-party
+requests wholesale still rejects this one; only the name-matching rules are
+sidestepped. Pointing the proxy at a `sandfort.app` subdomain is what would
+close that gap, and it is a DNS change rather than a code one.
+
+`ui_host` still names `us.posthog.com`, so the toolbar and the links PostHog
+generates point back at the real app rather than at the proxy; the snippet
+needs that key precisely *because* `api_host` is no longer a PostHog domain.
 
 It is the only external request the site makes, and it is configured with
 `person_profiles: 'identified_only'`, so anonymous visitors get no person
