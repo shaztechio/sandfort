@@ -121,6 +121,12 @@ reachability on Hyper-V that does not depend on host firewall rules the user
 could undo. If that exists, Hyper-V becomes the better answer and the disk
 conversion is worth paying for.
 
+None of this has been run. [windows-qemu-spike.md](windows-qemu-spike.md) checks
+the two claims underneath it — that WHPX accelerates, and that
+`-netdev user,restrict=on` isolates — in an afternoon, with no Sandfort code and
+before phase 0. If either fails, the recommendation reopens while it is still
+only a document.
+
 **WSL2 is not a candidate.** Its entire design is host integration — drive
 mounts, localhost forwarding, shared clipboard. That is the negation of the
 guarantee, not a cheaper route to it.

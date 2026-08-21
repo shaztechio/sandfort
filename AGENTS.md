@@ -182,6 +182,12 @@ without weakening the common provisioning policy.
   remembered. It opens by telling you not to install anything yet, which is the
   point: the core language is undecided and picks the toolchain, and phase 0 is
   macOS work that no Windows machine can begin.
+- `docs/windows-qemu-spike.md`: the one thing a Windows machine *can* do first —
+  check that WHPX accelerates and that `-netdev user,restrict=on` isolates,
+  using QEMU alone. Deliberately not a qualification run: nothing it produces may
+  reach the catalog. It is also explicit about the half of the
+  `materialsInterface` question it cannot answer, because a server cloud image
+  has no desktop and the VirtIO objection is about what a desktop offers a user.
 - `docs/INTEL.md`: plan only, and the one port plan that argues against itself.
   Intel macOS is the cheapest of the three ports — the widened-contract
   prerequisite is a second-*host* problem, not a second-*architecture* one, so
