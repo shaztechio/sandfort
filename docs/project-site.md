@@ -113,11 +113,19 @@ for a while.
 
 ## Analytics
 
-The page loads PostHog from `us-assets.i.posthog.com` and sends events to
-`us.i.posthog.com`. It is the only external request the site makes, and it is
-configured with `person_profiles: 'identified_only'`, so anonymous visitors get
-no person profile. The project key in the snippet is a public write-only key and
-is meant to be readable in the page source.
+Both the snippet and the events go through `t.sandfort.app`, PostHog's managed
+reverse proxy for this project, rather than `us-assets.i.posthog.com` and
+`us.i.posthog.com` directly. That is one first-party origin instead of two
+third-party ones, which the blockers keyed on PostHog's own hostnames do not
+match. `ui_host` still names `us.posthog.com`, so the toolbar and the links
+PostHog generates point back at the real app rather than at the proxy; the
+snippet needs that key precisely *because* `api_host` is no longer a PostHog
+domain.
+
+It is the only external request the site makes, and it is configured with
+`person_profiles: 'identified_only'`, so anonymous visitors get no person
+profile. The project key in the snippet is a public write-only key and is meant
+to be readable in the page source.
 
 This measures **the website**, not the app. Sandfort itself still collects and
 transmits nothing, which is what the "Local credentials" bullet on the page
