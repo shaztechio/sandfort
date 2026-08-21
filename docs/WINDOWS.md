@@ -246,6 +246,13 @@ described above, both belong to macOS rather than to a port, and neither should
 be attempted while also writing a second provider. Exit: the existing suite green
 on macOS, and a core target that builds without SwiftUI.
 
+**Both are worth doing whether or not this port ever happens**, the way
+`INTEL.md`'s phase 0 was. Moving lifecycle behind the provider gets Apple Events
+out of the app's middle, and separating the core from the view layer is ordinary
+hygiene that happens to be a prerequisite. Neither is speculative work banked
+against a port that may not start — which matters, because everything after this
+phase is.
+
 **1. Core port.** Everything in "What ports unchanged", plus the CNG signature
 backend, building and passing its tests on Windows with no UI. Exit: the full
 non-UI test suite is green on a Windows runner, on a host meeting the
@@ -284,6 +291,12 @@ of correct signing — plan for that rather than being surprised by it.
   reproduce byte for byte. See
   [core-language-spike.md](core-language-spike.md), and run it before phase 0,
   because the answer decides how much of phase 0 pays for itself.
+- **Has any of this been run?** No. The hypervisor recommendation, the two
+  network modes, and the acceleration story are all reasoned rather than
+  observed. [windows-qemu-spike.md](windows-qemu-spike.md) checks the two that
+  matter most in an afternoon, with QEMU alone and no Sandfort code. Do it before
+  phase 0 — a wrong hypervisor found here costs a day, and found in phase 3 costs
+  a phase.
 - **Does WHPX work on Windows Home?** The reasoning under "Host requirements"
   says it should and cannot prove it. Check a Home machine early: the answer
   decides how much of consumer Windows the port reaches, and it is cheap to
