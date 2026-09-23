@@ -71,6 +71,53 @@ permission macOS asks for the first time Sandfort drives UTM, and the rest of
 the day-to-day detail are in the [Help guide](HELP.md); the guarantees
 underneath them are in [docs/security-model.md](docs/security-model.md).
 
+## Installing Claude Code and Codex CLI
+
+Install the CLIs during baseline setup so they remain available after **Reset &
+Run Clean**. For each environment you want configured:
+
+1. Enable **Latest Node.js LTS + npm** in the development-tool options.
+2. In **Advanced mode**, add this [custom setup script](docs/custom-setup-scripts.md):
+
+   ```bash
+   #!/usr/bin/env bash
+   set -euo pipefail
+
+   sudo -H -u sandfort env PATH="/usr/local/bin:/usr/bin:/bin" bash <<'USER_SETUP'
+   set -euo pipefail
+
+   # Install into the guest user's home without root permissions.
+   mkdir -p "$HOME/.local/bin"
+   npm install --global --prefix "$HOME/.local" \
+     @anthropic-ai/claude-code@latest \
+     @openai/codex@latest
+
+   # Make both commands available in new terminals.
+   echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+
+   "$HOME/.local/bin/claude" --version
+   "$HOME/.local/bin/codex" --version
+   USER_SETUP
+   ```
+
+3. Create the environment, or stop its VMs and choose **Rebuild** if it already
+   has a baseline. Changing the script alone does not update an existing baseline.
+4. Once setup completes, launch a clean instance **With Internet**. Open a
+   terminal inside the VM and run `claude` or `codex`, then follow its sign-in
+   prompts inside the VM. Both need Internet access to use their hosted models.
+
+Keep passwords, API keys, and tokens out of the setup script: Sandfort stores it
+in app state and the seed image. Sign in only after launching an instance. A
+clean reset erases that login and other session changes while retaining the
+CLIs installed in the baseline; **Resume Instance** preserves the current state.
+
+The example installs the latest npm releases available when setup runs. Both
+vendors document npm installation: [Claude Code setup](https://code.claude.com/docs/en/setup#install-with-npm)
+and [Codex installation](https://developers.openai.com/cookbook/examples/codex/using_goals_in_codex).
+This script has not been smoke-tested through a full Sandfort baseline build.
+An installation failure aborts setup; fix the script and rebuild rather than
+choosing **Finish Setup** after a failure.
+
 ## Native runtime
 
 The distributed app does not bundle or invoke shell scripts, `osascript`,
